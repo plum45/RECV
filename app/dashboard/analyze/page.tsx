@@ -18,7 +18,7 @@ import SRChart from "../../../components/SRChart";
 import { TickerData, IndicatorData, SupportResistanceData, KlineData } from "../../../types/market";
 import { NewsArticle } from "../../../types/news";
 import { SentimentData } from "../../../types/analysis";
-import { useAuth } from "../../contexts/AuthContext";
+import { useAuth } from "../../../contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { db } from "../../../lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
