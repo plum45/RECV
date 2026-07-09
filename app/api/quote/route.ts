@@ -23,8 +23,31 @@ export async function POST(request: Request) {
             changePercent: quote.regularMarketChangePercent || 0,
           };
         } catch (e) {
-          console.error(`Failed to fetch quote for ${symbol}:`, e);
-          return null; // Return null if invalid or failed
+          console.error(`Failed to fetch quote for ${symbol}, using mock data:`, e);
+          
+          // Fallback if Yahoo Finance blocks the IP (e.g. on Render/Vercel)
+          const basePrices: Record<string, number> = {
+            "NVDA": 130.50,
+            "AAPL": 220.15,
+            "TSLA": 250.00,
+            "MSFT": 430.20,
+            "SPY": 545.00,
+            "BTC-USD": 65000.00,
+            "ETH-USD": 3500.00,
+          };
+          
+          const upperSymbol = symbol.toUpperCase();
+          const basePrice = basePrices[upperSymbol] || (100 + Math.random() * 50);
+          const changePercent = (Math.random() * 6) - 3; // -3% to +3%
+          const change = (basePrice * changePercent) / 100;
+          
+          return {
+            symbol: upperSymbol,
+            name: `${upperSymbol} (จำลองข้อมูล)`, // Indicator that it's simulated
+            price: basePrice + change,
+            change: change,
+            changePercent: changePercent,
+          };
         }
       })
     );
