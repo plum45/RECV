@@ -15,7 +15,7 @@ export default function DashboardHome() {
   }
 
   return (
-    <div className="flex h-screen bg-[#090d16] overflow-hidden text-slate-200">
+    <div className="flex h-full bg-[#090d16] overflow-hidden text-slate-200">
       <div className="flex-1 flex flex-col min-w-0 h-full p-4 lg:p-6 pb-20 lg:pb-6 gap-6 overflow-y-auto custom-scrollbar">
         
         {/* Header */}

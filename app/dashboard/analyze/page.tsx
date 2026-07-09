@@ -278,7 +278,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col antialiased bg-grid-pattern relative selection:bg-indigo-500/30 selection:text-white">
+    <div className="min-h-full bg-slate-950 text-slate-100 flex flex-col antialiased bg-grid-pattern relative selection:bg-indigo-500/30 selection:text-white">
 
       {/* ── Ambient Background Glows ─────────────────────────────── */}
       <div className="fixed top-0 left-0 w-[700px] h-[700px] bg-radial-glow-1 pointer-events-none z-0 animate-pulse-glow" />

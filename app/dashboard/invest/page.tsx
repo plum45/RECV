@@ -111,8 +111,6 @@ export default function InvestPage() {
           </div>
         </section>
       </div>
-
-      <MobileNavBar activeTab="invest" setActiveTab={() => {}} />
     </div>
   );
 }
