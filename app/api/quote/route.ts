@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import yahooFinance from "yahoo-finance2";
+import YahooFinance from "yahoo-finance2";
+const yahooFinance = new YahooFinance();
 
 export async function POST(request: Request) {
   try {
@@ -22,6 +23,7 @@ export async function POST(request: Request) {
             changePercent: quote.regularMarketChangePercent || 0,
           };
         } catch (e) {
+          console.error(`Failed to fetch quote for ${symbol}:`, e);
           return null; // Return null if invalid or failed
         }
       })
