@@ -2,7 +2,7 @@ import { KlineData, IndicatorData, SupportResistanceZone, SupportResistanceData 
 
 interface CandidatePoint {
   price: number;
-  type: "swing_high" | "swing_low" | "ema" | "pivot" | "round_number";
+  type: "swing_high" | "swing_low" | "ema" | "pivot" | "round_number" | "fvg" | "orderblock";
   name: string;
   volume?: number;
 }
@@ -77,6 +77,31 @@ export function calculateSupportResistance(
   candidates.push({ price: p.s1, type: "pivot", name: "Pivot S1" });
   candidates.push({ price: p.s2, type: "pivot", name: "Pivot S2" });
   candidates.push({ price: p.s3, type: "pivot", name: "Pivot S3" });
+
+  // 3.5 Smart Money Concepts (FVG & Order Blocks)
+  for (let i = Math.max(2, len - 100); i < len; i++) {
+    const c1 = klines[i - 2];
+    const c2 = klines[i - 1];
+    const c3 = klines[i];
+
+    // Bullish FVG: c1 high < c3 low
+    if (c1.high < c3.low && c2.close > c2.open) {
+      const fvgMid = (c1.high + c3.low) / 2;
+      candidates.push({ price: fvgMid, type: "fvg", name: "Bullish FVG (Demand)" });
+      if (c1.close < c1.open) {
+        candidates.push({ price: (c1.open + c1.close)/2, type: "orderblock", name: "Bullish OB" });
+      }
+    }
+    
+    // Bearish FVG: c1 low > c3 high
+    if (c1.low > c3.high && c2.close < c2.open) {
+      const fvgMid = (c1.low + c3.high) / 2;
+      candidates.push({ price: fvgMid, type: "fvg", name: "Bearish FVG (Supply)" });
+      if (c1.close > c1.open) {
+        candidates.push({ price: (c1.open + c1.close)/2, type: "orderblock", name: "Bearish OB" });
+      }
+    }
+  }
 
   // 4. Add Psychological round numbers
   // Determine step size based on price magnitude
@@ -161,10 +186,16 @@ export function calculateSupportResistance(
         score += 1.5;
       } else if (c.type === "pivot") {
         pivots.push(c.name);
-        score += 1.2;
+        score += 1.0;
       } else if (c.type === "round_number") {
         roundNumber = true;
-        score += 0.8;
+        score += 0.5;
+      } else if (c.type === "fvg") {
+        reasons.push(c.name);
+        score += 2.0; // High weight for Fair Value Gaps
+      } else if (c.type === "orderblock") {
+        reasons.push(c.name);
+        score += 2.5; // Highest weight for Order Blocks
       }
     });
 
