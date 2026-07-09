@@ -13,7 +13,7 @@ import NewsPanel from "../../../components/NewsPanel";
 import RocketScoreCard from "../../../components/RocketScoreCard";
 import AnalysisPanel from "../../../components/AnalysisPanel";
 import LoadingState from "../../../components/LoadingState";
-import PortfolioView from "../../../components/PortfolioView";
+
 import SRChart from "../../../components/SRChart";
 import { TickerData, IndicatorData, SupportResistanceData, KlineData } from "../../../types/market";
 import { NewsArticle } from "../../../types/news";
@@ -435,9 +435,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {activeTab === "portfolio" ? (
-          <PortfolioView />
-        ) : (
           <>
 
             {/* Dashboard Grid Workspace */}
@@ -522,7 +519,6 @@ export default function Dashboard() {
               </div>
             </div>
           </>
-        )}
 
       </main>
 
