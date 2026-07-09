@@ -23,8 +23,9 @@ export default function RegisterPage() {
     setError("");
     setLoading(true);
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      router.push("/");
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      // Wait a moment for firestore trigger to create doc, or create explicitly
+      router.push("/dashboard");
     } catch (err: any) {
       setError(err.message || "Failed to register");
     } finally {
