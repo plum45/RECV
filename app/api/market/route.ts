@@ -10,9 +10,29 @@ export async function GET() {
       { symbol: "^DJI", name: "DOW JONES" },
     ];
 
+    const finnhubKey = process.env.FINNHUB_API_KEY;
+
     const results = await Promise.all(
       indices.map(async (idx) => {
         try {
+          if (finnhubKey) {
+            // Note: Finnhub uses different symbols for indices sometimes, but let's try mapping common ones
+            const finnhubSymbol = idx.symbol === "^GSPC" ? "SPY" : idx.symbol === "^IXIC" ? "QQQ" : idx.symbol === "^DJI" ? "DIA" : idx.symbol;
+            const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${finnhubSymbol}&token=${finnhubKey}`);
+            const data = await res.json();
+            
+            if (data && data.c !== 0) {
+              return {
+                symbol: idx.symbol,
+                name: idx.name,
+                price: data.c,
+                change: data.d,
+                changePercent: data.dp,
+              };
+            }
+          }
+
+          // Fallback to Yahoo
           const quote = await yahooFinance.quote(idx.symbol);
           return {
             symbol: idx.symbol,
@@ -22,7 +42,7 @@ export async function GET() {
             changePercent: quote.regularMarketChangePercent || 0,
           };
         } catch (e) {
-          // Fallback if Yahoo Finance blocks the IP (e.g. on Render/Vercel)
+          // Fallback if APIs fail (e.g. on Render without Finnhub key)
           const basePrices: Record<string, number> = {
             "^GSPC": 5450.00,
             "^IXIC": 17800.00,

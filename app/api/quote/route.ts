@@ -4,20 +4,38 @@ const yahooFinance = new YahooFinance();
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json().catch(() => ({}));
-    const symbols = body.symbols;
-    
-    if (!Array.isArray(symbols) || symbols.length === 0) {
-      return NextResponse.json({ error: "Please provide an array of symbols" }, { status: 400 });
+    const { symbols } = await request.json();
+    if (!symbols || !Array.isArray(symbols)) {
+      return NextResponse.json({ error: "Invalid symbols array" }, { status: 400 });
     }
+
+    const finnhubKey = process.env.FINNHUB_API_KEY;
 
     const results = await Promise.all(
       symbols.map(async (symbol) => {
+        const upperSymbol = symbol.toUpperCase();
         try {
+          if (finnhubKey) {
+            // Use Finnhub API if key is provided
+            const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${upperSymbol}&token=${finnhubKey}`);
+            const data = await res.json();
+            
+            if (data && data.c !== 0) {
+              return {
+                symbol: upperSymbol,
+                name: upperSymbol,
+                price: data.c, // Current price
+                change: data.d, // Change
+                changePercent: data.dp, // Percent change
+              };
+            }
+          }
+
+          // Fallback to Yahoo Finance (Localhost)
           const quote = (await yahooFinance.quote(symbol)) as any;
           return {
-            symbol: symbol.toUpperCase(),
-            name: quote.shortName || quote.longName || symbol.toUpperCase(),
+            symbol: upperSymbol,
+            name: quote.shortName || quote.longName || upperSymbol,
             price: quote.regularMarketPrice || 0,
             change: quote.regularMarketChange || 0,
             changePercent: quote.regularMarketChangePercent || 0,
@@ -25,7 +43,7 @@ export async function POST(request: Request) {
         } catch (e) {
           console.error(`Failed to fetch quote for ${symbol}, using mock data:`, e);
           
-          // Fallback if Yahoo Finance blocks the IP (e.g. on Render/Vercel)
+          // Fallback if APIs fail (e.g. on Render without Finnhub key)
           const basePrices: Record<string, number> = {
             "NVDA": 130.50,
             "AAPL": 220.15,
@@ -36,14 +54,13 @@ export async function POST(request: Request) {
             "ETH-USD": 3500.00,
           };
           
-          const upperSymbol = symbol.toUpperCase();
           const basePrice = basePrices[upperSymbol] || (100 + Math.random() * 50);
           const changePercent = (Math.random() * 6) - 3; // -3% to +3%
           const change = (basePrice * changePercent) / 100;
           
           return {
             symbol: upperSymbol,
-            name: `${upperSymbol} (จำลองข้อมูล)`, // Indicator that it's simulated
+            name: `${upperSymbol} (รอใส่ API Key)`, 
             price: basePrice + change,
             change: change,
             changePercent: changePercent,
@@ -53,9 +70,9 @@ export async function POST(request: Request) {
     );
 
     // Filter out nulls
-    const validResults = results.filter((r) => r !== null);
-    return NextResponse.json(validResults);
+    return NextResponse.json(results.filter(Boolean));
   } catch (error) {
+    console.error("Quote API Error:", error);
     return NextResponse.json({ error: "Failed to fetch quotes" }, { status: 500 });
   }
 }
