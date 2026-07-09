@@ -17,6 +17,10 @@ import SRChart from "../components/SRChart";
 import { TickerData, IndicatorData, SupportResistanceData, KlineData } from "../types/market";
 import { NewsArticle } from "../types/news";
 import { SentimentData } from "../types/analysis";
+import { useAuth } from "../contexts/AuthContext";
+import { useRouter } from "next/navigation";
+import { db } from "../lib/firebase";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
 interface MarqueeTicker {
   symbol: string;
@@ -25,6 +29,9 @@ interface MarqueeTicker {
 }
 
 export default function Dashboard() {
+  const { user, loading: authLoading, logout } = useAuth();
+  const router = useRouter();
+
   // Navigation Tab State
   const [activeTab, setActiveTab] = useState<"dashboard" | "portfolio">("dashboard");
 
@@ -45,6 +52,51 @@ export default function Dashboard() {
   const [supportResistance, setSupportResistance] = useState<SupportResistanceData | null>(null);
   const [news, setNews] = useState<NewsArticle[]>([]);
   const [sentiment, setSentiment] = useState<SentimentData | null>(null);
+
+  // Firestore Sync Effect
+  useEffect(() => {
+    if (!user) return;
+    const loadPrefs = async () => {
+      try {
+        const docRef = doc(db, "users", user.uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.symbol) setSymbol(data.symbol);
+          if (data.timeframe) setTimeframe(data.timeframe);
+          if (data.tradingStyle) setTradingStyle(data.tradingStyle);
+          if (data.riskPercent) setRiskPercent(data.riskPercent);
+          if (data.analysisMode) setAnalysisMode(data.analysisMode);
+        }
+      } catch (err) {
+        console.error("Failed to load user preferences", err);
+      }
+    };
+    loadPrefs();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const savePrefs = async () => {
+      try {
+        await setDoc(doc(db, "users", user.uid), {
+          symbol, timeframe, tradingStyle, riskPercent, analysisMode
+        }, { merge: true });
+      } catch (err) {
+        console.error("Failed to save user preferences", err);
+      }
+    };
+    // Debounce saving slightly
+    const timer = setTimeout(savePrefs, 1000);
+    return () => clearTimeout(timer);
+  }, [symbol, timeframe, tradingStyle, riskPercent, analysisMode, user]);
+
+  // Auth Protection
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/auth/login");
+    }
+  }, [user, authLoading, router]);
 
   // AI analysis state
   const [analysisReport, setAnalysisReport] = useState<string | null>(null);
@@ -232,8 +284,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Tab Navigation Pill */}
-        <div className="flex bg-slate-900/80 border border-slate-800/70 backdrop-blur-md rounded-2xl p-1 gap-1 shadow-inner">
+        {/* Tab Navigation Pill - Mobile responsive: scale down text or hide if needed */}
+        <div className="flex bg-slate-900/80 border border-slate-800/70 backdrop-blur-md rounded-2xl p-1 gap-1 shadow-inner w-full sm:w-auto justify-center overflow-x-auto">
           {(["dashboard", "portfolio"] as const).map((tab) => (
             <button
               key={tab}
@@ -263,9 +315,22 @@ export default function Dashboard() {
           >
             <RotateCw size={14} className={initialLoading ? "animate-spin text-indigo-400" : ""} />
           </button>
-          <button className="p-2 bg-slate-900/80 border border-slate-800 hover:border-slate-700 hover:bg-slate-800/80 text-slate-400 hover:text-slate-200 rounded-xl transition-all duration-300 cursor-pointer">
-            <Settings size={14} />
-          </button>
+          
+          {/* User profile / Logout */}
+          {user && (
+            <div className="flex items-center gap-3 border-l border-slate-800 pl-3 ml-1">
+              <div className="hidden lg:block text-[10px] text-slate-400 font-medium truncate max-w-[120px]">
+                {user.email}
+              </div>
+              <button 
+                onClick={logout}
+                title="ออกจากระบบ"
+                className="text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                Logout
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
