@@ -312,17 +312,13 @@ export default function PortfolioView() {
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                 เลือกหุ้น
               </label>
-              <select
+              <input
+                type="text"
+                placeholder="เช่น AAPL, TSLA"
                 value={symbol}
-                onChange={(e) => setSymbol(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl px-3 py-2.5 outline-none cursor-pointer hover:border-slate-700 focus:border-indigo-500 transition-all"
-              >
-                {symbols.map((sym) => (
-                  <option key={sym.value} value={sym.value}>
-                    {sym.label}
-                  </option>
-                ))}
-              </select>
+                onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+                className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl px-3 py-2.5 outline-none hover:border-slate-700 focus:border-indigo-500 transition-all uppercase"
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
