@@ -4,6 +4,7 @@ import React from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import MarketIndices from "../../components/MarketIndices";
 import Watchlist from "../../components/Watchlist";
+import NewsMarquee from "../../components/NewsMarquee";
 import LoadingState from "../../components/LoadingState";
 
 export default function DashboardHome() {
@@ -37,6 +38,11 @@ export default function DashboardHome() {
         {/* Watchlist */}
         <section className="flex-1 flex flex-col min-h-[400px]">
           <Watchlist />
+        </section>
+
+        {/* News Marquee */}
+        <section className="mt-2">
+          <NewsMarquee />
         </section>
 
       </div>
