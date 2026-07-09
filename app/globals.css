@@ -1,0 +1,188 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital,wght@0,400;1,400&family=Barlow:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+:root {
+  --background: #020617;
+  --foreground: #f1f5f9;
+  --font-serif: 'Instrument Serif', serif;
+  --font-sans: 'Barlow', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Design tokens */
+  --glow-indigo: rgba(99, 102, 241, 0.18);
+  --glow-purple: rgba(168, 85, 247, 0.14);
+  --border-dim: rgba(30, 41, 59, 0.8);
+  --border-bright: rgba(99, 102, 241, 0.25);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-serif: var(--font-serif);
+  --font-mono: var(--font-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  overflow-x: hidden;
+  font-family: var(--font-sans), sans-serif;
+}
+
+/* ─── MONOSPACE OVERRIDE ───────────────────────────────────── */
+.font-mono {
+  font-family: var(--font-mono), monospace;
+}
+
+/* ─── PREMIUM GRID BACKGROUND ──────────────────────────────── */
+.bg-grid-pattern {
+  background-size: 40px 40px;
+  background-image:
+    linear-gradient(to right, rgba(99, 102, 241, 0.018) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(99, 102, 241, 0.018) 1px, transparent 1px);
+}
+
+/* ─── RADIAL GLOWS ─────────────────────────────────────────── */
+.bg-radial-glow-1 {
+  background: radial-gradient(ellipse at center, rgba(99, 102, 241, 0.10) 0%, transparent 65%);
+}
+.bg-radial-glow-2 {
+  background: radial-gradient(ellipse at center, rgba(168, 85, 247, 0.08) 0%, transparent 65%);
+}
+.bg-radial-glow-3 {
+  background: radial-gradient(ellipse at center, rgba(16, 185, 129, 0.04) 0%, transparent 70%);
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.06); }
+}
+.animate-pulse-glow { animation: pulse-glow 7s infinite ease-in-out; }
+
+/* ─── MARQUEE ───────────────────────────────────────────────── */
+@keyframes marquee {
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-50%, 0, 0); }
+}
+.animate-marquee {
+  display: flex;
+  gap: 4rem;
+  animation: marquee 32s linear infinite;
+  width: max-content;
+}
+
+/* ─── SECTION LABEL (premium divider with label) ─────────────── */
+.section-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.section-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, rgba(99, 102, 241, 0.2), transparent);
+}
+
+/* ─── PREMIUM CARD ─────────────────────────────────────────── */
+.panel-card {
+  background: linear-gradient(135deg, rgba(15,23,42,0.95) 0%, rgba(8,15,30,0.98) 100%);
+  border: 1px solid rgba(30,41,59,0.7);
+  border-radius: 20px;
+  box-shadow:
+    0 0 0 1px rgba(99, 102, 241, 0.04) inset,
+    0 4px 24px rgba(0, 0, 0, 0.5),
+    0 1px 0 rgba(99, 102, 241, 0.08) inset;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.panel-card:hover {
+  border-color: rgba(99, 102, 241, 0.18);
+  box-shadow:
+    0 0 0 1px rgba(99, 102, 241, 0.06) inset,
+    0 8px 40px rgba(0, 0, 0, 0.6),
+    0 0 30px rgba(99, 102, 241, 0.04);
+}
+.panel-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(99, 102, 241, 0.3) 40%, rgba(168, 85, 247, 0.2) 60%, transparent 100%);
+}
+
+/* ─── PANEL HEADER ─────────────────────────────────────────── */
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid rgba(30, 41, 59, 0.6);
+}
+.panel-header-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.panel-header-badge {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 99px;
+  border: 1px solid;
+}
+
+/* ─── SCROLLBAR ────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #020617; }
+::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: #334155; }
+
+/* ─── TYPOGRAPHY ───────────────────────────────────────────── */
+.font-serif-italic {
+  font-family: var(--font-serif);
+  font-style: italic;
+}
+
+/* ─── GLOW BUTTON ──────────────────────────────────────────── */
+.btn-analyze {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #9333ea 100%);
+  box-shadow: 0 0 0 1px rgba(139,92,246,0.3), 0 4px 20px rgba(99,102,241,0.25);
+  transition: all 0.3s ease;
+}
+.btn-analyze:hover:not(:disabled) {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+  box-shadow: 0 0 0 1px rgba(167,139,250,0.4), 0 6px 30px rgba(139,92,246,0.4);
+  transform: translateY(-1px);
+}
+.btn-analyze:disabled {
+  background: #1e293b;
+  box-shadow: none;
+}
+
+/* ─── CHART CONTAINER ──────────────────────────────────────── */
+.chart-container {
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(30,41,59,0.6), 0 20px 60px rgba(0,0,0,0.5);
+}
+
+/* ─── SHIMMER ANIMATION ────────────────────────────────────── */
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+  background-size: 800px 100%;
+  animation: shimmer 2s infinite linear;
+}

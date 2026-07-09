@@ -1,0 +1,403 @@
+"use client";
+
+import React, { useMemo } from "react";
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ReferenceLine,
+  ReferenceArea,
+  CartesianGrid,
+} from "recharts";
+import { IndicatorData, SupportResistanceData, KlineData } from "../types/market";
+
+interface SRChartProps {
+  klines: KlineData[] | null;
+  indicators: IndicatorData | null;
+  supportResistance: SupportResistanceData | null;
+  currentPrice: number | null;
+}
+
+// Parse "low-high" zone string → midpoint price
+function parseZoneMid(zoneStr: string): { low: number; high: number; mid: number } | null {
+  try {
+    const clean = zoneStr.replace(/,/g, "");
+    const parts = clean.split("-");
+    if (parts.length === 2) {
+      const low = parseFloat(parts[0]);
+      const high = parseFloat(parts[1]);
+      return { low, high, mid: (low + high) / 2 };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// Custom label for reference lines
+const SRLineLabel = ({
+  viewBox,
+  value,
+  color,
+  score,
+}: {
+  viewBox?: any;
+  value: string;
+  color: string;
+  score: number;
+}) => {
+  const { x = 0, y = 0, width = 0 } = viewBox || {};
+  return (
+    <g>
+      <rect
+        x={x + width - 120}
+        y={y - 11}
+        width={118}
+        height={20}
+        rx={4}
+        fill="#090d16"
+        fillOpacity={0.88}
+        stroke={color}
+        strokeOpacity={0.35}
+        strokeWidth={1}
+      />
+      <text
+        x={x + width - 61}
+        y={y + 4}
+        textAnchor="middle"
+        fill={color}
+        fontSize={9}
+        fontWeight="bold"
+        fontFamily="monospace"
+      >
+        {value} · {score}/10
+      </text>
+    </g>
+  );
+};
+
+// Custom tooltip
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  const price = payload[0]?.value;
+  return (
+    <div
+      style={{
+        background: "#090d16",
+        border: "1px solid #1e293b",
+        borderRadius: "10px",
+        padding: "8px 12px",
+        fontSize: "10px",
+        boxShadow: "0 10px 30px rgba(0,0,0,0.6)",
+      }}
+    >
+      <div style={{ color: "#94a3b8", marginBottom: 4, fontWeight: "bold" }}>{label}</div>
+      <div style={{ color: "#6366f1", fontFamily: "monospace", fontWeight: "bold" }}>
+        ราคา: ${price?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+      </div>
+    </div>
+  );
+};
+
+export default function SRChart({ klines, indicators, supportResistance, currentPrice }: SRChartProps) {
+  if (!klines || klines.length === 0 || !indicators) {
+    return (
+      <div className="w-full h-[600px] bg-slate-900 border border-slate-800 rounded-2xl flex flex-col items-center justify-center text-slate-500 shadow-2xl gap-3">
+        <div className="text-3xl opacity-30">📊</div>
+        <p className="text-sm font-semibold">ไม่มีข้อมูลกราฟเทคนิคอล</p>
+        <p className="text-xs text-slate-600">กรุณากด Analyze หรือรอข้อมูลโหลดเสร็จ</p>
+      </div>
+    );
+  }
+
+  // Format chart data — show last 80 candles
+  const chartData = useMemo(() =>
+    klines.slice(-80).map((k) => {
+      const date = new Date(k.openTime);
+      const timeStr = date.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+      const dayStr = date.toLocaleDateString("th-TH", { day: "2-digit", month: "short" });
+      return {
+        name: `${dayStr} ${timeStr}`,
+        price: parseFloat(k.close.toFixed(2)),
+      };
+    }),
+    [klines]
+  );
+
+  // Y-axis domain
+  const closePrices = klines.slice(-80).map((k) => k.close);
+  const minClose = Math.min(...closePrices);
+  const maxClose = Math.max(...closePrices);
+  const padding = (maxClose - minClose) * 0.18;
+  const yDomain = [
+    parseFloat((minClose - padding).toFixed(2)),
+    parseFloat((maxClose + padding).toFixed(2)),
+  ];
+
+  // Build parsed S/R level lists
+  const supportLevels = (supportResistance?.supportZones || [])
+    .map((sz, idx) => ({ ...sz, parsed: parseZoneMid(sz.zone), idx }))
+    .filter((s) => s.parsed !== null);
+
+  const resistanceLevels = (supportResistance?.resistanceZones || [])
+    .map((rz, idx) => ({ ...rz, parsed: parseZoneMid(rz.zone), idx }))
+    .filter((r) => r.parsed !== null);
+
+  return (
+    <div className="relative w-full bg-slate-950 border border-slate-800/80 rounded-2xl p-4 shadow-2xl flex flex-col gap-4 overflow-hidden">
+      {/* Subtle grid backdrop */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.004)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.004)_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
+
+      {/* Header */}
+      <div className="flex justify-between items-start relative z-10">
+        <div>
+          <span className="text-[10px] text-indigo-400 font-extrabold uppercase tracking-widest block">
+            Quantitative S/R Chart Overlay
+          </span>
+          <h4 className="text-sm font-black text-slate-100 uppercase tracking-wide mt-0.5">
+            โซนแนวรับ-แนวต้านจำลอง (Support &amp; Resistance Bands)
+          </h4>
+        </div>
+        {currentPrice && (
+          <div className="bg-indigo-950/60 border border-indigo-800/50 rounded-xl px-3 py-1.5 font-mono text-xs font-bold text-indigo-300 shadow-inner">
+            ราคาล่าสุด:{" "}
+            <span className="text-indigo-200 text-sm">
+              ${currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Chart */}
+      <div className="w-full h-[520px] relative z-10">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={chartData} margin={{ top: 20, right: 80, left: 10, bottom: 10 }}>
+            <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" opacity={0.18} />
+            <XAxis
+              dataKey="name"
+              stroke="#475569"
+              fontSize={8}
+              tickLine={false}
+              axisLine={false}
+              dy={5}
+              interval="preserveStartEnd"
+            />
+            <YAxis
+              domain={yDomain}
+              stroke="#475569"
+              fontSize={9}
+              tickLine={false}
+              axisLine={false}
+              orientation="right"
+              dx={5}
+              tickFormatter={(val) => `$${val.toLocaleString(undefined, { minimumFractionDigits: 0 })}`}
+              width={70}
+            />
+            <Tooltip content={<CustomTooltip />} />
+
+            {/* === SUPPORT ZONES (green bands + midline) === */}
+            {supportLevels.map((sz) => {
+              const p = sz.parsed!;
+              const opacity = 0.04 + (sz.score / 10) * 0.06; // stronger zone = more visible
+              return (
+                <React.Fragment key={`s-${sz.idx}`}>
+                  <ReferenceArea
+                    y1={p.low}
+                    y2={p.high}
+                    fill="#10b981"
+                    fillOpacity={opacity}
+                    stroke="#10b981"
+                    strokeOpacity={0.0}
+                  />
+                  <ReferenceLine
+                    y={p.mid}
+                    stroke="#10b981"
+                    strokeWidth={1.5}
+                    strokeDasharray="6 3"
+                    strokeOpacity={0.7}
+                    label={
+                      <SRLineLabel
+                        value={`S${sz.idx + 1} $${p.mid.toFixed(2)}`}
+                        color="#10b981"
+                        score={sz.score}
+                      />
+                    }
+                  />
+                </React.Fragment>
+              );
+            })}
+
+            {/* === RESISTANCE ZONES (red bands + midline) === */}
+            {resistanceLevels.map((rz) => {
+              const p = rz.parsed!;
+              const opacity = 0.04 + (rz.score / 10) * 0.06;
+              return (
+                <React.Fragment key={`r-${rz.idx}`}>
+                  <ReferenceArea
+                    y1={p.low}
+                    y2={p.high}
+                    fill="#f43f5e"
+                    fillOpacity={opacity}
+                    stroke="#f43f5e"
+                    strokeOpacity={0.0}
+                  />
+                  <ReferenceLine
+                    y={p.mid}
+                    stroke="#f43f5e"
+                    strokeWidth={1.5}
+                    strokeDasharray="6 3"
+                    strokeOpacity={0.7}
+                    label={
+                      <SRLineLabel
+                        value={`R${rz.idx + 1} $${p.mid.toFixed(2)}`}
+                        color="#f43f5e"
+                        score={rz.score}
+                      />
+                    }
+                  />
+                </React.Fragment>
+              );
+            })}
+
+            {/* === EMA Lines === */}
+            {indicators.ema20 > 0 && (
+              <ReferenceLine
+                y={indicators.ema20}
+                stroke="#f59e0b"
+                strokeWidth={1}
+                strokeDasharray="4 4"
+                strokeOpacity={0.55}
+              />
+            )}
+            {indicators.ema50 > 0 && (
+              <ReferenceLine
+                y={indicators.ema50}
+                stroke="#a855f7"
+                strokeWidth={1}
+                strokeDasharray="4 4"
+                strokeOpacity={0.55}
+              />
+            )}
+
+            {/* === Current Price Line === */}
+            {currentPrice && (
+              <ReferenceLine
+                y={currentPrice}
+                stroke="#6366f1"
+                strokeWidth={2}
+                strokeOpacity={0.9}
+                strokeDasharray="5 3"
+              />
+            )}
+
+            {/* === Price Candle Close Line === */}
+            <Line
+              type="monotone"
+              dataKey="price"
+              stroke="#6366f1"
+              strokeWidth={2}
+              dot={false}
+              name="ราคาหุ้น (Close)"
+              activeDot={{ r: 4, fill: "#6366f1", stroke: "#1e293b", strokeWidth: 2 }}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Legend + S/R Summary Cards */}
+      <div className="relative z-10 border-t border-slate-800/60 pt-3 space-y-3">
+        {/* Legend Pills */}
+        <div className="flex flex-wrap gap-3 text-[10px] font-bold tracking-wider text-slate-400">
+          <div className="flex items-center gap-1.5">
+            <div className="w-5 h-1 bg-indigo-500 rounded-full" />
+            <span>เส้นราคาหุ้น</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-5 h-1 bg-emerald-500 rounded-full opacity-70" style={{ border: "1px dashed #10b981" }} />
+            <span>แนวรับ (Support)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-5 h-1 bg-rose-500 rounded-full opacity-70" style={{ border: "1px dashed #f43f5e" }} />
+            <span>แนวต้าน (Resistance)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-5 h-1 bg-amber-400 rounded-full opacity-60" />
+            <span>EMA 20</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-5 h-1 bg-purple-500 rounded-full opacity-60" />
+            <span>EMA 50</span>
+          </div>
+        </div>
+
+        {/* S/R Detail Cards Row */}
+        {(supportLevels.length > 0 || resistanceLevels.length > 0) && (
+          <div className="grid grid-cols-2 gap-3">
+            {/* Support Cards */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">
+                📗 แนวรับสำคัญ (Top Support)
+              </p>
+              {supportLevels.map((sz) => (
+                <div
+                  key={`sc-${sz.idx}`}
+                  className="bg-emerald-950/30 border border-emerald-800/30 rounded-xl px-3 py-2 text-xs"
+                >
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-black text-emerald-300 font-mono">
+                      S{sz.idx + 1}: ${sz.parsed!.mid.toFixed(2)}
+                    </span>
+                    <span className="bg-emerald-900/50 text-emerald-400 text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-emerald-700/40">
+                      {sz.score}/10
+                    </span>
+                  </div>
+                  <div className="text-[9px] text-slate-500 font-mono">
+                    โซน: ${sz.zone}
+                  </div>
+                  {sz.reasons.length > 0 && (
+                    <div className="text-[9px] text-emerald-600 mt-0.5">
+                      {sz.reasons[0]}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Resistance Cards */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest">
+                📕 แนวต้านสำคัญ (Top Resistance)
+              </p>
+              {resistanceLevels.map((rz) => (
+                <div
+                  key={`rc-${rz.idx}`}
+                  className="bg-rose-950/30 border border-rose-800/30 rounded-xl px-3 py-2 text-xs"
+                >
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-black text-rose-300 font-mono">
+                      R{rz.idx + 1}: ${rz.parsed!.mid.toFixed(2)}
+                    </span>
+                    <span className="bg-rose-900/50 text-rose-400 text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-rose-700/40">
+                      {rz.score}/10
+                    </span>
+                  </div>
+                  <div className="text-[9px] text-slate-500 font-mono">
+                    โซน: ${rz.zone}
+                  </div>
+                  {rz.reasons.length > 0 && (
+                    <div className="text-[9px] text-rose-600 mt-0.5">
+                      {rz.reasons[0]}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
