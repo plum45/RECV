@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Play, RotateCw, Settings, Sliders, TrendingUp, HelpCircle, Activity, ChevronRight, AlertTriangle, Search, Zap } from "lucide-react";
+import { Play, RotateCw, Settings, Sliders, TrendingUp, HelpCircle, Activity, ChevronRight, AlertTriangle, Search, Zap, Heart } from "lucide-react";
 import SymbolSelector from "../../../components/SymbolSelector";
 import TimeframeSelector from "../../../components/TimeframeSelector";
 import TradingViewChart from "../../../components/TradingViewChart";
@@ -59,6 +59,45 @@ export default function Dashboard() {
   const [supportResistance, setSupportResistance] = useState<SupportResistanceData | null>(null);
   const [news, setNews] = useState<NewsArticle[]>([]);
   const [sentiment, setSentiment] = useState<SentimentData | null>(null);
+
+  // Watchlist State
+  const [isInWatchlist, setIsInWatchlist] = useState(false);
+
+  // Check if current symbol is in Watchlist
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("rocket_watchlist");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setIsInWatchlist(parsed.includes(symbol.toUpperCase()));
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+  }, [symbol]);
+
+  const toggleWatchlist = () => {
+    if (typeof window !== "undefined") {
+      try {
+        const sym = symbol.toUpperCase();
+        const saved = localStorage.getItem("rocket_watchlist");
+        let list: string[] = saved ? JSON.parse(saved) : ["NVDA", "AAPL", "TSLA", "MSFT"];
+        
+        if (list.includes(sym)) {
+          list = list.filter((s) => s !== sym);
+          setIsInWatchlist(false);
+        } else {
+          list.push(sym);
+          setIsInWatchlist(true);
+        }
+        localStorage.setItem("rocket_watchlist", JSON.stringify(list));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
 
   // Firestore Sync Effect
   useEffect(() => {
@@ -324,8 +363,15 @@ export default function Dashboard() {
               value={symbol}
               onChange={(e) => setSymbol(e.target.value.toUpperCase())}
               placeholder="e.g. AAPL, TSLA"
-              className="bg-slate-900/60 border border-slate-700/50 text-slate-100 text-xs rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 block w-24 sm:w-28 pl-8 p-2 font-mono tracking-wider shadow-inner transition-all"
+              className="bg-slate-900/60 border border-slate-700/50 text-slate-100 text-xs rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 block w-24 sm:w-28 pl-8 pr-10 p-2 font-mono tracking-wider shadow-inner transition-all"
             />
+            <button
+              onClick={toggleWatchlist}
+              className="absolute inset-y-0 right-0 pr-2 flex items-center hover:scale-110 transition-transform"
+              title={isInWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
+            >
+              <Heart size={14} className={isInWatchlist ? "text-rose-500 fill-rose-500" : "text-slate-400"} />
+            </button>
           </div>
 
           <button

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
-import { Plus, X, TrendingUp, TrendingDown, Star, Search } from "lucide-react";
+import { Plus, X, TrendingUp, TrendingDown, Star, Search, AlertTriangle } from "lucide-react";
 
 interface WatchlistQuote {
   symbol: string;
@@ -19,6 +19,7 @@ export default function Watchlist() {
   const [quotes, setQuotes] = useState<WatchlistQuote[]>([]);
   const [newSymbol, setNewSymbol] = useState("");
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Load symbols from localStorage on mount
   useEffect(() => {
@@ -46,6 +47,23 @@ export default function Watchlist() {
       try {
         const { data } = await axios.post("/api/quote", { symbols });
         setQuotes(data);
+
+        // Check if any symbols are invalid (returned null and were filtered out by API)
+        if (data.length < symbols.length) {
+          const validSymbols = data.map((q: any) => q.symbol);
+          const invalidSymbols = symbols.filter(s => !validSymbols.includes(s));
+          
+          if (invalidSymbols.length > 0) {
+            setErrorMsg(`ไม่พบข้อมูลของหุ้น: ${invalidSymbols.join(", ")} (อาจต้องเติม .BK สำหรับหุ้นไทย)`);
+            setTimeout(() => setErrorMsg(null), 5000);
+            
+            // Remove invalid symbols from state and localStorage
+            const updatedSymbols = symbols.filter(s => validSymbols.includes(s));
+            setSymbols(updatedSymbols);
+            localStorage.setItem("rocket_watchlist", JSON.stringify(updatedSymbols));
+          }
+        }
+
       } catch (error) {
         console.error("Error fetching watchlist quotes:", error);
       } finally {
@@ -106,6 +124,13 @@ export default function Watchlist() {
           </button>
         </form>
       </div>
+
+      {errorMsg && (
+        <div className="mb-4 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs px-4 py-2.5 rounded-lg flex items-center gap-2">
+          <AlertTriangle size={14} />
+          {errorMsg}
+        </div>
+      )}
 
       {/* Grid */}
       <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar pb-10">
