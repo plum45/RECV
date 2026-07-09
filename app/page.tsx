@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Play, RotateCw, Settings, Sliders, TrendingUp, HelpCircle, Activity, ChevronRight, AlertTriangle } from "lucide-react";
+import { Play, RotateCw, Settings, Sliders, TrendingUp, HelpCircle, Activity, ChevronRight, AlertTriangle, Search, Zap } from "lucide-react";
 import SymbolSelector from "../components/SymbolSelector";
 import TimeframeSelector from "../components/TimeframeSelector";
 import TradingViewChart from "../components/TradingViewChart";
@@ -304,23 +304,55 @@ export default function Dashboard() {
 
         {/* Right controls */}
         <div className="flex items-center gap-2.5">
-          <div className="hidden md:flex items-center gap-2 bg-emerald-950/40 border border-emerald-800/40 rounded-xl px-3 py-1.5 text-[10px] text-emerald-400 font-bold tracking-wide">
+          <div className="hidden lg:flex items-center gap-2 bg-emerald-950/40 border border-emerald-800/40 rounded-xl px-3 py-1.5 text-[10px] text-emerald-400 font-bold tracking-wide">
             <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping" />
             Yahoo Finance Live
           </div>
+
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search size={12} className="text-slate-400" />
+            </div>
+            <input
+              type="text"
+              value={symbol}
+              onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+              placeholder="e.g. AAPL, TSLA"
+              className="bg-slate-900/60 border border-slate-700/50 text-slate-100 text-xs rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 block w-24 sm:w-28 pl-8 p-2 font-mono tracking-wider shadow-inner transition-all"
+            />
+          </div>
+
           <button
             onClick={() => fetchMarketDataOnly()}
             disabled={initialLoading || loading}
             title="รีเฟรชข้อมูล"
-            className="p-2 bg-slate-900/80 border border-slate-800 hover:border-indigo-700/50 hover:bg-slate-800/80 text-slate-400 hover:text-slate-200 rounded-xl transition-all duration-300 cursor-pointer"
+            className="hidden sm:flex p-2 bg-slate-900/80 border border-slate-800 hover:border-indigo-700/50 hover:bg-slate-800/80 text-slate-400 hover:text-slate-200 rounded-xl transition-all duration-300 cursor-pointer"
           >
             <RotateCw size={14} className={initialLoading ? "animate-spin text-indigo-400" : ""} />
+          </button>
+
+          <button
+            onClick={handleAnalyze}
+            disabled={loading || !symbol}
+            className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-[10px] sm:text-[11px] font-black uppercase tracking-widest px-3 sm:px-5 py-2.5 rounded-xl shadow-[0_0_20px_rgba(99,102,241,0.2)] hover:shadow-[0_0_25px_rgba(99,102,241,0.4)] transition-all duration-300 flex items-center gap-1.5 sm:gap-2 border border-indigo-400/20 cursor-pointer"
+          >
+            {loading ? (
+              <>
+                <RotateCw size={14} className="animate-spin" />
+                <span className="hidden sm:inline">ANALYZING...</span>
+              </>
+            ) : (
+              <>
+                <Zap size={14} className="text-amber-300" />
+                <span>ANALYZE</span>
+              </>
+            )}
           </button>
           
           {/* User profile / Logout */}
           {user && (
             <div className="flex items-center gap-3 border-l border-slate-800 pl-3 ml-1">
-              <div className="hidden lg:block text-[10px] text-slate-400 font-medium truncate max-w-[120px]">
+              <div className="hidden xl:block text-[10px] text-slate-400 font-medium truncate max-w-[120px]">
                 {user.email}
               </div>
               <button 
