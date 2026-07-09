@@ -11,7 +11,7 @@ export default function DashboardHome() {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <LoadingState message="กำลังตรวจสอบสิทธิ์..." />;
+    return <LoadingState isLoading={true} />;
   }
 
   return (

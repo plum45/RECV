@@ -38,7 +38,7 @@ export default function NewsMarquee() {
       <div className="flex whitespace-nowrap animate-marquee hover:pause pl-14">
         {[...news, ...news].map((article, idx) => (
           <a
-            key={`${article.id}-${idx}`}
+            key={`${article.url}-${idx}`}
             href={article.url}
             target="_blank"
             rel="noopener noreferrer"

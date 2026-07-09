@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     const results = await Promise.all(
       symbols.map(async (symbol) => {
         try {
-          const quote = await yahooFinance.quote(symbol);
+          const quote = (await yahooFinance.quote(symbol)) as any;
           return {
             symbol: symbol.toUpperCase(),
             name: quote.shortName || quote.longName || symbol.toUpperCase(),
