@@ -276,9 +276,9 @@ export default function Dashboard() {
             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-slate-950 animate-pulse" />
           </div>
           <div>
-            <h1 className="text-base font-black tracking-wider text-white leading-none">
-              ROCKET <span className="font-serif-italic text-indigo-400 text-lg font-normal">AI</span>
-            </h1>
+            <span className="font-heading font-black text-2xl tracking-tighter text-slate-100 flex items-center gap-1.5">
+              iVES
+            </span>
             <p className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.15em] mt-0.5">
               US Stock Analysis Terminal
             </p>
@@ -328,7 +328,7 @@ export default function Dashboard() {
             title="รีเฟรชข้อมูล"
             className="hidden sm:flex p-2 bg-slate-900/80 border border-slate-800 hover:border-indigo-700/50 hover:bg-slate-800/80 text-slate-400 hover:text-slate-200 rounded-xl transition-all duration-300 cursor-pointer"
           >
-            <RotateCw size={14} className={initialLoading ? "animate-spin text-indigo-400" : ""../../>
+            <RotateCw size={14} className={initialLoading ? "animate-spin text-indigo-400" : ""} />
           </button>
 
           <button

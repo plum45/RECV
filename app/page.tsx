@@ -12,7 +12,7 @@ const fadeUp = {
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
-    transition: { delay: i * 0.15, duration: 0.6, ease: [0.22, 1, 0.36, 1] },
+    transition: { delay: i * 0.15, duration: 0.6, ease: [0.22, 1, 0.36, 1] as any },
   }),
 };
 
@@ -44,7 +44,7 @@ export default function LandingPage() {
         {/* Left: Logo */}
         <div className="flex items-center gap-3 text-white">
           <Logo />
-          <span className="font-heading text-xl font-bold tracking-tight">IVES</span>
+          <span className="font-heading text-xl font-bold tracking-tight">iVES</span>
         </div>
 
         {/* Center: Desktop Nav */}
@@ -96,16 +96,15 @@ export default function LandingPage() {
             <motion.div
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-              exitTransition={{ duration: 0.35, ease: [0.55, 0, 1, 0.45] } as any}
+              exit={{ x: "100%", transition: { duration: 0.35, ease: [0.55, 0, 1, 0.45] as any } }}
+              transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] as any }}
               className="fixed top-0 right-0 z-50 w-[min(88vw,360px)] h-[100dvh] bg-[#CFC8C5] shadow-[-12px_0_48px_rgba(25,40,55,0.18)] flex flex-col"
             >
               {/* Header */}
               <div className="flex items-center justify-between p-6">
                 <div className="flex items-center gap-3 text-[var(--color-text)]">
                   <Logo />
-                  <span className="font-heading text-xl font-bold">IVES</span>
+                  <span className="font-heading text-xl font-bold">iVES</span>
                 </div>
                 <motion.button
                   whileTap={{ scale: 0.9 }}

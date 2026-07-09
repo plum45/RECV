@@ -4,7 +4,7 @@ import React, { useMemo } from "react";
 import {
   ResponsiveContainer,
   ComposedChart,
-  Line,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
@@ -53,9 +53,9 @@ const SRLineLabel = ({
   return (
     <g>
       <rect
-        x={x + width - 120}
+        x={x + width - 100}
         y={y - 11}
-        width={118}
+        width={98}
         height={20}
         rx={4}
         fill="#090d16"
@@ -65,11 +65,11 @@ const SRLineLabel = ({
         strokeWidth={1}
       />
       <text
-        x={x + width - 61}
+        x={x + width - 51}
         y={y + 4}
         textAnchor="middle"
         fill={color}
-        fontSize={9}
+        fontSize={8}
         fontWeight="bold"
         fontFamily="monospace"
       >
@@ -131,7 +131,7 @@ export default function SRChart({ klines, indicators, supportResistance, current
   const closePrices = klines.slice(-80).map((k) => k.close);
   const minClose = Math.min(...closePrices);
   const maxClose = Math.max(...closePrices);
-  const padding = (maxClose - minClose) * 0.18;
+  const padding = (maxClose - minClose) * 0.05;
   const yDomain = [
     parseFloat((minClose - padding).toFixed(2)),
     parseFloat((maxClose + padding).toFixed(2)),
@@ -172,9 +172,15 @@ export default function SRChart({ klines, indicators, supportResistance, current
       </div>
 
       {/* Chart */}
-      <div className="w-full h-[520px] relative z-10">
+      <div className="w-full h-[300px] md:h-[520px] relative z-10">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={chartData} margin={{ top: 20, right: 80, left: 10, bottom: 10 }}>
+          <ComposedChart data={chartData} margin={{ top: 20, right: 45, left: 0, bottom: 10 }}>
+            <defs>
+              <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
+                <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+              </linearGradient>
+            </defs>
             <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" opacity={0.18} />
             <XAxis
               dataKey="name"
@@ -194,7 +200,7 @@ export default function SRChart({ klines, indicators, supportResistance, current
               orientation="right"
               dx={5}
               tickFormatter={(val) => `$${val.toLocaleString(undefined, { minimumFractionDigits: 0 })}`}
-              width={70}
+              width={45}
             />
             <Tooltip content={<CustomTooltip />} />
 
@@ -294,11 +300,14 @@ export default function SRChart({ klines, indicators, supportResistance, current
             )}
 
             {/* === Price Candle Close Line === */}
-            <Line
+            <Area
               type="monotone"
               dataKey="price"
               stroke="#6366f1"
               strokeWidth={2}
+              fillOpacity={1}
+              fill="url(#colorPrice)"
+              baseValue={yDomain[0]}
               dot={false}
               name="ราคาหุ้น (Close)"
               activeDot={{ r: 4, fill: "#6366f1", stroke: "#1e293b", strokeWidth: 2 }}
@@ -335,7 +344,7 @@ export default function SRChart({ klines, indicators, supportResistance, current
 
         {/* S/R Detail Cards Row */}
         {(supportLevels.length > 0 || resistanceLevels.length > 0) && (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {/* Support Cards */}
             <div className="space-y-2">
               <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">

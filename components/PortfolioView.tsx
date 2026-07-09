@@ -32,8 +32,41 @@ export default function PortfolioView() {
   const [symbol, setSymbol] = useState("NVDA");
   const [qty, setQty] = useState("");
   const [buyPrice, setBuyPrice] = useState("");
+  const [investedAmount, setInvestedAmount] = useState("");
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleQtyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setQty(val);
+    if (val && buyPrice && parseFloat(buyPrice) > 0) {
+      setInvestedAmount((parseFloat(val) * parseFloat(buyPrice)).toFixed(2));
+    } else {
+      setInvestedAmount("");
+    }
+  };
+
+  const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setBuyPrice(val);
+    if (val && parseFloat(val) > 0) {
+      if (investedAmount) {
+        setQty((parseFloat(investedAmount) / parseFloat(val)).toFixed(4));
+      } else if (qty) {
+        setInvestedAmount((parseFloat(qty) * parseFloat(val)).toFixed(2));
+      }
+    }
+  };
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setInvestedAmount(val);
+    if (val && buyPrice && parseFloat(buyPrice) > 0) {
+      setQty((parseFloat(val) / parseFloat(buyPrice)).toFixed(4));
+    } else {
+      setQty("");
+    }
+  };
 
   // Load portfolio from localStorage on mount
   useEffect(() => {
@@ -109,6 +142,7 @@ export default function PortfolioView() {
     savePortfolio(newHoldings);
     setQty("");
     setBuyPrice("");
+    setInvestedAmount("");
     updatePrices(newHoldings);
   };
 
@@ -294,20 +328,6 @@ export default function PortfolioView() {
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  จำนวนหุ้น (Qty)
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  placeholder="เช่น 10"
-                  value={qty}
-                  onChange={(e) => setQty(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-850 hover:border-slate-700 text-xs text-slate-100 rounded-xl px-3 py-2 outline-none focus:border-indigo-500 transition-all"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                   ราคาทุน ($)
                 </label>
                 <input
@@ -315,10 +335,38 @@ export default function PortfolioView() {
                   step="any"
                   placeholder="เช่น 185.50"
                   value={buyPrice}
-                  onChange={(e) => setBuyPrice(e.target.value)}
+                  onChange={handlePriceChange}
                   className="w-full bg-slate-950 border border-slate-850 hover:border-slate-700 text-xs text-slate-100 rounded-xl px-3 py-2 outline-none focus:border-indigo-500 transition-all"
                 />
               </div>
+              
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                  เงินทุน (Total USD)
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="เช่น 1000"
+                  value={investedAmount}
+                  onChange={handleAmountChange}
+                  className="w-full bg-slate-950 border border-slate-850 hover:border-slate-700 text-xs text-slate-100 rounded-xl px-3 py-2 outline-none focus:border-indigo-500 transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                จำนวนหุ้น (คำนวณอัตโนมัติ)
+              </label>
+              <input
+                type="number"
+                step="any"
+                placeholder="เช่น 5.3908"
+                value={qty}
+                onChange={handleQtyChange}
+                className="w-full bg-slate-950 border border-slate-850 hover:border-slate-700 text-xs text-slate-100 rounded-xl px-3 py-2 outline-none focus:border-indigo-500 transition-all"
+              />
             </div>
 
             <button
