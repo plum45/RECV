@@ -53,27 +53,63 @@ const SRLineLabel = ({
   return (
     <g>
       <rect
-        x={x + width - 100}
-        y={y - 11}
-        width={98}
-        height={20}
-        rx={4}
-        fill="#090d16"
-        fillOpacity={0.88}
+        x={x + width - 145}
+        y={y - 13}
+        width={140}
+        height={26}
+        rx={6}
+        fill="#0b0f19"
+        fillOpacity={0.95}
         stroke={color}
-        strokeOpacity={0.35}
-        strokeWidth={1}
+        strokeOpacity={0.7}
+        strokeWidth={1.5}
       />
       <text
-        x={x + width - 51}
+        x={x + width - 75}
         y={y + 4}
         textAnchor="middle"
         fill={color}
-        fontSize={8}
-        fontWeight="bold"
+        fontSize={11}
+        fontWeight="extrabold"
         fontFamily="monospace"
       >
         {value} · {score}/10
+      </text>
+    </g>
+  );
+};
+
+// Custom label for current price reference line
+const CurrentPriceLabel = ({
+  viewBox,
+  value,
+}: {
+  viewBox?: any;
+  value: string;
+}) => {
+  const { x = 0, y = 0 } = viewBox || {};
+  return (
+    <g>
+      <rect
+        x={x + 10}
+        y={y - 13}
+        width={160}
+        height={26}
+        rx={6}
+        fill="#4f46e5"
+        stroke="#818cf8"
+        strokeWidth={1.5}
+      />
+      <text
+        x={x + 90}
+        y={y + 4}
+        textAnchor="middle"
+        fill="#ffffff"
+        fontSize={11}
+        fontWeight="bold"
+        fontFamily="sans-serif"
+      >
+        ราคาปัจจุบัน: ${value}
       </text>
     </g>
   );
@@ -87,15 +123,15 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     <div
       style={{
         background: "#090d16",
-        border: "1px solid #1e293b",
+        border: "1px solid #334155",
         borderRadius: "10px",
-        padding: "8px 12px",
-        fontSize: "10px",
+        padding: "10px 14px",
+        fontSize: "12px",
         boxShadow: "0 10px 30px rgba(0,0,0,0.6)",
       }}
     >
       <div style={{ color: "#94a3b8", marginBottom: 4, fontWeight: "bold" }}>{label}</div>
-      <div style={{ color: "#6366f1", fontFamily: "monospace", fontWeight: "bold" }}>
+      <div style={{ color: "#818cf8", fontFamily: "monospace", fontWeight: "bold" }}>
         ราคา: ${price?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
       </div>
     </div>
@@ -174,18 +210,18 @@ export default function SRChart({ klines, indicators, supportResistance, current
       {/* Chart */}
       <div className="w-full h-[300px] md:h-[520px] relative z-10">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={chartData} margin={{ top: 20, right: 45, left: 0, bottom: 10 }}>
+          <ComposedChart data={chartData} margin={{ top: 20, right: 65, left: 0, bottom: 10 }}>
             <defs>
               <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
-                <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                <stop offset="5%" stopColor="#818cf8" stopOpacity={0.25} />
+                <stop offset="95%" stopColor="#818cf8" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" opacity={0.18} />
+            <CartesianGrid stroke="#334155" strokeDasharray="3 3" opacity={0.12} />
             <XAxis
               dataKey="name"
-              stroke="#475569"
-              fontSize={8}
+              stroke="#334155"
+              tick={{ fill: "#94a3b8", fontSize: 10 }}
               tickLine={false}
               axisLine={false}
               dy={5}
@@ -193,14 +229,14 @@ export default function SRChart({ klines, indicators, supportResistance, current
             />
             <YAxis
               domain={yDomain}
-              stroke="#475569"
-              fontSize={9}
+              stroke="#334155"
+              tick={{ fill: "#cbd5e1", fontSize: 11, fontFamily: "monospace" }}
               tickLine={false}
               axisLine={false}
               orientation="right"
               dx={5}
               tickFormatter={(val) => `$${val.toLocaleString(undefined, { minimumFractionDigits: 0 })}`}
-              width={45}
+              width={65}
             />
             <Tooltip content={<CustomTooltip />} />
 
@@ -275,7 +311,7 @@ export default function SRChart({ klines, indicators, supportResistance, current
                 stroke="#f59e0b"
                 strokeWidth={1}
                 strokeDasharray="4 4"
-                strokeOpacity={0.55}
+                strokeOpacity={0.4}
               />
             )}
             {indicators.ema50 > 0 && (
@@ -284,7 +320,7 @@ export default function SRChart({ klines, indicators, supportResistance, current
                 stroke="#a855f7"
                 strokeWidth={1}
                 strokeDasharray="4 4"
-                strokeOpacity={0.55}
+                strokeOpacity={0.4}
               />
             )}
 
@@ -292,10 +328,15 @@ export default function SRChart({ klines, indicators, supportResistance, current
             {currentPrice && (
               <ReferenceLine
                 y={currentPrice}
-                stroke="#6366f1"
+                stroke="#4f46e5"
                 strokeWidth={2}
-                strokeOpacity={0.9}
+                strokeOpacity={0.95}
                 strokeDasharray="5 3"
+                label={
+                  <CurrentPriceLabel 
+                    value={currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 
+                  />
+                }
               />
             )}
 
@@ -304,13 +345,13 @@ export default function SRChart({ klines, indicators, supportResistance, current
               type="monotone"
               dataKey="price"
               stroke="#6366f1"
-              strokeWidth={2}
+              strokeWidth={2.5}
               fillOpacity={1}
               fill="url(#colorPrice)"
               baseValue={yDomain[0]}
               dot={false}
               name="ราคาหุ้น (Close)"
-              activeDot={{ r: 4, fill: "#6366f1", stroke: "#1e293b", strokeWidth: 2 }}
+              activeDot={{ r: 5, fill: "#818cf8", stroke: "#0f172a", strokeWidth: 2 }}
             />
           </ComposedChart>
         </ResponsiveContainer>
