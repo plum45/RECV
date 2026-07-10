@@ -25,21 +25,34 @@ function mapIntervalToTv(interval: string): string {
 }
 
 function resolveTvSymbol(symbol: string): string {
-  const sym = symbol.toUpperCase();
-  // NYSE-listed stocks
+  const sym = symbol.toUpperCase().trim();
+  
+  // 1. Handle Crypto assets (e.g. BTC-USD -> COINBASE:BTCUSD)
+  if (sym.endsWith("-USD")) {
+    return `COINBASE:${sym.replace("-", "")}`;
+  }
+  
+  // 2. Handle Thai SET stocks (e.g. PTT.BK -> SET:PTT)
+  if (sym.endsWith(".BK")) {
+    return `SET:${sym.replace(".BK", "")}`;
+  }
+
+  // 3. NYSE/AMEX listed stocks (to map correctly in TradingView widget)
   const nyseStocks = new Set([
     "V", "MA", "JPM", "GS", "BAC", "C", "WFC", "MS",
     "ABBV", "LLY", "UNH", "JNJ", "PFE", "MRK",
     "XOM", "CVX", "COP", "SLB",
     "DIS", "UBER", "LYFT",
-    "NIO", "XPEV", "LI",
-    "COIN", "HOOD", "SQ", "PYPL",
-    "PLTR", "SOFI", "HOOD",
-    "FSLR", "ENPH", "PLUG", "VRT",
-    "SPY", "QQQ", "ARKK", "SOXL", "TQQQ",
+    "NIO", "XPEV",
+    "SQ", "PLTR", "VRT",
+    "SPY", "ARKK",
+    "SHOP", "ORCL", "CRM", "RBLX", "SPOT",
+    "SNOW", "PATH", "BILL", "NET"
   ]);
+  
   if (nyseStocks.has(sym)) return `NYSE:${sym}`;
-  // Default to NASDAQ
+  
+  // 4. Default to NASDAQ (e.g. QQQ, TQQQ, NVDA, AAPL, MSFT, TSLA)
   return `NASDAQ:${sym}`;
 }
 

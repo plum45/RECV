@@ -129,13 +129,14 @@ const FibLineLabel = ({
   return (
     <g>
       <text
-        x={x + 10}
-        y={y - 4}
+        x={x - 10}
+        y={y + 3}
+        textAnchor="end"
         fill={color}
         fontSize={9}
-        fontWeight="bold"
+        fontWeight="extrabold"
         fontFamily="monospace"
-        className="select-none opacity-60"
+        className="select-none opacity-80"
       >
         {value}
       </text>
@@ -282,7 +283,7 @@ export default function SRChart({ klines, indicators, supportResistance, current
       {/* Chart */}
       <div className="w-full h-[300px] md:h-[520px] relative z-10">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={chartData} margin={{ top: 20, right: 65, left: 0, bottom: 10 }}>
+          <ComposedChart data={chartData} margin={{ top: 20, right: 65, left: 110, bottom: 10 }}>
             <defs>
               <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#818cf8" stopOpacity={0.25} />
