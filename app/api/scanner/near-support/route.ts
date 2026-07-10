@@ -26,7 +26,7 @@ async function scanSupport(symbols: string[]) {
         const ticker = await getTicker(symbol);
         const isCrypto = symbol.toUpperCase().endsWith("-USD");
         const timeframe = isCrypto ? "4H" : "1D";
-        const klines = await getKlines(symbol, timeframe, 200);
+        const klines = await getKlines(symbol, timeframe, 450);
         const indicators = calculateIndicators(klines);
         const supportResistance = calculateSupportResistance(
           klines,

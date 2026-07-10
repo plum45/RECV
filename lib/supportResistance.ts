@@ -18,14 +18,15 @@ export function calculateSupportResistance(
   // Find Min and Max prices in the range to determine psychological levels
   let minPrice = Infinity;
   let maxPrice = -Infinity;
-  for (let i = Math.max(0, len - 150); i < len; i++) {
+  const historyLookback = Math.max(0, len - 450);
+  for (let i = historyLookback; i < len; i++) {
     if (klines[i].low < minPrice) minPrice = klines[i].low;
     if (klines[i].high > maxPrice) maxPrice = klines[i].high;
   }
 
   // 1. Detect Swing Highs and Swing Lows (Window W = 5)
   const W = 5;
-  for (let i = Math.max(W, len - 150); i < len - W; i++) {
+  for (let i = Math.max(W, historyLookback); i < len - W; i++) {
     const currentHigh = klines[i].high;
     const currentLow = klines[i].low;
 
@@ -79,7 +80,7 @@ export function calculateSupportResistance(
   candidates.push({ price: p.s3, type: "pivot", name: "Pivot S3" });
 
   // 3.5 Smart Money Concepts (FVG & Order Blocks)
-  for (let i = Math.max(2, len - 100); i < len; i++) {
+  for (let i = Math.max(2, len - 300); i < len; i++) {
     const c1 = klines[i - 2];
     const c2 = klines[i - 1];
     const c3 = klines[i];

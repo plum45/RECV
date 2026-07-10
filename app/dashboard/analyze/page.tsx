@@ -238,7 +238,7 @@ function AnalyzePageContent() {
       setMarketData(tickerRes.data);
 
       // Fetch Klines & calculate indicators
-      const klinesRes = await axios.get<any[]>(`/api/klines?symbol=${tgtSymbol}&timeframe=${tgtTf}`);
+      const klinesRes = await axios.get<any[]>(`/api/klines?symbol=${tgtSymbol}&timeframe=${tgtTf}&limit=450`);
       if (activeRequestSymbolRef.current !== currentRequestedSymbol) return;
       setKlines(klinesRes.data);
       

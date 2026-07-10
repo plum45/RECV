@@ -36,7 +36,7 @@ async function triggerAlerts() {
         const ticker = await getTicker(symbol);
         const isCrypto = symbol.toUpperCase().endsWith("-USD");
         const timeframe = isCrypto ? "4H" : "1D";
-        const klines = await getKlines(symbol, timeframe, 200);
+        const klines = await getKlines(symbol, timeframe, 450);
 
         // 2. Indicators & SR
         const indicators = calculateIndicators(klines);

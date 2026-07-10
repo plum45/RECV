@@ -14,7 +14,7 @@ export async function POST(request: Request) {
 
     // 2. Fetch klines for 5 timeframes in parallel
     const timeframes = ["5m", "15m", "1H", "4H", "1D"] as const;
-    const klinesPromises = timeframes.map((tf) => getKlines(symbol, tf, 200));
+    const klinesPromises = timeframes.map((tf) => getKlines(symbol, tf, 450));
     const klinesList = await Promise.all(klinesPromises);
 
     // 3. Calculate indicators and scores for each timeframe

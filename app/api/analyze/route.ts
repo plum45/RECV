@@ -19,8 +19,8 @@ export async function POST(request: Request) {
     // 1. Fetch live market price and ticker details
     const marketData = await getTicker(symbol);
 
-    // 2. Fetch recent OHLCV klines (request 300 so we always get at least 200 valid rows)
-    const klines = await getKlines(symbol, timeframe, 300);
+    // 2. Fetch recent OHLCV klines (request 450 to get a deeper history for swing levels)
+    const klines = await getKlines(symbol, timeframe, 450);
 
     // 3. Compute technical indicators
     const indicators = calculateIndicators(klines);
