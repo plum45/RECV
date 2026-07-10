@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Search, BarChart2, Briefcase, Settings, Menu, X, Rocket } from "lucide-react";
+import { Home, Search, BarChart2, Briefcase, Settings, Menu, X, Rocket, Zap } from "lucide-react";
 import MobileNavBar from "../../components/MobileNavBar";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -22,6 +22,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: "หน้าแรก (Home)", path: "/dashboard", icon: Home },
     { name: "ค้นหาหุ้น (Invest)", path: "/dashboard/invest", icon: Search },
     { name: "วิเคราะห์ (Analyze)", path: "/dashboard/analyze", icon: BarChart2 },
+    { name: "สแกนสัญญาณ (Scanner)", path: "/dashboard/scanner", icon: Zap },
     { name: "พอร์ต (Portfolio)", path: "/dashboard/analyze?tab=portfolio", icon: Briefcase },
   ];
 

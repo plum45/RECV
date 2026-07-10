@@ -2,10 +2,16 @@ import OpenAI from "openai";
 
 const apiKey = process.env.OPENAI_API_KEY;
 
-// Lazy initialization or direct instantiation
-const openai = new OpenAI({
-  apiKey: apiKey || "",
-});
+let openai: OpenAI | null = null;
+
+function getOpenAiClient(): OpenAI {
+  if (!openai) {
+    openai = new OpenAI({
+      apiKey: apiKey || "dummy-key-for-build-pre-render",
+    });
+  }
+  return openai;
+}
 
 export async function generateAnalysisReport(prompt: string): Promise<string> {
   if (!apiKey || apiKey === "your_openai_api_key") {
@@ -13,7 +19,8 @@ export async function generateAnalysisReport(prompt: string): Promise<string> {
   }
 
   try {
-    const response = await openai.chat.completions.create({
+    const client = getOpenAiClient();
+    const response = await client.chat.completions.create({
       model: "gpt-4o-mini", // Fast, accurate, and cost-effective
       messages: [
         {
