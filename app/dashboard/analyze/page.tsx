@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { Play, RotateCw, Settings, Sliders, TrendingUp, HelpCircle, Activity, ChevronRight, AlertTriangle, Search, Zap, Heart } from "lucide-react";
 import SymbolSelector from "../../../components/SymbolSelector";
@@ -34,6 +34,7 @@ function AnalyzePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlSymbol = searchParams.get("symbol");
+  const activeRequestSymbolRef = useRef("");
 
   // Navigation Tab State
   const [activeTab, setActiveTab] = useState<"dashboard" | "portfolio">("dashboard");
@@ -126,7 +127,11 @@ function AnalyzePageContent() {
         if (docSnap.exists()) {
           const data = docSnap.data();
           const params = new URLSearchParams(window.location.search);
-          const hasUrlSymbol = params.get("symbol");
+          const hasUrlSymbol = params.get("symbol") || 
+                               urlSymbol || 
+                               (typeof window !== "undefined" && 
+                                (window.location.search.includes("symbol=") || window.location.href.includes("symbol=")));
+          
           if (data.symbol && !hasUrlSymbol) setSymbol(data.symbol);
           if (data.timeframe) setTimeframe(data.timeframe);
           if (data.tradingStyle) setTradingStyle(data.tradingStyle);
@@ -220,22 +225,28 @@ function AnalyzePageContent() {
 
   // 1. Fetch live market quantitative data without running OpenAI analysis
   const fetchMarketDataOnly = async (tgtSymbol = symbol, tgtTf = timeframe) => {
+    activeRequestSymbolRef.current = tgtSymbol;
+    const currentRequestedSymbol = tgtSymbol;
+    
     try {
       setInitialLoading(true);
       setError(null);
 
       // Fetch Ticker
       const tickerRes = await axios.get<TickerData>(`/api/ticker?symbol=${tgtSymbol}`);
+      if (activeRequestSymbolRef.current !== currentRequestedSymbol) return;
       setMarketData(tickerRes.data);
 
       // Fetch Klines & calculate indicators
       const klinesRes = await axios.get<any[]>(`/api/klines?symbol=${tgtSymbol}&timeframe=${tgtTf}`);
+      if (activeRequestSymbolRef.current !== currentRequestedSymbol) return;
       setKlines(klinesRes.data);
       
       const { calculateIndicators } = await import("../../../lib/indicators");
       const { calculateSupportResistance } = await import("../../../lib/supportResistance");
 
       const computedIndicators = calculateIndicators(klinesRes.data);
+      if (activeRequestSymbolRef.current !== currentRequestedSymbol) return;
       setIndicators(computedIndicators);
 
       const computedSR = calculateSupportResistance(
@@ -243,21 +254,28 @@ function AnalyzePageContent() {
         computedIndicators,
         tickerRes.data.currentPrice
       );
+      if (activeRequestSymbolRef.current !== currentRequestedSymbol) return;
       setSupportResistance(computedSR);
 
       // Fetch news
       const newsRes = await axios.get<NewsArticle[]>(`/api/news?symbol=${tgtSymbol}`);
+      if (activeRequestSymbolRef.current !== currentRequestedSymbol) return;
       setNews(newsRes.data);
 
       // Fetch sentiment
       const sentimentRes = await axios.get<SentimentData>(`/api/sentiment?symbol=${tgtSymbol}`);
+      if (activeRequestSymbolRef.current !== currentRequestedSymbol) return;
       setSentiment(sentimentRes.data);
 
     } catch (err: any) {
       console.error("Initial data load error:", err.message);
-      setError("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ Yahoo Finance เพื่อดึงข้อมูลราคาล่าสุดได้ (อาจเกินขีดจำกัดความถี่กรุณารอสักครู่)");
+      if (activeRequestSymbolRef.current === currentRequestedSymbol) {
+        setError("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ Yahoo Finance เพื่อดึงข้อมูลราคาล่าสุดได้ (อาจเกินขีดจำกัดความถี่กรุณารอสักครู่)");
+      }
     } finally {
-      setInitialLoading(false);
+      if (activeRequestSymbolRef.current === currentRequestedSymbol) {
+        setInitialLoading(false);
+      }
     }
   };
 
