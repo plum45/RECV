@@ -34,7 +34,7 @@ async function triggerAlerts() {
       try {
         // 1. Fetch data
         const ticker = await getTicker(symbol);
-        const klines = await getKlines(symbol, "1H", 200);
+        const klines = await getKlines(symbol, "4H", 200);
 
         // 2. Indicators & SR
         const indicators = calculateIndicators(klines);
@@ -89,8 +89,9 @@ async function triggerAlerts() {
           }
         }
 
-        // Condition D: Closest Support Zone Proximity
-        const closestSupport = supportResistance.supportZones[0] || null;
+        // Condition D: Closest Strong Support Zone Proximity
+        const strongSupports = supportResistance.supportZones.filter(z => z.score >= 3);
+        const closestSupport = strongSupports.length > 0 ? strongSupports[0] : (supportResistance.supportZones[0] || null);
         if (closestSupport) {
           const [lowStr, highStr] = closestSupport.zone.replace(/,/g, "").split("-");
           const lowVal = parseFloat(lowStr);
@@ -99,9 +100,9 @@ async function triggerAlerts() {
 
           if (supportMid > 0) {
             const distancePct = ((price - supportMid) / supportMid) * 100;
-            // Trigger if within 1.0% of support (and not broken below by more than 0.5%)
-            if (distancePct <= 1.0 && distancePct >= -0.5) {
-              triggers.push(`ราคาเข้าใกล้แนวรับสำคัญ S1 ที่ $${closestSupport.zone} (ห่างเพียง ${distancePct >= 0 ? "+" : ""}${distancePct.toFixed(2)}%)`);
+            // Trigger if within 2.0% of major 4H support (and not broken below by more than 0.75%)
+            if (distancePct <= 2.0 && distancePct >= -0.75) {
+              triggers.push(`ราคาเข้าใกล้แนวรับสำคัญ S1 ที่ $${closestSupport.zone} (ห่างเพียง ${distancePct >= 0 ? "+" : ""}${distancePct.toFixed(2)}%) [ความน่าเชื่อถือ: ${closestSupport.score}/10]`);
             }
           }
         }

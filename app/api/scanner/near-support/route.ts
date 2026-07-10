@@ -24,7 +24,7 @@ async function scanSupport(symbols: string[]) {
     symbols.map(async (symbol) => {
       try {
         const ticker = await getTicker(symbol);
-        const klines = await getKlines(symbol, "1H", 200);
+        const klines = await getKlines(symbol, "4H", 200);
         const indicators = calculateIndicators(klines);
         const supportResistance = calculateSupportResistance(
           klines,
@@ -32,7 +32,9 @@ async function scanSupport(symbols: string[]) {
           ticker.currentPrice
         );
 
-        const closestSupport = supportResistance.supportZones[0] || null;
+        // Filter for high-impact support zones (score >= 3)
+        const strongSupports = supportResistance.supportZones.filter(z => z.score >= 3);
+        const closestSupport = strongSupports.length > 0 ? strongSupports[0] : (supportResistance.supportZones[0] || null);
         let distancePercent = 999;
         let supportMid = 0;
 
@@ -50,9 +52,10 @@ async function scanSupport(symbols: string[]) {
           closestSupport,
           supportPrice: supportMid,
           distancePercent,
-          status: distancePercent <= 1.5 && distancePercent >= -0.5 
+          // 4H timeframe supports are wider, so 2.5% range is appropriate for "near support"
+          status: distancePercent <= 2.5 && distancePercent >= -0.75 
             ? "near" 
-            : distancePercent < -0.5 
+            : distancePercent < -0.75 
               ? "broken" 
               : "normal",
         };
