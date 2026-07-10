@@ -34,7 +34,9 @@ async function triggerAlerts() {
       try {
         // 1. Fetch data
         const ticker = await getTicker(symbol);
-        const klines = await getKlines(symbol, "4H", 200);
+        const isCrypto = symbol.toUpperCase().endsWith("-USD");
+        const timeframe = isCrypto ? "4H" : "1D";
+        const klines = await getKlines(symbol, timeframe, 200);
 
         // 2. Indicators & SR
         const indicators = calculateIndicators(klines);
@@ -100,9 +102,11 @@ async function triggerAlerts() {
 
           if (supportMid > 0) {
             const distancePct = ((price - supportMid) / supportMid) * 100;
-            // Trigger if within 2.0% of major 4H support (and not broken below by more than 0.75%)
-            if (distancePct <= 2.0 && distancePct >= -0.75) {
-              triggers.push(`ราคาเข้าใกล้แนวรับสำคัญ S1 ที่ $${closestSupport.zone} (ห่างเพียง ${distancePct >= 0 ? "+" : ""}${distancePct.toFixed(2)}%) [ความน่าเชื่อถือ: ${closestSupport.score}/10]`);
+            const threshold = isCrypto ? 2.0 : 2.5;
+            const brokenThreshold = isCrypto ? -0.75 : -1.0;
+            // Trigger if within threshold of major support
+            if (distancePct <= threshold && distancePct >= brokenThreshold) {
+              triggers.push(`ราคาเข้าใกล้แนวรับสำคัญ S1 ที่ $${closestSupport.zone} (ห่างเพียง ${distancePct >= 0 ? "+" : ""}${distancePct.toFixed(2)}%) [ความน่าเชื่อถือ: ${closestSupport.score}/10] (${timeframe} Timeframe)`);
             }
           }
         }

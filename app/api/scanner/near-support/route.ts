@@ -24,7 +24,9 @@ async function scanSupport(symbols: string[]) {
     symbols.map(async (symbol) => {
       try {
         const ticker = await getTicker(symbol);
-        const klines = await getKlines(symbol, "4H", 200);
+        const isCrypto = symbol.toUpperCase().endsWith("-USD");
+        const timeframe = isCrypto ? "4H" : "1D";
+        const klines = await getKlines(symbol, timeframe, 200);
         const indicators = calculateIndicators(klines);
         const supportResistance = calculateSupportResistance(
           klines,
@@ -45,17 +47,20 @@ async function scanSupport(symbols: string[]) {
           }
         }
 
+        const threshold = isCrypto ? 2.5 : 3.0;
+        const brokenThreshold = isCrypto ? -0.75 : -1.0;
+
         return {
           symbol,
+          timeframe,
           currentPrice: ticker.currentPrice,
           change24h: ticker.change24h,
           closestSupport,
           supportPrice: supportMid,
           distancePercent,
-          // 4H timeframe supports are wider, so 2.5% range is appropriate for "near support"
-          status: distancePercent <= 2.5 && distancePercent >= -0.75 
+          status: distancePercent <= threshold && distancePercent >= brokenThreshold 
             ? "near" 
-            : distancePercent < -0.75 
+            : distancePercent < brokenThreshold 
               ? "broken" 
               : "normal",
         };

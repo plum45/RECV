@@ -280,7 +280,7 @@ export default function ScannerPage() {
       <section className="mb-8 relative z-20">
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
           <Activity size={14} className="text-emerald-400 animate-pulse" />
-          เฝ้าระวัง: ใกล้แนวรับสำคัญ (4H Timeframe)
+          เฝ้าระวัง: ใกล้แนวรับสำคัญ (Crypto: 4H, หุ้น: 1D)
         </h2>
         {loadingSupport ? (
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
