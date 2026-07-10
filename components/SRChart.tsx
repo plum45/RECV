@@ -192,16 +192,6 @@ export default function SRChart({ klines, indicators, supportResistance, current
     [klines]
   );
 
-  // Y-axis domain
-  const closePrices = klines.slice(-80).map((k) => k.close);
-  const minClose = Math.min(...closePrices);
-  const maxClose = Math.max(...closePrices);
-  const padding = (maxClose - minClose) * 0.05;
-  const yDomain = [
-    parseFloat((minClose - padding).toFixed(2)),
-    parseFloat((maxClose + padding).toFixed(2)),
-  ];
-
   // Build parsed S/R level lists
   let supportLevels = (supportResistance?.supportZones || [])
     .map((sz, idx) => ({ ...sz, parsed: parseZoneMid(sz.zone), idx }))
@@ -213,12 +203,12 @@ export default function SRChart({ klines, indicators, supportResistance, current
 
   const priceVal = currentPrice || klines[klines.length - 1]?.close || 100;
 
-  // Guarantee exactly 2 support levels are always displayed on the chart
-  if (supportLevels.length > 2) {
-    supportLevels = supportLevels.slice(0, 2);
-  } else if (supportLevels.length < 2) {
-    const gap = priceVal * 0.05;
-    while (supportLevels.length < 2) {
+  // Guarantee exactly 3 support levels are always displayed on the chart
+  if (supportLevels.length > 3) {
+    supportLevels = supportLevels.slice(0, 3);
+  } else if (supportLevels.length < 3) {
+    const gap = priceVal * 0.018; // 1.8% gap so fallback levels are close and visible on the chart
+    while (supportLevels.length < 3) {
       const idx = supportLevels.length;
       const fallbackMid = priceVal - (idx + 1) * gap;
       const low = fallbackMid * 0.995;
@@ -234,12 +224,12 @@ export default function SRChart({ klines, indicators, supportResistance, current
     }
   }
 
-  // Guarantee exactly 2 resistance levels are always displayed on the chart
-  if (resistanceLevels.length > 2) {
-    resistanceLevels = resistanceLevels.slice(0, 2);
-  } else if (resistanceLevels.length < 2) {
-    const gap = priceVal * 0.05;
-    while (resistanceLevels.length < 2) {
+  // Guarantee exactly 3 resistance levels are always displayed on the chart
+  if (resistanceLevels.length > 3) {
+    resistanceLevels = resistanceLevels.slice(0, 3);
+  } else if (resistanceLevels.length < 3) {
+    const gap = priceVal * 0.018; // 1.8% gap
+    while (resistanceLevels.length < 3) {
       const idx = resistanceLevels.length;
       const fallbackMid = priceVal + (idx + 1) * gap;
       const low = fallbackMid * 0.995;
@@ -254,6 +244,20 @@ export default function SRChart({ klines, indicators, supportResistance, current
       });
     }
   }
+
+  // Y-axis domain (includes close prices and S/R levels to auto-expand viewport)
+  const closePrices = klines.slice(-80).map((k) => k.close);
+  const supportPrices = supportLevels.map((s) => s.parsed!.mid);
+  const resistancePrices = resistanceLevels.map((r) => r.parsed!.mid);
+  const allPrices = [...closePrices, ...supportPrices, ...resistancePrices];
+
+  const minClose = Math.min(...allPrices);
+  const maxClose = Math.max(...allPrices);
+  const padding = (maxClose - minClose) * 0.05;
+  const yDomain = [
+    parseFloat((minClose - padding).toFixed(2)),
+    parseFloat((maxClose + padding).toFixed(2)),
+  ];
 
   return (
     <div className="relative w-full bg-slate-950 border border-slate-800/80 rounded-2xl p-4 shadow-2xl flex flex-col gap-4 overflow-hidden">
