@@ -2,7 +2,7 @@ import { KlineData, IndicatorData, SupportResistanceZone, SupportResistanceData 
 
 interface CandidatePoint {
   price: number;
-  type: "swing_high" | "swing_low" | "ema" | "pivot" | "round_number" | "fvg" | "orderblock";
+  type: "swing_high" | "swing_low" | "fvg" | "orderblock" | "round_number";
   name: string;
   volume?: number;
 }
@@ -24,8 +24,11 @@ export function calculateSupportResistance(
     if (klines[i].high > maxPrice) maxPrice = klines[i].high;
   }
 
-  // 1. Detect Swing Highs and Swing Lows (Window W = 5)
-  const W = 5;
+  // Calculate average volume to weight swing points
+  const avgVolume = klines.reduce((sum, k) => sum + k.volume, 0) / len;
+
+  // 1. Detect Swing Highs and Swing Lows (Window W = 12 for high-impact levels)
+  const W = 12;
   for (let i = Math.max(W, historyLookback); i < len - W; i++) {
     const currentHigh = klines[i].high;
     const currentLow = klines[i].low;
@@ -65,21 +68,7 @@ export function calculateSupportResistance(
     }
   }
 
-  // 2. Add EMA Confluences
-  if (indicators.ema20 > 0) candidates.push({ price: indicators.ema20, type: "ema", name: "EMA 20" });
-  if (indicators.ema50 > 0) candidates.push({ price: indicators.ema50, type: "ema", name: "EMA 50" });
-  if (indicators.ema200 > 0) candidates.push({ price: indicators.ema200, type: "ema", name: "EMA 200" });
-
-  // 3. Add Pivot Points (R1, R2, R3, S1, S2, S3)
-  const p = indicators.pivot;
-  candidates.push({ price: p.r1, type: "pivot", name: "Pivot R1" });
-  candidates.push({ price: p.r2, type: "pivot", name: "Pivot R2" });
-  candidates.push({ price: p.r3, type: "pivot", name: "Pivot R3" });
-  candidates.push({ price: p.s1, type: "pivot", name: "Pivot S1" });
-  candidates.push({ price: p.s2, type: "pivot", name: "Pivot S2" });
-  candidates.push({ price: p.s3, type: "pivot", name: "Pivot S3" });
-
-  // 3.5 Smart Money Concepts (FVG & Order Blocks)
+  // 2. Smart Money Concepts (FVG & Order Blocks)
   for (let i = Math.max(2, len - 300); i < len; i++) {
     const c1 = klines[i - 2];
     const c2 = klines[i - 1];
@@ -104,8 +93,7 @@ export function calculateSupportResistance(
     }
   }
 
-  // 4. Add Psychological round numbers
-  // Determine step size based on price magnitude
+  // 3. Add Psychological round numbers
   let step = 1000;
   if (currentPrice > 30000) step = 1000; // BTC range
   else if (currentPrice > 1000) step = 100; // ETH range
@@ -124,8 +112,8 @@ export function calculateSupportResistance(
   }
 
   // Clustering Algorithm
-  // Threshold is 0.75% of current price
-  const threshold = currentPrice * 0.0075;
+  // Threshold is 1.5% of current price to merge and consolidate confluences
+  const threshold = currentPrice * 0.015;
   const sortedCandidates = [...candidates].sort((a, b) => a.price - b.price);
 
   const clusters: CandidatePoint[][] = [];
@@ -149,56 +137,73 @@ export function calculateSupportResistance(
     const minVal = Math.min(...prices);
     const maxVal = Math.max(...prices);
 
-    // If cluster has 1 item, expand it slightly to create a zone
     let lower = minVal;
     let upper = maxVal;
     if (minVal === maxVal) {
-      lower = minVal * 0.9975;
-      upper = maxVal * 1.0025;
+      lower = minVal * 0.9925;
+      upper = maxVal * 1.0075;
     }
 
-    // Rounding to make the zone representation clean
-    let zoneStr = "";
-    if (currentPrice > 1000) {
-      zoneStr = `${Math.round(lower).toLocaleString()}-${Math.round(upper).toLocaleString()}`;
-    } else {
-      zoneStr = `${lower.toFixed(2)}-${upper.toFixed(2)}`;
-    }
+    const mid = (lower + upper) / 2;
 
-    // Scoring formula:
-    // Base score from candidates types
     let score = 0;
     const reasons: string[] = [];
     let swingHighs = 0;
     let swingLows = 0;
-    const emas: string[] = [];
-    const pivots: string[] = [];
     let roundNumber = false;
 
     cluster.forEach((c) => {
       if (c.type === "swing_high") {
         swingHighs++;
-        score += 1.8;
+        let ptScore = 1.8;
+        if (c.volume && c.volume > avgVolume) {
+          const ratio = Math.min(2.0, c.volume / avgVolume);
+          ptScore += 1.2 * (ratio - 1);
+        }
+        score += ptScore;
       } else if (c.type === "swing_low") {
         swingLows++;
-        score += 1.8;
-      } else if (c.type === "ema") {
-        emas.push(c.name);
-        score += 1.5;
-      } else if (c.type === "pivot") {
-        pivots.push(c.name);
-        score += 1.0;
+        let ptScore = 1.8;
+        if (c.volume && c.volume > avgVolume) {
+          const ratio = Math.min(2.0, c.volume / avgVolume);
+          ptScore += 1.2 * (ratio - 1);
+        }
+        score += ptScore;
       } else if (c.type === "round_number") {
         roundNumber = true;
         score += 0.5;
       } else if (c.type === "fvg") {
         reasons.push(c.name);
-        score += 2.0; // High weight for Fair Value Gaps
+        score += 2.0;
       } else if (c.type === "orderblock") {
         reasons.push(c.name);
-        score += 2.5; // Highest weight for Order Blocks
+        score += 2.5;
       }
     });
+
+    // Check EMA and Pivot Confluences dynamically for this cluster's range
+    const emas: string[] = [];
+    if (indicators.ema20 > 0 && Math.abs(indicators.ema20 - mid) <= threshold) {
+      emas.push("EMA 20");
+      score += 1.5;
+    }
+    if (indicators.ema50 > 0 && Math.abs(indicators.ema50 - mid) <= threshold) {
+      emas.push("EMA 50");
+      score += 1.5;
+    }
+    if (indicators.ema200 > 0 && Math.abs(indicators.ema200 - mid) <= threshold) {
+      emas.push("EMA 200");
+      score += 2.0;
+    }
+
+    const pivots: string[] = [];
+    const p = indicators.pivot;
+    if (Math.abs(p.r1 - mid) <= threshold) { pivots.push("Pivot R1"); score += 1.0; }
+    if (Math.abs(p.r2 - mid) <= threshold) { pivots.push("Pivot R2"); score += 1.0; }
+    if (Math.abs(p.r3 - mid) <= threshold) { pivots.push("Pivot R3"); score += 1.0; }
+    if (Math.abs(p.s1 - mid) <= threshold) { pivots.push("Pivot S1"); score += 1.0; }
+    if (Math.abs(p.s2 - mid) <= threshold) { pivots.push("Pivot S2"); score += 1.0; }
+    if (Math.abs(p.s3 - mid) <= threshold) { pivots.push("Pivot S3"); score += 1.0; }
 
     // Build descriptive reasons
     if (swingHighs > 0) reasons.push(`ทดสอบ Swing High ${swingHighs} ครั้ง`);
@@ -207,11 +212,9 @@ export function calculateSupportResistance(
     if (pivots.length > 0) reasons.push(`ระดับ Pivot: ${pivots.join(", ")}`);
     if (roundNumber) reasons.push("แนวระดับราคาจิตวิทยา (เลขกลม)");
 
-    // Mid point to categorize type
-    const mid = (lower + upper) / 2;
     const zoneType = mid < currentPrice ? "support" : "resistance";
 
-    // Detect S/R Flip (Support/Resistance Role Reversal)
+    // Detect S/R Flip
     let adjustedScore = score;
     if (zoneType === "support" && swingHighs > 0) {
       reasons.push("แนวต้านเก่าเปลี่ยนเป็นแนวรับ (S/R Flip)");
@@ -221,34 +224,56 @@ export function calculateSupportResistance(
       adjustedScore += 0.5;
     }
 
-    // Cap score at 10
     const finalScore = Math.min(10, Math.max(1, Math.round(adjustedScore)));
+
+    let zoneStr = "";
+    if (currentPrice > 1000) {
+      zoneStr = `${Math.round(lower).toLocaleString()}-${Math.round(upper).toLocaleString()}`;
+    } else {
+      zoneStr = `${lower.toFixed(2)}-${upper.toFixed(2)}`;
+    }
 
     return {
       zone: zoneStr,
       type: zoneType,
       score: finalScore,
       reasons,
-      // Internal midpoint for sorting / filtering
       _mid: mid,
-    } as any;
+    };
   });
 
-  // Filter and split into support & resistance
-  const supportZonesRaw = rawZones.filter((z) => z.type === "support");
-  const resistanceZonesRaw = rawZones.filter((z) => z.type === "resistance");
+  // Filter out zones that are too close (e.g. within 1.2% of current price) if they have low scores,
+  // to prioritize high-impact levels.
+  const minDistance = currentPrice * 0.012;
+  const filteredZones = rawZones.filter((z) => {
+    const dist = Math.abs(z._mid - currentPrice);
+    if (dist < minDistance && z.score < 8) {
+      return false; // Skip if too close and not a super strong confluence level
+    }
+    return true;
+  });
 
-  // Sort supports descending by price (closest to current price first, then by score)
-  // But we want strong levels! So let's sort by score descending, then take top 3
-  const supportZones = supportZonesRaw
+  const supportZonesRaw = filteredZones.filter((z) => z.type === "support");
+  const resistanceZonesRaw = filteredZones.filter((z) => z.type === "resistance");
+
+  // Select top 3 by score descending (highest significance)
+  const topSupports = supportZonesRaw
     .sort((a, b) => b.score - a.score || b._mid - a._mid)
-    .slice(0, 3)
+    .slice(0, 3);
+
+  // Re-sort supports by price descending (highest price / closest to current price first)
+  const supportZones = topSupports
+    .sort((a, b) => b._mid - a._mid)
     .map(({ zone, type, score, reasons }) => ({ zone, type, score, reasons }));
 
-  // Sort resistances by score descending, then take top 3
-  const resistanceZones = resistanceZonesRaw
+  // Select top 3 by score descending (highest significance)
+  const topResistances = resistanceZonesRaw
     .sort((a, b) => b.score - a.score || a._mid - b._mid)
-    .slice(0, 3)
+    .slice(0, 3);
+
+  // Re-sort resistances by price ascending (lowest price / closest to current price first)
+  const resistanceZones = topResistances
+    .sort((a, b) => a._mid - b._mid)
     .map(({ zone, type, score, reasons }) => ({ zone, type, score, reasons }));
 
   return {
