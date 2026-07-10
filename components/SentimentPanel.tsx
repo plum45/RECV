@@ -7,9 +7,10 @@ import { Smile, DollarSign, BarChart2, TrendingUp } from "lucide-react";
 interface SentimentPanelProps {
   sentiment: SentimentData | null;
   loading: boolean;
+  symbol?: string;
 }
 
-export default function SentimentPanel({ sentiment, loading }: SentimentPanelProps) {
+export default function SentimentPanel({ sentiment, loading, symbol }: SentimentPanelProps) {
   if (loading) {
     return (
       <div className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-xl animate-pulse space-y-4">
@@ -61,7 +62,7 @@ export default function SentimentPanel({ sentiment, loading }: SentimentPanelPro
     <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
       <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
         <Smile size={18} className="text-amber-400" />
-        จิตวิทยาตลาด (Market Sentiment)
+        จิตวิทยาตลาด (Market Sentiment) {symbol && `(${symbol})`}
       </h3>
 
       {/* Overall Sentiment Badge */}

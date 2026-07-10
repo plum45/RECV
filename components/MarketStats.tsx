@@ -9,6 +9,7 @@ interface MarketStatsProps {
   indicators: IndicatorData | null;
   supportResistance: SupportResistanceData | null;
   loading: boolean;
+  symbol?: string;
 }
 
 export default function MarketStats({
@@ -16,6 +17,7 @@ export default function MarketStats({
   indicators,
   supportResistance,
   loading,
+  symbol,
 }: MarketStatsProps) {
   if (loading) {
     return (
@@ -66,7 +68,7 @@ export default function MarketStats({
         <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500"></div>
         <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2 mb-4">
           <Activity size={18} className="text-indigo-400" />
-          สถิติตลาด 24 ชั่วโมง
+          สถิติตลาด 24 ชั่วโมง {symbol && `(${symbol})`}
         </h3>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-slate-900 border border-slate-800/80 rounded-xl p-3.5 relative">

@@ -7,9 +7,10 @@ import { Newspaper, ExternalLink, HelpCircle } from "lucide-react";
 interface NewsPanelProps {
   news: NewsArticle[];
   loading: boolean;
+  symbol?: string;
 }
 
-export default function NewsPanel({ news, loading }: NewsPanelProps) {
+export default function NewsPanel({ news, loading, symbol }: NewsPanelProps) {
   if (loading) {
     return (
       <div className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-xl animate-pulse space-y-4">
@@ -77,7 +78,7 @@ export default function NewsPanel({ news, loading }: NewsPanelProps) {
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
           <Newspaper size={18} className="text-indigo-400" />
-          ข่าวสารล่าสุด & ปัจจัยข่าว
+          ข่าวสารล่าสุด & ปัจจัยข่าว {symbol && `(${symbol})`}
         </h3>
         {!hasNewsApiKey && (
           <span className="text-[10px] text-amber-400 font-semibold bg-amber-950/40 px-2 py-0.5 rounded border border-amber-800/30 flex items-center gap-1">

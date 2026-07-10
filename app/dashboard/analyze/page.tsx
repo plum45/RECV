@@ -508,8 +508,8 @@ function AnalyzePageContent() {
 
                 {/* News and Sentiment Side-by-Side */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <SentimentPanel sentiment={sentiment} loading={initialLoading} />
-                  <NewsPanel news={news} loading={initialLoading} />
+                  <SentimentPanel sentiment={sentiment} loading={initialLoading} symbol={symbol} />
+                  <NewsPanel news={news} loading={initialLoading} symbol={symbol} />
                 </div>
 
               </div>
@@ -518,7 +518,7 @@ function AnalyzePageContent() {
               <div className="lg:col-span-4 space-y-6 flex flex-col">
                 
                 {/* Rocket Score gauge card */}
-                <RocketScoreCard reportText={analysisReport} loading={loading} />
+                <RocketScoreCard reportText={analysisReport} loading={loading} symbol={symbol} />
 
                 {/* Market indicators & stats */}
                 <MarketStats
@@ -526,6 +526,7 @@ function AnalyzePageContent() {
                   indicators={indicators}
                   supportResistance={supportResistance}
                   loading={initialLoading}
+                  symbol={symbol}
                 />
 
               </div>

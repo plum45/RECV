@@ -6,6 +6,7 @@ import { Rocket, Shield } from "lucide-react";
 interface RocketScoreCardProps {
   reportText: string | null;
   loading: boolean;
+  symbol?: string;
 }
 
 function parseRocketScore(report: string | null): number | null {
@@ -24,7 +25,7 @@ function parseRocketScore(report: string | null): number | null {
   return null;
 }
 
-export default function RocketScoreCard({ reportText, loading }: RocketScoreCardProps) {
+export default function RocketScoreCard({ reportText, loading, symbol }: RocketScoreCardProps) {
   const score = parseRocketScore(reportText);
 
   // Loading / Placeholder state
@@ -45,7 +46,7 @@ export default function RocketScoreCard({ reportText, loading }: RocketScoreCard
         </div>
 
         <span className="text-xs font-bold text-slate-400 uppercase tracking-widest relative z-10">
-          {loading ? "กำลังวิเคราะห์ข้อมูล..." : "Rocket Quant Score"}
+          {loading ? `กำลังวิเคราะห์ ${symbol || ""}...` : `Rocket Quant Score ${symbol ? `(${symbol})` : ""}`}
         </span>
         <p className="text-[10px] text-slate-500 max-w-[200px] mt-1.5 relative z-10 leading-relaxed">
           {loading 
@@ -58,7 +59,7 @@ export default function RocketScoreCard({ reportText, loading }: RocketScoreCard
 
   // Determine colors based on score value
   let scoreColor = "text-indigo-400";
-  let glowColor = "shadow-[0_0_30px_rgba(99,102,241,0.15)] border-indigo-500/30 bg-slate-900/25";
+  let glowColor = "shadow-[0_0_35px_rgba(99,102,241,0.15)] border-indigo-500/30 bg-slate-900/25";
   let ringColor = "stroke-indigo-500";
   let scoreLabel = "Neutral Bias";
   let scoreDesc = "ตลาดเคลื่อนตัวไร้ทิศทางชัดเจน แนะนำรอสัญญาณคอนเฟิร์ม";
@@ -78,13 +79,13 @@ export default function RocketScoreCard({ reportText, loading }: RocketScoreCard
   } else if (score >= 40) {
     scoreColor = "text-amber-400";
     glowColor = "shadow-[0_0_30px_rgba(245,158,11,0.15)] border-amber-500/25 bg-slate-900/25";
-    ringColor = "stroke-amber-450";
+    ringColor = "stroke-amber-455";
     scoreLabel = "Neutral Market State";
     scoreDesc = "ตลาดเคลื่อนตัวไซด์เวย์ในกรอบแคบ รอเบรกเอาท์เลือกทาง";
   } else if (score >= 25) {
     scoreColor = "text-rose-400";
     glowColor = "shadow-[0_0_30px_rgba(244,63,94,0.15)] border-rose-500/25 bg-slate-900/25";
-    ringColor = "stroke-rose-450";
+    ringColor = "stroke-rose-455";
     scoreLabel = "Moderate Bearish";
     scoreDesc = "เริ่มมีความเห็นพ้องฝั่งแรงขายกดดันระมัดระวังรอบ Long";
   } else {
@@ -106,7 +107,7 @@ export default function RocketScoreCard({ reportText, loading }: RocketScoreCard
       
       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5 relative z-10">
         <Rocket size={12} className={`${scoreColor} animate-bounce`} />
-        Rocket Quant Confidence
+        Rocket Quant Confidence {symbol && `(${symbol})`}
       </span>
 
       {/* Radial Gauge */}
