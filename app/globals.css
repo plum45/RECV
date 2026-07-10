@@ -231,8 +231,7 @@ body {
 .light .bg-slate-900\/40,
 .light .bg-slate-900\/80,
 .light .bg-slate-900\/90,
-.light .bg-\[\#090d16\],
-.light .bg-[#090d16] {
+.light .bg-\[\#090d16\] {
   background-color: #ffffff !important;
   background-image: none !important;
 }
