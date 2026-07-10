@@ -3,13 +3,14 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Search, BarChart2, Briefcase, Settings, Menu, X, Rocket, Zap } from "lucide-react";
+import { Home, Search, BarChart2, Briefcase, Settings, Menu, X, Rocket, Zap, Sun, Moon } from "lucide-react";
 import MobileNavBar from "../../components/MobileNavBar";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [theme, setTheme] = useState("dark");
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
@@ -17,6 +18,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedTheme = localStorage.getItem("rocket_theme") || "dark";
+      setTheme(savedTheme);
+      document.documentElement.classList.remove("light", "dark");
+      document.documentElement.classList.add(savedTheme);
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const nextTheme = theme === "dark" ? "light" : "dark";
+    setTheme(nextTheme);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("rocket_theme", nextTheme);
+      document.documentElement.classList.remove("light", "dark");
+      document.documentElement.classList.add(nextTheme);
+    }
+  };
 
   const navItems = [
     { name: "หน้าแรก (Home)", path: "/dashboard", icon: Home },
@@ -34,9 +54,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="flex items-center gap-2 text-indigo-400 font-bold">
           <Rocket size={18} /> iVES
         </div>
-        <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-slate-400 hover:text-white">
-          <Menu size={24} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button onClick={toggleTheme} className="p-2 text-slate-400 hover:text-white transition-colors">
+            {theme === "dark" ? <Sun size={20} className="text-amber-400" /> : <Moon size={20} className="text-indigo-500" />}
+          </button>
+          <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-slate-400 hover:text-white">
+            <Menu size={24} />
+          </button>
+        </div>
       </div>
 
       {/* Sidebar Overlay (Mobile) */}
@@ -83,6 +108,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             );
           })}
         </nav>
+
+        {/* Theme Toggle (Sidebar Footer) */}
+        <div className="p-4 border-t border-slate-800/60 flex items-center justify-between shrink-0">
+          <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">โหมดการแสดงผล</span>
+          <button
+            onClick={toggleTheme}
+            className="p-1.5 px-2.5 rounded-lg bg-slate-800/80 text-slate-300 hover:text-white transition-all hover:bg-slate-800 cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
+          >
+            {theme === "dark" ? (
+              <>
+                <Sun size={14} className="text-amber-400" />
+                สว่าง
+              </>
+            ) : (
+              <>
+                <Moon size={14} className="text-indigo-400" />
+                มืด
+              </>
+            )}
+          </button>
+        </div>
       </aside>
 
       {/* Main Content Area */}

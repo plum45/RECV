@@ -209,3 +209,179 @@ body {
 .animate-marquee:hover {
   animation-play-state: paused;
 }
+
+/* ─── LIGHT MODE OVERRIDES ────────────────────────────────── */
+:root.light {
+  --background: #f8fafc; /* Slate 50 */
+  --foreground: #0f172a; /* Slate 900 */
+}
+
+.light body {
+  background-color: #f8fafc !important;
+  background: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+/* Overriding Tailwind bg classes in light mode */
+.light .bg-slate-950,
+.light .bg-slate-900,
+.light .bg-slate-950\/60,
+.light .bg-slate-950\/80,
+.light .bg-slate-950\/90,
+.light .bg-slate-900\/40,
+.light .bg-slate-900\/80,
+.light .bg-slate-900\/90,
+.light .bg-\[\#090d16\],
+.light .bg-[#090d16] {
+  background-color: #ffffff !important;
+  background-image: none !important;
+}
+
+.light .bg-slate-900\/20,
+.light .bg-slate-900\/10 {
+  background-color: #f1f5f9 !important;
+}
+
+.light .bg-indigo-950\/60 {
+  background-color: rgba(99, 102, 241, 0.08) !important;
+  color: #4f46e5 !important;
+}
+
+/* Card components */
+.light .panel-card {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04) !important;
+}
+.light .panel-card::before {
+  background: linear-gradient(90deg, transparent 0%, rgba(99, 102, 241, 0.15) 50%, transparent 100%) !important;
+}
+.light .panel-header {
+  border-bottom-color: #f1f5f9 !important;
+}
+
+/* Borders */
+.light .border-slate-800,
+.light .border-slate-800\/80,
+.light .border-slate-800\/40,
+.light .border-slate-800\/60,
+.light .border-slate-800\/50,
+.light .border-slate-750,
+.light .border-slate-700,
+.light .border-slate-700\/50,
+.light .border-slate-900,
+.light .border-slate-900\/80 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Text Overrides */
+.light .text-slate-500,
+.light .text-slate-400,
+.light .text-slate-450 {
+  color: #475569 !important; /* Slate 600 */
+}
+
+.light .text-slate-300,
+.light .text-slate-200 {
+  color: #1e293b !important; /* Slate 800 */
+}
+
+.light .text-slate-100,
+.light .text-slate-50 {
+  color: #0f172a !important; /* Slate 900 */
+}
+
+.light .text-indigo-400 {
+  color: #4f46e5 !important;
+}
+
+.light .text-indigo-300 {
+  color: #3730a3 !important;
+}
+
+/* Buttons and Inputs */
+.light input,
+.light select,
+.light button.bg-slate-900\/40,
+.light button.bg-slate-800\/60,
+.light button.border-slate-800 {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.light input::placeholder {
+  color: #94a3b8 !important;
+}
+
+.light select option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+/* Sidebar and layout headers */
+.light aside, 
+.light .bg-slate-900 {
+  background-color: #ffffff !important;
+  border-right-color: #e2e8f0 !important;
+}
+
+.light .border-indigo-500\/30 {
+  border-color: rgba(99, 102, 241, 0.3) !important;
+}
+
+.light .bg-indigo-500\/10 {
+  background-color: rgba(99, 102, 241, 0.08) !important;
+}
+
+/* Recharts grid and tooltips in light mode */
+.light .recharts-tooltip-wrapper .bg-slate-950,
+.light .recharts-tooltip-wrapper .bg-slate-950\/90 {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
+}
+
+.light .recharts-cartesian-grid-horizontal line,
+.light .recharts-cartesian-grid-vertical line {
+  stroke: #cbd5e1 !important;
+  stroke-opacity: 0.45 !important;
+}
+
+.light .recharts-text {
+  fill: #475569 !important;
+}
+
+.light .bg-slate-800\/80 {
+  background-color: #f1f5f9 !important;
+  color: #334155 !important;
+  border-color: #cbd5e1 !important;
+}
+
+.light .bg-slate-800\/80:hover {
+  background-color: #e2e8f0 !important;
+}
+
+.light .shimmer {
+  background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%) !important;
+}
+
+.light .shadow-2xl {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04) !important;
+}
+
+.light .border-indigo-500\/20 {
+  border-color: rgba(99, 102, 241, 0.25) !important;
+}
+
+/* Watchlist and custom components */
+.light .bg-indigo-950\/40 {
+  background-color: rgba(99, 102, 241, 0.06) !important;
+}
+.light .bg-rose-950\/20 {
+  background-color: rgba(244, 63, 94, 0.06) !important;
+}
+.light .bg-emerald-950\/20 {
+  background-color: rgba(16, 185, 129, 0.06) !important;
+}
