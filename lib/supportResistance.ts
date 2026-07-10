@@ -206,12 +206,22 @@ export function calculateSupportResistance(
     if (pivots.length > 0) reasons.push(`ระดับ Pivot: ${pivots.join(", ")}`);
     if (roundNumber) reasons.push("แนวระดับราคาจิตวิทยา (เลขกลม)");
 
-    // Cap score at 10
-    const finalScore = Math.min(10, Math.max(1, Math.round(score)));
-
     // Mid point to categorize type
     const mid = (lower + upper) / 2;
     const zoneType = mid < currentPrice ? "support" : "resistance";
+
+    // Detect S/R Flip (Support/Resistance Role Reversal)
+    let adjustedScore = score;
+    if (zoneType === "support" && swingHighs > 0) {
+      reasons.push("แนวต้านเก่าเปลี่ยนเป็นแนวรับ (S/R Flip)");
+      adjustedScore += 0.5;
+    } else if (zoneType === "resistance" && swingLows > 0) {
+      reasons.push("แนวรับเก่าเปลี่ยนเป็นแนวต้าน (S/R Flip)");
+      adjustedScore += 0.5;
+    }
+
+    // Cap score at 10
+    const finalScore = Math.min(10, Math.max(1, Math.round(adjustedScore)));
 
     return {
       zone: zoneStr,
