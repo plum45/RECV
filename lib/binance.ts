@@ -45,6 +45,7 @@ function getBaselinePrice(symbol: string): number {
 function getMockTicker(symbol: string): TickerData {
   const cleanSymbol = symbol.toUpperCase().trim();
   const baseline = getBaselinePrice(cleanSymbol);
+  const isStock = !cleanSymbol.endsWith("-USD");
   return {
     symbol: cleanSymbol,
     currentPrice: baseline,
@@ -52,6 +53,9 @@ function getMockTicker(symbol: string): TickerData {
     low24h: baseline * 0.978,
     volume24h: 35000000 + Math.floor(Math.random() * 20000000),
     change24h: 1.45,
+    marketState: isStock ? "POST" : "REGULAR",
+    prePostPrice: isStock ? baseline * 1.008 : undefined,
+    prePostChange: isStock ? 0.8 : undefined,
   };
 }
 
@@ -184,6 +188,21 @@ export async function getTicker(symbol: string): Promise<TickerData> {
     const prevClose = meta.chartPreviousClose || meta.previousClose || currentPrice;
     const change24h = prevClose > 0 ? ((currentPrice - prevClose) / prevClose) * 100 : 0;
     
+    const marketState = meta.currentMarketState || "REGULAR";
+    const preMarketPrice = meta.preMarketPrice || null;
+    const postMarketPrice = meta.postMarketPrice || null;
+    
+    let prePostPrice = undefined;
+    let prePostChange = undefined;
+    
+    if (marketState === "PRE" && preMarketPrice) {
+      prePostPrice = preMarketPrice;
+      prePostChange = currentPrice > 0 ? ((preMarketPrice - currentPrice) / currentPrice) * 100 : 0;
+    } else if ((marketState === "POST" || marketState === "CLOSED") && postMarketPrice) {
+      prePostPrice = postMarketPrice;
+      prePostChange = currentPrice > 0 ? ((postMarketPrice - currentPrice) / currentPrice) * 100 : 0;
+    }
+
     return {
       symbol: cleanSymbol,
       currentPrice: currentPrice,
@@ -191,6 +210,9 @@ export async function getTicker(symbol: string): Promise<TickerData> {
       low24h: meta.regularMarketDayLow || currentPrice,
       volume24h: meta.regularMarketVolume || 0,
       change24h: change24h,
+      marketState,
+      prePostPrice: prePostPrice || undefined,
+      prePostChange: prePostChange || undefined,
     };
   } catch (error: any) {
     console.warn(`Yahoo Finance quote fetch failed for ${symbol}, falling back to mock data:`, error.message);

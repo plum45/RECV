@@ -5,6 +5,9 @@ export interface TickerData {
   low24h: number;
   volume24h: number;
   change24h: number;
+  marketState?: string;
+  prePostPrice?: number;
+  prePostChange?: number;
 }
 
 export interface KlineData {

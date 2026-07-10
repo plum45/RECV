@@ -52,6 +52,29 @@ export default function ScannerPage() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // States for assets near support
+  const [nearSupportData, setNearSupportData] = useState<any[]>([]);
+  const [loadingSupport, setLoadingSupport] = useState(true);
+
+  // Fetch near support assets
+  const fetchNearSupport = async () => {
+    setLoadingSupport(true);
+    try {
+      const response = await axios.get("/api/scanner/near-support");
+      setNearSupportData(response.data);
+    } catch (err) {
+      console.error("Failed to fetch near support assets:", err);
+    } finally {
+      setLoadingSupport(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNearSupport();
+    const interval = setInterval(fetchNearSupport, 120 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Alerts configuration states (saved in localStorage)
   const [lineToken, setLineToken] = useState("");
   const [tgToken, setTgToken] = useState("");
@@ -240,6 +263,90 @@ export default function ScannerPage() {
           </button>
         ))}
       </div>
+
+      {/* Assets Approaching Support Section */}
+      <section className="mb-8 relative z-20">
+        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+          <Activity size={14} className="text-emerald-400 animate-pulse" />
+          เฝ้าระวัง: ใกล้แนวรับสำคัญ (1H Timeframe)
+        </h2>
+        {loadingSupport ? (
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+              <div key={i} className="h-24 bg-slate-900/40 border border-slate-800/40 rounded-xl animate-pulse" />
+            ))}
+          </div>
+        ) : nearSupportData.length === 0 ? (
+          <div className="p-4 bg-slate-900/20 border border-slate-800/40 rounded-xl text-center text-slate-500 text-xs">
+            ไม่พบคอนฟลูเอนซ์ระดับราคาใกล้แนวรับในขอบเขตเฝ้าระวัง
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+            {nearSupportData.map((asset) => {
+              const isNear = asset.status === "near";
+              const isBroken = asset.status === "broken";
+              const isUp = asset.change24h >= 0;
+              
+              let cardBg = "bg-slate-900/30 border-slate-800/60 hover:border-slate-700/60 hover:bg-slate-800/10 text-slate-400";
+              let badgeColor = "bg-slate-800/60 text-slate-500";
+              let badgeText = "ปกติ";
+              
+              if (isNear) {
+                cardBg = "bg-emerald-950/20 border-emerald-500/20 hover:border-emerald-500/40 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.03)]";
+                badgeColor = "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20";
+                badgeText = "ใกล้แนวรับ 🟢";
+              } else if (isBroken) {
+                cardBg = "bg-rose-950/20 border-rose-500/25 hover:border-rose-500/45 text-rose-300";
+                badgeColor = "bg-rose-500/15 text-rose-400 border border-rose-500/20";
+                badgeText = "หลุดแนวรับ 🔴";
+              }
+
+              const formattedPrice = asset.currentPrice >= 1.0 
+                ? asset.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                : asset.currentPrice.toFixed(4);
+
+              const formattedSupport = asset.supportPrice >= 1.0
+                ? asset.supportPrice.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 1 })
+                : asset.supportPrice.toFixed(4);
+
+              return (
+                <button
+                  key={asset.symbol}
+                  onClick={() => setSymbol(asset.symbol)}
+                  className={`p-3.5 border rounded-xl flex flex-col justify-between text-left transition-all duration-300 hover:translate-y-[-2px] cursor-pointer ${cardBg}`}
+                >
+                  <div className="flex justify-between items-start w-full">
+                    <span className="font-black text-xs text-slate-200 tracking-tight">{asset.symbol.split("-")[0]}</span>
+                    <span className={`text-[9px] font-bold ${isUp ? "text-emerald-400" : "text-rose-400"}`}>
+                      {isUp ? "+" : ""}{asset.change24h.toFixed(1)}%
+                    </span>
+                  </div>
+                  
+                  <div className="my-2">
+                    <div className="text-sm font-black font-mono text-slate-100">
+                      ${formattedPrice}
+                    </div>
+                    {asset.closestSupport && (
+                      <div className="text-[9px] text-slate-500 font-bold mt-0.5 truncate">
+                        รับ: ${formattedSupport}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex justify-between items-center w-full mt-0.5">
+                    <span className="text-[9px] font-black font-mono text-slate-400">
+                      {asset.distancePercent > 0 ? "+" : ""}{asset.distancePercent.toFixed(1)}%
+                    </span>
+                    <span className={`text-[8px] font-bold px-1 py-0.5 rounded leading-none ${badgeColor}`}>
+                      {badgeText}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       {errorMsg && (
         <div className="mb-6 p-4 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm rounded-xl flex items-center gap-2">

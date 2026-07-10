@@ -89,6 +89,23 @@ async function triggerAlerts() {
           }
         }
 
+        // Condition D: Closest Support Zone Proximity
+        const closestSupport = supportResistance.supportZones[0] || null;
+        if (closestSupport) {
+          const [lowStr, highStr] = closestSupport.zone.replace(/,/g, "").split("-");
+          const lowVal = parseFloat(lowStr);
+          const highVal = parseFloat(highStr);
+          const supportMid = !isNaN(lowVal) && !isNaN(highVal) ? (lowVal + highVal) / 2 : (parseFloat(closestSupport.zone.replace(/,/g, "")) || 0);
+
+          if (supportMid > 0) {
+            const distancePct = ((price - supportMid) / supportMid) * 100;
+            // Trigger if within 1.0% of support (and not broken below by more than 0.5%)
+            if (distancePct <= 1.0 && distancePct >= -0.5) {
+              triggers.push(`ราคาเข้าใกล้แนวรับสำคัญ S1 ที่ $${closestSupport.zone} (ห่างเพียง ${distancePct >= 0 ? "+" : ""}${distancePct.toFixed(2)}%)`);
+            }
+          }
+        }
+
         // 4. Send alert if any trigger condition is met
         if (triggers.length > 0) {
           let message = "";

@@ -69,11 +69,21 @@ export default function MarketStats({
           สถิติตลาด 24 ชั่วโมง
         </h3>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-slate-900 border border-slate-800/80 rounded-xl p-3.5">
+          <div className="bg-slate-900 border border-slate-800/80 rounded-xl p-3.5 relative">
             <span className="text-xs text-slate-400 block mb-1">ราคาปัจจุบัน</span>
             <span className="text-xl font-bold text-slate-50">
               ${marketData.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </span>
+            {marketData.prePostPrice && (
+              <span className={`text-[10px] font-bold block mt-1.5 ${
+                marketData.marketState === "PRE" ? "text-amber-400" : "text-purple-400"
+              }`}>
+                {marketData.marketState === "PRE" ? "Pre-Market" : "After-Hours"}: 
+                ${marketData.prePostPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })} 
+                ({marketData.prePostChange && marketData.prePostChange >= 0 ? "+" : ""}
+                {marketData.prePostChange?.toFixed(2)}%)
+              </span>
+            )}
           </div>
 
           <div className="bg-slate-900 border border-slate-800/80 rounded-xl p-3.5">
