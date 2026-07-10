@@ -174,13 +174,57 @@ export default function SRChart({ klines, indicators, supportResistance, current
   ];
 
   // Build parsed S/R level lists
-  const supportLevels = (supportResistance?.supportZones || [])
+  let supportLevels = (supportResistance?.supportZones || [])
     .map((sz, idx) => ({ ...sz, parsed: parseZoneMid(sz.zone), idx }))
     .filter((s) => s.parsed !== null);
 
-  const resistanceLevels = (supportResistance?.resistanceZones || [])
+  let resistanceLevels = (supportResistance?.resistanceZones || [])
     .map((rz, idx) => ({ ...rz, parsed: parseZoneMid(rz.zone), idx }))
     .filter((r) => r.parsed !== null);
+
+  const priceVal = currentPrice || klines[klines.length - 1]?.close || 100;
+
+  // Guarantee exactly 2 support levels are always displayed on the chart
+  if (supportLevels.length > 2) {
+    supportLevels = supportLevels.slice(0, 2);
+  } else if (supportLevels.length < 2) {
+    const gap = priceVal * 0.05;
+    while (supportLevels.length < 2) {
+      const idx = supportLevels.length;
+      const fallbackMid = priceVal - (idx + 1) * gap;
+      const low = fallbackMid * 0.995;
+      const high = fallbackMid * 1.005;
+      supportLevels.push({
+        zone: `${low.toFixed(2)}-${high.toFixed(2)}`,
+        type: "support",
+        score: 5,
+        reasons: ["แนวรับจำลอง (Projection)"],
+        parsed: { mid: fallbackMid, low, high },
+        idx
+      });
+    }
+  }
+
+  // Guarantee exactly 2 resistance levels are always displayed on the chart
+  if (resistanceLevels.length > 2) {
+    resistanceLevels = resistanceLevels.slice(0, 2);
+  } else if (resistanceLevels.length < 2) {
+    const gap = priceVal * 0.05;
+    while (resistanceLevels.length < 2) {
+      const idx = resistanceLevels.length;
+      const fallbackMid = priceVal + (idx + 1) * gap;
+      const low = fallbackMid * 0.995;
+      const high = fallbackMid * 1.005;
+      resistanceLevels.push({
+        zone: `${low.toFixed(2)}-${high.toFixed(2)}`,
+        type: "resistance",
+        score: 5,
+        reasons: ["แนวต้านจำลอง (Projection)"],
+        parsed: { mid: fallbackMid, low, high },
+        idx
+      });
+    }
+  }
 
   return (
     <div className="relative w-full bg-slate-950 border border-slate-800/80 rounded-2xl p-4 shadow-2xl flex flex-col gap-4 overflow-hidden">
