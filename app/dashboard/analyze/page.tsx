@@ -19,7 +19,7 @@ import { TickerData, IndicatorData, SupportResistanceData, KlineData } from "../
 import { NewsArticle } from "../../../types/news";
 import { SentimentData } from "../../../types/analysis";
 import { useAuth } from "../../../contexts/AuthContext";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { db } from "../../../lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 
@@ -29,9 +29,11 @@ interface MarqueeTicker {
   change: number;
 }
 
-export default function Dashboard() {
+function AnalyzePageContent() {
   const { user, loading: authLoading, logout } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlSymbol = searchParams.get("symbol");
 
   // Navigation Tab State
   const [activeTab, setActiveTab] = useState<"dashboard" | "portfolio">("dashboard");
@@ -51,6 +53,21 @@ export default function Dashboard() {
   const [tradingStyle, setTradingStyle] = useState("Day Trade");
   const [riskPercent, setRiskPercent] = useState("1%");
   const [analysisMode, setAnalysisMode] = useState("Analyze Both Long & Short");
+
+  useEffect(() => {
+    if (urlSymbol) {
+      setSymbol(urlSymbol.toUpperCase());
+    }
+  }, [urlSymbol]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("symbol")?.toUpperCase() !== symbol.toUpperCase()) {
+      params.set("symbol", symbol.toUpperCase());
+      const newUrl = `${window.location.pathname}?${params.toString()}`;
+      window.history.replaceState(null, "", newUrl);
+    }
+  }, [symbol]);
 
   // Market & technical analytical states
   const [klines, setKlines] = useState<KlineData[] | null>(null);
@@ -108,7 +125,9 @@ export default function Dashboard() {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           const data = docSnap.data();
-          if (data.symbol) setSymbol(data.symbol);
+          const params = new URLSearchParams(window.location.search);
+          const hasUrlSymbol = params.get("symbol");
+          if (data.symbol && !hasUrlSymbol) setSymbol(data.symbol);
           if (data.timeframe) setTimeframe(data.timeframe);
           if (data.tradingStyle) setTradingStyle(data.tradingStyle);
           if (data.riskPercent) setRiskPercent(data.riskPercent);
@@ -538,5 +557,20 @@ export default function Dashboard() {
         </p>
       </footer>
     </div>
+  );
+}
+
+export default function Dashboard() {
+  return (
+    <React.Suspense fallback={
+      <div className="flex min-h-screen bg-[#090d16] text-slate-200 items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm font-semibold text-slate-400">กำลังโหลดระบบวิเคราะห์...</p>
+        </div>
+      </div>
+    }>
+      <AnalyzePageContent />
+    </React.Suspense>
   );
 }
