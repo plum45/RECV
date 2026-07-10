@@ -115,6 +115,34 @@ const CurrentPriceLabel = ({
   );
 };
 
+// Custom label for Fibonacci reference lines
+const FibLineLabel = ({
+  viewBox,
+  value,
+  color = "#64748b",
+}: {
+  viewBox?: any;
+  value: string;
+  color?: string;
+}) => {
+  const { x = 0, y = 0 } = viewBox || {};
+  return (
+    <g>
+      <text
+        x={x + 10}
+        y={y - 4}
+        fill={color}
+        fontSize={9}
+        fontWeight="bold"
+        fontFamily="monospace"
+        className="select-none opacity-60"
+      >
+        {value}
+      </text>
+    </g>
+  );
+};
+
 // Custom tooltip
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
@@ -368,6 +396,52 @@ export default function SRChart({ klines, indicators, supportResistance, current
               />
             )}
 
+            {/* === Fibonacci Retracement Lines === */}
+            {indicators?.fibonacci && (
+              <>
+                <ReferenceLine
+                  y={indicators.fibonacci.r236}
+                  stroke="#475569"
+                  strokeWidth={1}
+                  strokeDasharray="3 3"
+                  strokeOpacity={0.25}
+                  label={<FibLineLabel value={`Fib 23.6% $${indicators.fibonacci.r236.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`} />}
+                />
+                <ReferenceLine
+                  y={indicators.fibonacci.r382}
+                  stroke="#475569"
+                  strokeWidth={1}
+                  strokeDasharray="3 3"
+                  strokeOpacity={0.25}
+                  label={<FibLineLabel value={`Fib 38.2% $${indicators.fibonacci.r382.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`} />}
+                />
+                <ReferenceLine
+                  y={indicators.fibonacci.r500}
+                  stroke="#475569"
+                  strokeWidth={1}
+                  strokeDasharray="3 3"
+                  strokeOpacity={0.25}
+                  label={<FibLineLabel value={`Fib 50.0% $${indicators.fibonacci.r500.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`} />}
+                />
+                <ReferenceLine
+                  y={indicators.fibonacci.r618}
+                  stroke="#6366f1"
+                  strokeWidth={1.2}
+                  strokeDasharray="3 3"
+                  strokeOpacity={0.4}
+                  label={<FibLineLabel value={`Fib 61.8% (Golden) $${indicators.fibonacci.r618.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`} color="#818cf8" />}
+                />
+                <ReferenceLine
+                  y={indicators.fibonacci.r786}
+                  stroke="#475569"
+                  strokeWidth={1}
+                  strokeDasharray="3 3"
+                  strokeOpacity={0.25}
+                  label={<FibLineLabel value={`Fib 78.6% $${indicators.fibonacci.r786.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`} />}
+                />
+              </>
+            )}
+
             {/* === Current Price Line === */}
             {currentPrice && (
               <ReferenceLine
@@ -424,6 +498,10 @@ export default function SRChart({ klines, indicators, supportResistance, current
           <div className="flex items-center gap-1.5">
             <div className="w-5 h-1 bg-purple-500 rounded-full opacity-60" />
             <span>EMA 50</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-5 h-1 bg-slate-500 rounded-full opacity-60" style={{ border: "1px dotted #64748b" }} />
+            <span>Fibonacci Levels</span>
           </div>
         </div>
 
