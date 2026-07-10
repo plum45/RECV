@@ -56,11 +56,23 @@ export default function ScannerPage() {
   const [nearSupportData, setNearSupportData] = useState<any[]>([]);
   const [loadingSupport, setLoadingSupport] = useState(true);
 
-  // Fetch near support assets
+  // Fetch near support assets based on Watchlist
   const fetchNearSupport = async () => {
     setLoadingSupport(true);
     try {
-      const response = await axios.get("/api/scanner/near-support");
+      let symbolsToScan = ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "NVDA", "AAPL", "TSLA", "MSFT"];
+      if (typeof window !== "undefined") {
+        const savedWatchlist = localStorage.getItem("rocket_watchlist");
+        if (savedWatchlist) {
+          const parsed = JSON.parse(savedWatchlist);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            symbolsToScan = parsed;
+          }
+        }
+      }
+      const response = await axios.post("/api/scanner/near-support", {
+        symbols: symbolsToScan
+      });
       setNearSupportData(response.data);
     } catch (err) {
       console.error("Failed to fetch near support assets:", err);
