@@ -292,6 +292,49 @@ export default function MarketStats({
                           Score: {sz.score}/10
                         </span>
                       </div>
+                      {/* Status & Quant Badges */}
+                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                        {sz.freshness === "fresh" && (
+                          <span className="bg-emerald-950/90 text-emerald-300 border border-emerald-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                            ⚡ Fresh
+                          </span>
+                        )}
+                        {sz.freshness === "historical" && (
+                          <span className="bg-slate-900 text-slate-400 border border-slate-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                            📜 Historical
+                          </span>
+                        )}
+                        {sz.strength === "major" && (
+                          <span className="bg-purple-950/90 text-purple-300 border border-purple-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                            🔥 Major
+                          </span>
+                        )}
+                        {sz.status === "flipped" && (
+                          <span className="bg-indigo-950/90 text-indigo-300 border border-indigo-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                            🔄 Flipped
+                          </span>
+                        )}
+                        {sz.status === "tested" && (
+                          <span className="bg-amber-950/90 text-amber-300 border border-amber-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                            🎯 Tested
+                          </span>
+                        )}
+                        {sz.status === "weakened" && (
+                          <span className="bg-orange-950/90 text-orange-300 border border-orange-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                            📉 Weakened
+                          </span>
+                        )}
+                        {sz.status === "broken" && (
+                          <span className="bg-rose-950/90 text-rose-300 border border-rose-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                            💥 Broken
+                          </span>
+                        )}
+                        {typeof sz.touches === "number" && sz.touches > 0 && (
+                          <span className="bg-slate-900 text-slate-300 border border-slate-800 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                            👆 {sz.touches} Touches
+                          </span>
+                        )}
+                      </div>
                       <div className="flex flex-wrap gap-1.5 pt-0.5">
                         {sz.reasons.map((r, rIdx) => (
                           <span key={rIdx} className="bg-slate-950 text-[10px] text-slate-300 px-2 py-1 rounded-md border border-slate-800/80 leading-normal break-words">
@@ -323,6 +366,49 @@ export default function MarketStats({
                         <span className="sm:hidden bg-rose-950/80 text-rose-400 text-[11px] font-bold px-2 py-0.5 rounded-lg border border-rose-800/40 shrink-0">
                           Score: {rz.score}/10
                         </span>
+                      </div>
+                      {/* Status & Quant Badges */}
+                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                        {rz.freshness === "fresh" && (
+                          <span className="bg-emerald-950/90 text-emerald-300 border border-emerald-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                            ⚡ Fresh
+                          </span>
+                        )}
+                        {rz.freshness === "historical" && (
+                          <span className="bg-slate-900 text-slate-400 border border-slate-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                            📜 Historical
+                          </span>
+                        )}
+                        {rz.strength === "major" && (
+                          <span className="bg-purple-950/90 text-purple-300 border border-purple-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                            🔥 Major
+                          </span>
+                        )}
+                        {rz.status === "flipped" && (
+                          <span className="bg-indigo-950/90 text-indigo-300 border border-indigo-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                            🔄 Flipped
+                          </span>
+                        )}
+                        {rz.status === "tested" && (
+                          <span className="bg-amber-950/90 text-amber-300 border border-amber-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                            🎯 Tested
+                          </span>
+                        )}
+                        {rz.status === "weakened" && (
+                          <span className="bg-orange-950/90 text-orange-300 border border-orange-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                            📉 Weakened
+                          </span>
+                        )}
+                        {rz.status === "broken" && (
+                          <span className="bg-rose-950/90 text-rose-300 border border-rose-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                            💥 Broken
+                          </span>
+                        )}
+                        {typeof rz.touches === "number" && rz.touches > 0 && (
+                          <span className="bg-slate-900 text-slate-300 border border-slate-800 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                            👆 {rz.touches} Touches
+                          </span>
+                        )}
                       </div>
                       <div className="flex flex-wrap gap-1.5 pt-0.5">
                         {rz.reasons.map((r, rIdx) => (

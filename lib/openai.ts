@@ -1,20 +1,22 @@
 import OpenAI from "openai";
 
-const apiKey = process.env.OPENAI_API_KEY;
-
 let openai: OpenAI | null = null;
+let cachedKey: string | undefined = undefined;
 
 function getOpenAiClient(): OpenAI {
-  if (!openai) {
+  const currentKey = process.env.OPENAI_API_KEY || "dummy-key-for-build-pre-render";
+  if (!openai || cachedKey !== currentKey) {
+    cachedKey = currentKey;
     openai = new OpenAI({
-      apiKey: apiKey || "dummy-key-for-build-pre-render",
+      apiKey: currentKey,
     });
   }
   return openai;
 }
 
 export async function generateAnalysisReport(prompt: string): Promise<string> {
-  if (!apiKey || apiKey === "your_openai_api_key") {
+  const currentKey = process.env.OPENAI_API_KEY;
+  if (!currentKey || currentKey === "your_openai_api_key" || currentKey === "dummy-key-for-build-pre-render") {
     throw new Error("OpenAI API key is not configured. Please set the OPENAI_API_KEY in your .env.local file.");
   }
 

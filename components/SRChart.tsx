@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -43,13 +43,46 @@ const SRLineLabel = ({
   value,
   color,
   score,
+  isMobile = false,
 }: {
   viewBox?: any;
   value: string;
   color: string;
   score: number;
+  isMobile?: boolean;
 }) => {
   const { x = 0, y = 0, width = 0 } = viewBox || {};
+  if (isMobile) {
+    const boxW = 88;
+    const boxH = 17;
+    return (
+      <g>
+        <rect
+          x={x + width - boxW - 2}
+          y={y - 8.5}
+          width={boxW}
+          height={boxH}
+          rx={4}
+          fill="#0b0f19"
+          fillOpacity={0.95}
+          stroke={color}
+          strokeOpacity={0.85}
+          strokeWidth={1.2}
+        />
+        <text
+          x={x + width - boxW / 2 - 2}
+          y={y + 3}
+          textAnchor="middle"
+          fill={color}
+          fontSize={8.5}
+          fontWeight="extrabold"
+          fontFamily="monospace"
+        >
+          {value} · {score}
+        </text>
+      </g>
+    );
+  }
   return (
     <g>
       <rect
@@ -83,11 +116,42 @@ const SRLineLabel = ({
 const CurrentPriceLabel = ({
   viewBox,
   value,
+  isMobile = false,
 }: {
   viewBox?: any;
   value: string;
+  isMobile?: boolean;
 }) => {
   const { x = 0, y = 0 } = viewBox || {};
+  if (isMobile) {
+    const boxW = 86;
+    const boxH = 17;
+    return (
+      <g>
+        <rect
+          x={x + 4}
+          y={y - 8.5}
+          width={boxW}
+          height={boxH}
+          rx={4}
+          fill="#4f46e5"
+          stroke="#818cf8"
+          strokeWidth={1.2}
+        />
+        <text
+          x={x + 4 + boxW / 2}
+          y={y + 3}
+          textAnchor="middle"
+          fill="#ffffff"
+          fontSize={8.5}
+          fontWeight="bold"
+          fontFamily="sans-serif"
+        >
+          ● ${value}
+        </text>
+      </g>
+    );
+  }
   return (
     <g>
       <rect
@@ -120,12 +184,32 @@ const FibLineLabel = ({
   viewBox,
   value,
   color = "#64748b",
+  isMobile = false,
 }: {
   viewBox?: any;
   value: string;
   color?: string;
+  isMobile?: boolean;
 }) => {
   const { x = 0, y = 0 } = viewBox || {};
+  if (isMobile) {
+    return (
+      <g>
+        <text
+          x={x + 4}
+          y={y - 3}
+          textAnchor="start"
+          fill={color}
+          fontSize={7.5}
+          fontWeight="extrabold"
+          fontFamily="monospace"
+          className="select-none opacity-90"
+        >
+          {value}
+        </text>
+      </g>
+    );
+  }
   return (
     <g>
       <text
@@ -168,6 +252,15 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 export default function SRChart({ klines, indicators, supportResistance, currentPrice }: SRChartProps) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 640);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
   if (!klines || klines.length === 0 || !indicators) {
     return (
       <div className="w-full h-[420px] sm:h-[520px] lg:h-[600px] bg-slate-900 border border-slate-800 rounded-2xl flex flex-col items-center justify-center text-slate-500 shadow-2xl gap-3">
@@ -287,7 +380,7 @@ export default function SRChart({ klines, indicators, supportResistance, current
       {/* Chart */}
       <div className="w-full h-[300px] md:h-[520px] relative z-10">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={chartData} margin={{ top: 20, right: 65, left: 110, bottom: 10 }}>
+          <ComposedChart data={chartData} margin={{ top: isMobile ? 15 : 20, right: isMobile ? 42 : 65, left: isMobile ? 6 : 100, bottom: 10 }}>
             <defs>
               <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#818cf8" stopOpacity={0.25} />
@@ -298,7 +391,7 @@ export default function SRChart({ klines, indicators, supportResistance, current
             <XAxis
               dataKey="name"
               stroke="#334155"
-              tick={{ fill: "#94a3b8", fontSize: 10 }}
+              tick={{ fill: "#94a3b8", fontSize: isMobile ? 9 : 10 }}
               tickLine={false}
               axisLine={false}
               dy={5}
@@ -307,13 +400,13 @@ export default function SRChart({ klines, indicators, supportResistance, current
             <YAxis
               domain={yDomain}
               stroke="#334155"
-              tick={{ fill: "#cbd5e1", fontSize: 11, fontFamily: "monospace" }}
+              tick={{ fill: "#cbd5e1", fontSize: isMobile ? 9.5 : 11, fontFamily: "monospace" }}
               tickLine={false}
               axisLine={false}
               orientation="right"
-              dx={5}
+              dx={isMobile ? 2 : 5}
               tickFormatter={(val) => `$${val.toLocaleString(undefined, { minimumFractionDigits: 0 })}`}
-              width={65}
+              width={isMobile ? 42 : 65}
             />
             <Tooltip content={<CustomTooltip />} />
 
@@ -342,6 +435,7 @@ export default function SRChart({ klines, indicators, supportResistance, current
                         value={`S${sz.idx + 1} $${p.mid.toFixed(2)}`}
                         color="#10b981"
                         score={sz.score}
+                        isMobile={isMobile}
                       />
                     }
                   />
@@ -374,6 +468,7 @@ export default function SRChart({ klines, indicators, supportResistance, current
                         value={`R${rz.idx + 1} $${p.mid.toFixed(2)}`}
                         color="#f43f5e"
                         score={rz.score}
+                        isMobile={isMobile}
                       />
                     }
                   />
@@ -410,7 +505,7 @@ export default function SRChart({ klines, indicators, supportResistance, current
                   strokeWidth={1}
                   strokeDasharray="3 3"
                   strokeOpacity={0.25}
-                  label={<FibLineLabel value={`Fib 23.6% $${indicators.fibonacci.r236.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`} />}
+                  label={<FibLineLabel value={`Fib 23.6% $${indicators.fibonacci.r236.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`} isMobile={isMobile} />}
                 />
                 <ReferenceLine
                   y={indicators.fibonacci.r382}
@@ -418,7 +513,7 @@ export default function SRChart({ klines, indicators, supportResistance, current
                   strokeWidth={1}
                   strokeDasharray="3 3"
                   strokeOpacity={0.25}
-                  label={<FibLineLabel value={`Fib 38.2% $${indicators.fibonacci.r382.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`} />}
+                  label={<FibLineLabel value={`Fib 38.2% $${indicators.fibonacci.r382.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`} isMobile={isMobile} />}
                 />
                 <ReferenceLine
                   y={indicators.fibonacci.r500}
@@ -426,7 +521,7 @@ export default function SRChart({ klines, indicators, supportResistance, current
                   strokeWidth={1}
                   strokeDasharray="3 3"
                   strokeOpacity={0.25}
-                  label={<FibLineLabel value={`Fib 50.0% $${indicators.fibonacci.r500.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`} />}
+                  label={<FibLineLabel value={`Fib 50.0% $${indicators.fibonacci.r500.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`} isMobile={isMobile} />}
                 />
                 <ReferenceLine
                   y={indicators.fibonacci.r618}
@@ -434,7 +529,7 @@ export default function SRChart({ klines, indicators, supportResistance, current
                   strokeWidth={1.2}
                   strokeDasharray="3 3"
                   strokeOpacity={0.4}
-                  label={<FibLineLabel value={`Fib 61.8% (Golden) $${indicators.fibonacci.r618.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`} color="#818cf8" />}
+                  label={<FibLineLabel value={`Fib 61.8% (Golden) $${indicators.fibonacci.r618.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`} color="#818cf8" isMobile={isMobile} />}
                 />
                 <ReferenceLine
                   y={indicators.fibonacci.r786}
@@ -442,7 +537,7 @@ export default function SRChart({ klines, indicators, supportResistance, current
                   strokeWidth={1}
                   strokeDasharray="3 3"
                   strokeOpacity={0.25}
-                  label={<FibLineLabel value={`Fib 78.6% $${indicators.fibonacci.r786.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`} />}
+                  label={<FibLineLabel value={`Fib 78.6% $${indicators.fibonacci.r786.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`} isMobile={isMobile} />}
                 />
               </>
             )}
@@ -458,6 +553,7 @@ export default function SRChart({ klines, indicators, supportResistance, current
                 label={
                   <CurrentPriceLabel
                     value={currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    isMobile={isMobile}
                   />
                 }
               />
@@ -531,11 +627,54 @@ export default function SRChart({ klines, indicators, supportResistance, current
                       {sz.score}/10
                     </span>
                   </div>
-                  <div className="text-[9px] text-slate-500 font-mono">
+                  <div className="text-[9px] text-slate-400 font-mono">
                     โซน: ${sz.zone}
                   </div>
+                  {/* Status & Quant Badges */}
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {sz.freshness === "fresh" && (
+                      <span className="bg-emerald-950 text-emerald-300 border border-emerald-700/50 text-[9px] font-bold px-1.5 py-0.5 rounded">
+                        ⚡ Fresh
+                      </span>
+                    )}
+                    {sz.freshness === "historical" && (
+                      <span className="bg-slate-900 text-slate-400 border border-slate-700/50 text-[9px] font-bold px-1.5 py-0.5 rounded">
+                        📜 Historical
+                      </span>
+                    )}
+                    {sz.strength === "major" && (
+                      <span className="bg-purple-950 text-purple-300 border border-purple-700/50 text-[9px] font-bold px-1.5 py-0.5 rounded">
+                        🔥 Major
+                      </span>
+                    )}
+                    {sz.status === "flipped" && (
+                      <span className="bg-indigo-950 text-indigo-300 border border-indigo-700/50 text-[9px] font-bold px-1.5 py-0.5 rounded">
+                        🔄 Flipped
+                      </span>
+                    )}
+                    {sz.status === "tested" && (
+                      <span className="bg-amber-950 text-amber-300 border border-amber-700/50 text-[9px] font-bold px-1.5 py-0.5 rounded">
+                        🎯 Tested
+                      </span>
+                    )}
+                    {sz.status === "weakened" && (
+                      <span className="bg-orange-950 text-orange-300 border border-orange-700/50 text-[9px] font-bold px-1.5 py-0.5 rounded">
+                        📉 Weakened
+                      </span>
+                    )}
+                    {sz.status === "broken" && (
+                      <span className="bg-rose-950 text-rose-300 border border-rose-700/50 text-[9px] font-bold px-1.5 py-0.5 rounded">
+                        💥 Broken
+                      </span>
+                    )}
+                    {typeof sz.touches === "number" && sz.touches > 0 && (
+                      <span className="bg-slate-900 text-slate-300 border border-slate-800 text-[9px] font-bold px-1.5 py-0.5 rounded">
+                        👆 {sz.touches} Touches
+                      </span>
+                    )}
+                  </div>
                   {sz.reasons.length > 0 && (
-                    <div className="text-[9px] text-emerald-600 mt-0.5">
+                    <div className="text-[9px] text-emerald-600 mt-1">
                       {sz.reasons[0]}
                     </div>
                   )}
@@ -561,11 +700,54 @@ export default function SRChart({ klines, indicators, supportResistance, current
                       {rz.score}/10
                     </span>
                   </div>
-                  <div className="text-[9px] text-slate-500 font-mono">
+                  <div className="text-[9px] text-slate-400 font-mono">
                     โซน: ${rz.zone}
                   </div>
+                  {/* Status & Quant Badges */}
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {rz.freshness === "fresh" && (
+                      <span className="bg-emerald-950 text-emerald-300 border border-emerald-700/50 text-[9px] font-bold px-1.5 py-0.5 rounded">
+                        ⚡ Fresh
+                      </span>
+                    )}
+                    {rz.freshness === "historical" && (
+                      <span className="bg-slate-900 text-slate-400 border border-slate-700/50 text-[9px] font-bold px-1.5 py-0.5 rounded">
+                        📜 Historical
+                      </span>
+                    )}
+                    {rz.strength === "major" && (
+                      <span className="bg-purple-950 text-purple-300 border border-purple-700/50 text-[9px] font-bold px-1.5 py-0.5 rounded">
+                        🔥 Major
+                      </span>
+                    )}
+                    {rz.status === "flipped" && (
+                      <span className="bg-indigo-950 text-indigo-300 border border-indigo-700/50 text-[9px] font-bold px-1.5 py-0.5 rounded">
+                        🔄 Flipped
+                      </span>
+                    )}
+                    {rz.status === "tested" && (
+                      <span className="bg-amber-950 text-amber-300 border border-amber-700/50 text-[9px] font-bold px-1.5 py-0.5 rounded">
+                        🎯 Tested
+                      </span>
+                    )}
+                    {rz.status === "weakened" && (
+                      <span className="bg-orange-950 text-orange-300 border border-orange-700/50 text-[9px] font-bold px-1.5 py-0.5 rounded">
+                        📉 Weakened
+                      </span>
+                    )}
+                    {rz.status === "broken" && (
+                      <span className="bg-rose-950 text-rose-300 border border-rose-700/50 text-[9px] font-bold px-1.5 py-0.5 rounded">
+                        💥 Broken
+                      </span>
+                    )}
+                    {typeof rz.touches === "number" && rz.touches > 0 && (
+                      <span className="bg-slate-900 text-slate-300 border border-slate-800 text-[9px] font-bold px-1.5 py-0.5 rounded">
+                        👆 {rz.touches} Touches
+                      </span>
+                    )}
+                  </div>
                   {rz.reasons.length > 0 && (
-                    <div className="text-[9px] text-rose-600 mt-0.5">
+                    <div className="text-[9px] text-rose-600 mt-1">
                       {rz.reasons[0]}
                     </div>
                   )}

@@ -4,6 +4,7 @@ import { getTicker, getKlines } from "../../../../lib/binance";
 import { calculateIndicators } from "../../../../lib/indicators";
 import { calculateSupportResistance } from "../../../../lib/supportResistance";
 import { generateAnalysisReport } from "../../../../lib/openai";
+import { checkRateLimit, getAiCache, setAiCache } from "../../../../lib/aiCache";
 
 export async function GET(request: Request) {
   return triggerAlerts(request);
@@ -15,6 +16,12 @@ export async function POST(request: Request) {
 
 async function triggerAlerts(request: Request) {
   try {
+    const clientIp = request.headers.get("x-forwarded-for") || "local-client";
+    const rateCheck = checkRateLimit(`alerts:${clientIp}`, 10, 60 * 1000);
+    if (!rateCheck.allowed) {
+      return NextResponse.json({ success: false, message: "Rate limit exceeded" }, { status: 429 });
+    }
+
     const cronSecret = process.env.ALERT_CRON_SECRET;
     if (process.env.NODE_ENV === "production" && (!cronSecret || request.headers.get("authorization") !== `Bearer ${cronSecret}`)) {
       return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
@@ -121,9 +128,15 @@ async function triggerAlerts(request: Request) {
         if (triggers.length > 0) {
           let message = "";
           
-          if (process.env.OPENAI_API_KEY) {
-            try {
-              const prompt = `
+          if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== "your_openai_api_key") {
+            const cacheKey = `alert:${symbol}`;
+            const cachedAlert = getAiCache(cacheKey);
+
+            if (cachedAlert) {
+              message = cachedAlert;
+            } else {
+              try {
+                const prompt = `
 Generate a quick, urgent trading alert in Thai for ${symbol}.
 Current Price: $${price.toLocaleString()} (${ticker.change24h >= 0 ? "+" : ""}${ticker.change24h.toFixed(2)}%)
 Triggered Events:
@@ -137,9 +150,11 @@ Format requirements:
 - Give a short, actionable recommendation (Long/Short entry or watch closely).
 - Keep the entire message under 5 sentences. Absolutely no markdown other than emojis.
 `;
-              message = await generateAnalysisReport(prompt);
-            } catch (err: any) {
-              console.error("OpenAI failed to generate alert text:", err.message);
+                message = await generateAnalysisReport(prompt);
+                setAiCache(cacheKey, message, 300); // Cache alert message for 5 minutes
+              } catch (err: any) {
+                console.error("OpenAI failed to generate alert text:", err.message);
+              }
             }
           }
 

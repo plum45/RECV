@@ -96,14 +96,37 @@ export interface IndicatorData {
   };
 }
 
+export type ZoneFreshness = "fresh" | "recent" | "aged" | "historical";
+export type ZoneStrength = "weak" | "moderate" | "strong" | "major";
+export type ZoneStatus = "active" | "tested" | "weakened" | "broken" | "flipped";
+
+export interface ZoneComponents {
+  baseScore: number;
+  volumeScore: number;
+  confluenceScore: number;
+  freshnessScore: number;
+  reactionScore: number;
+  flipScore: number;
+  finalScore: number;
+}
+
 export interface SupportResistanceZone {
   zone: string;
   type: "support" | "resistance";
   score: number;
   reasons: string[];
+  freshness?: ZoneFreshness;
+  strength?: ZoneStrength;
+  status?: ZoneStatus;
+  touches?: number;
+  successfulReactions?: number;
+  failedReactions?: number;
+  lastTouchAge?: number | null;
+  components?: ZoneComponents;
 }
 
 export interface SupportResistanceData {
   supportZones: SupportResistanceZone[];
   resistanceZones: SupportResistanceZone[];
 }
+

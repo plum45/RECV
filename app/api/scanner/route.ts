@@ -3,9 +3,19 @@ import { getTicker, getKlines } from "../../../lib/binance";
 import { calculateIndicators } from "../../../lib/indicators";
 import { calculateSupportResistance } from "../../../lib/supportResistance";
 import { generateAnalysisReport } from "../../../lib/openai";
+import { checkRateLimit, getAiCache, setAiCache } from "../../../lib/aiCache";
 
 export async function POST(request: Request) {
   try {
+    const clientIp = request.headers.get("x-forwarded-for") || "local-client";
+    const rateCheck = checkRateLimit(`scanner:${clientIp}`, 20, 60 * 1000);
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded", message: "ระบบถูกสแกนบ่อยเกินไป กรุณารอสักครู่เพื่อป้องกันโควต้าเต็ม" },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json().catch(() => ({}));
     const symbol = (body.symbol || "BTC-USD").toUpperCase();
 
@@ -139,10 +149,16 @@ export async function POST(request: Request) {
 
     // 5. Generate AI Confluence Summary
     let aiSummary = "";
-    if (process.env.OPENAI_API_KEY) {
-      try {
-        const resultsJsonString = JSON.stringify(results, null, 2);
-        const prompt = `
+    if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== "your_openai_api_key") {
+      const cacheKey = `scanner:${symbol}`;
+      const cachedSummary = getAiCache(cacheKey);
+
+      if (cachedSummary) {
+        aiSummary = cachedSummary;
+      } else {
+        try {
+          const resultsJsonString = JSON.stringify(results, null, 2);
+          const prompt = `
 Please analyze this multi-timeframe technical confluence data for ${symbol} at current price of $${ticker.currentPrice.toLocaleString()}.
 
 Data:
@@ -157,10 +173,12 @@ Include:
 3. Clear short-term action recommendation (e.g., Buy/Long, Sell/Short, or Wait/Neutral).
 Do not output any markdown formatting other than plain text, and keep it extremely concise.
 `;
-        aiSummary = await generateAnalysisReport(prompt);
-      } catch (err: any) {
-        console.error("Failed to generate AI summary in scanner:", err.message);
-        aiSummary = `สแกนเนอร์พบคะแนนฉันทามติที่ ${overallScore}/100. ระบบเอไอไม่สามารถสรุปความได้ในขณะนี้เนื่องจากปัญหาทางเทคนิค.`;
+          aiSummary = await generateAnalysisReport(prompt);
+          setAiCache(cacheKey, aiSummary, 120); // Cache for 2 minutes
+        } catch (err: any) {
+          console.error("Failed to generate AI summary in scanner:", err.message);
+          aiSummary = `สแกนเนอร์พบคะแนนฉันทามติที่ ${overallScore}/100. ระบบเอไอไม่สามารถสรุปความได้ในขณะนี้เนื่องจากปัญหาทางเทคนิค.`;
+        }
       }
     } else {
       // Rule-based fallback summary
