@@ -19,6 +19,9 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
+      if (!auth) {
+        throw new Error("ยังไม่ได้ตั้งค่า Firebase ในไฟล์ .env.local");
+      }
       // Set persistence based on remember me checkbox
       await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
       await signInWithEmailAndPassword(auth, email, password);
