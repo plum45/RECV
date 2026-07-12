@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import axios from "axios";
 import { getFirebaseAdminDb } from "../../../../lib/firebaseAdmin";
+import { getTelegramBotToken } from "../../../../lib/telegramConfig";
 
 export async function POST(request: Request) {
   try {
@@ -117,7 +118,7 @@ export async function POST(request: Request) {
 }
 
 async function sendTelegramMessage(chatId: string, text: string) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const token = getTelegramBotToken();
   if (!token) return;
   try {
     const url = `https://api.telegram.org/bot${token}/sendMessage`;

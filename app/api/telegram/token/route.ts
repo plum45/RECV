@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { verifyFirebaseIdToken, getFirebaseAdminDb } from "../../../../lib/firebaseAdmin";
+import { getTelegramBotUsername } from "../../../../lib/telegramConfig";
 
 export async function POST(request: Request) {
   try {
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
       used: false,
     });
 
-    const botUsername = process.env.TELEGRAM_BOT_USERNAME || "RocketAIAlertBot";
+    const botUsername = getTelegramBotUsername();
 
     return NextResponse.json({
       success: true,

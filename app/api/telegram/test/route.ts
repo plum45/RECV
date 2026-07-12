@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import axios from "axios";
 import { verifyFirebaseIdToken, getFirebaseAdminDb } from "../../../../lib/firebaseAdmin";
+import { getTelegramBotToken } from "../../../../lib/telegramConfig";
 
 export async function POST(request: Request) {
   try {
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "ไม่พบ Chat ID กรุณาทำการเชื่อมต่อ Telegram ใหม่" }, { status: 400 });
     }
 
-    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const token = getTelegramBotToken();
     if (!token) {
       return NextResponse.json({ success: false, message: "Server configuration missing TELEGRAM_BOT_TOKEN" }, { status: 500 });
     }

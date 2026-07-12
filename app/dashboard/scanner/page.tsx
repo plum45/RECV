@@ -132,6 +132,7 @@ export default function ScannerPage() {
   );
   const [testingLine, setTestingLine] = useState(false);
   const [testingTg, setTestingTg] = useState(false);
+  const [connectingTelegram, setConnectingTelegram] = useState(false);
   const [alertStatus, setAlertStatus] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Predefined popular symbols
@@ -286,6 +287,34 @@ export default function ScannerPage() {
       setAlertStatus({ type: "error", text: `ทดสอบ Telegram ล้มเหลว: ${err.response?.data?.message || err.message}` });
     } finally {
       setTestingTg(false);
+    }
+  };
+
+  const handleConnectTelegramBot = async () => {
+    if (!user) {
+      alert("กรุณาเข้าสู่ระบบก่อนเชื่อมต่อ Telegram");
+      return;
+    }
+    try {
+      setConnectingTelegram(true);
+      const token = await getIdToken();
+      const res = await axios.post<{ success: boolean; startUrl: string; botUsername: string; message?: string }>(
+        "/api/telegram/token",
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      if (res.data.success && res.data.startUrl) {
+        window.open(res.data.startUrl, "_blank");
+      } else {
+        alert(res.data.message || "ไม่สามารถสร้างลิงก์เชื่อมต่อ Telegram ได้");
+      }
+    } catch (err: any) {
+      console.error("Connect telegram error:", err);
+      alert("เกิดข้อผิดพลาดในการสร้างลิงก์เชื่อมต่อ: " + (err.response?.data?.message || err.message));
+    } finally {
+      setConnectingTelegram(false);
     }
   };
 
@@ -873,20 +902,28 @@ export default function ScannerPage() {
                     <Sparkles size={14} /> วิธีเชื่อมต่อ Telegram Bot อัตโนมัติ:
                   </p>
                   <ol className="text-xs text-slate-300 space-y-1.5 list-decimal pl-4 leading-relaxed">
-                    <li>เปิดแอป Telegram และค้นหาบ็อต หรือกดลิงก์เพิ่มบ็อต</li>
-                    <li>พิมพ์คำสั่ง <code className="bg-slate-900 px-1.5 py-0.5 rounded text-sky-400 font-mono font-bold">/start</code> ในห้องแช็ตของบ็อต</li>
-                    <li>บ็อตจะผูกบัญชีกับระบบ Rocket AI อัตโนมัติทันที และแจ้งเตือนสัญญาณเทรด 24 ชม. แม้ปิดเว็บ</li>
+                    <li>กดปุ่ม <span className="text-sky-300 font-bold">เชื่อมต่อ Telegram (@MyRocketAlert_Bot) อัตโนมัติ</span> ด้านล่าง</li>
+                    <li>ระบบจะเปิดแอป Telegram เข้าห้องแช็ตของบ็อต <code className="bg-slate-900 px-1.5 py-0.5 rounded text-sky-400 font-mono font-bold">@MyRocketAlert_Bot</code> พร้อมรหัสเชื่อมต่อส่วนตัว</li>
+                    <li>กดปุ่ม <span className="text-emerald-400 font-bold">START</span> ใน Telegram บ็อตจะทำการผูกบัญชีกับระบบ Rocket AI ทันที และส่งแจ้งเตือนสัญญาณ 24 ชม. แม้ปิดเว็บ</li>
                   </ol>
-                  <div className="pt-1">
-                    <a
-                      href="https://t.me/RocketAiAlertBot"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-black rounded-lg shadow-lg transition-all"
+                  <div className="pt-2">
+                    <button
+                      onClick={handleConnectTelegramBot}
+                      disabled={connectingTelegram}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-slate-950 text-xs font-black rounded-xl shadow-lg shadow-sky-500/20 transition-all disabled:opacity-50 cursor-pointer"
                     >
-                      <span>เปิด Telegram Bot เพื่อเชื่อมต่อ</span>
-                      <ExternalLink size={14} />
-                    </a>
+                      {connectingTelegram ? (
+                        <>
+                          <Loader2 size={15} className="animate-spin" />
+                          <span>กำลังสร้างลิงก์เชื่อมต่อส่วนบุคคล...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send size={15} className="fill-current" />
+                          <span>เชื่อมต่อ Telegram (@MyRocketAlert_Bot) อัตโนมัติ</span>
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
 

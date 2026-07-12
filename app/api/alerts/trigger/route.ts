@@ -4,6 +4,7 @@ import { getTicker, getKlines } from "../../../../lib/binance";
 import { calculateIndicators } from "../../../../lib/indicators";
 import { calculateSupportResistance } from "../../../../lib/supportResistance";
 import { getFirebaseAdminDb } from "../../../../lib/firebaseAdmin";
+import { getTelegramBotToken } from "../../../../lib/telegramConfig";
 
 export async function GET(request: Request) {
   return triggerAlerts(request);
@@ -272,7 +273,7 @@ async function triggerAlerts(request: Request) {
 }
 
 async function sendUserTelegramMessage(uid: string, chatId: string, text: string, db: any): Promise<boolean> {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const token = getTelegramBotToken();
   if (!token) return false;
   try {
     const url = `https://api.telegram.org/bot${token}/sendMessage`;
