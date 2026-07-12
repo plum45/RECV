@@ -26,7 +26,7 @@ export default function MobileNavBar({ activeTab, setActiveTab }: MobileNavBarPr
   };
 
   return (
-    <div className="fixed bottom-0 left-0 w-full bg-white/95 dark:bg-[#12151f]/95 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800/50 pb-safe pt-2 px-2 min-[380px]:px-4 sm:px-8 flex justify-between items-end z-50 rounded-t-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+    <div className="fixed bottom-0 left-0 right-0 w-full bg-white/95 dark:bg-[#12151f]/95 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800/50 pb-2 pt-1.5 px-3 min-[380px]:px-6 flex justify-around items-center z-50 rounded-t-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
       {navItems.map((item) => {
         const Icon = item.icon;
         const isActive = activeTab === item.id;
@@ -36,16 +36,16 @@ export default function MobileNavBar({ activeTab, setActiveTab }: MobileNavBarPr
             <button
               key={item.id}
               onClick={() => handleNav(item)}
-              className="relative flex flex-col items-center justify-center -translate-y-4"
+              className="relative flex flex-col items-center justify-center -translate-y-2 cursor-pointer"
             >
-              <div className={`w-12 h-12 min-[380px]:w-14 min-[380px]:h-14 rounded-2xl flex items-center justify-center shadow-lg transition-all duration-300 ${
+              <div className={`w-9 h-9 min-[380px]:w-10 min-[380px]:h-10 rounded-xl flex items-center justify-center shadow-md transition-all duration-300 ${
                 isActive 
-                  ? "bg-gradient-to-tr from-indigo-500 to-purple-500 text-white shadow-indigo-500/40" 
-                  : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                  ? "bg-gradient-to-tr from-indigo-500 to-purple-500 text-white shadow-indigo-500/30 scale-105" 
+                  : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:scale-105"
               }`}>
-                <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
+                <Icon size={17} strokeWidth={isActive ? 2.5 : 2} />
               </div>
-              <span className={`text-[10px] mt-1.5 font-bold ${isActive ? "text-indigo-600 dark:text-indigo-400" : "text-slate-500 dark:text-slate-400"}`}>
+              <span className={`text-[8.5px] mt-1 font-bold tracking-tight ${isActive ? "text-indigo-600 dark:text-indigo-400" : "text-slate-500 dark:text-slate-400"}`}>
                 {item.label}
               </span>
             </button>
@@ -56,12 +56,12 @@ export default function MobileNavBar({ activeTab, setActiveTab }: MobileNavBarPr
           <button
             key={item.id}
             onClick={() => handleNav(item)}
-            className={`flex flex-col items-center gap-1.5 pb-2 transition-colors ${
+            className={`flex flex-col items-center gap-1 pb-1 pt-0.5 transition-colors cursor-pointer ${
               isActive ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
             }`}
           >
-            <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
-            <span className="text-[9px] font-bold">{item.label}</span>
+            <Icon size={17} strokeWidth={isActive ? 2.5 : 2} />
+            <span className="text-[8px] font-semibold tracking-tight">{item.label}</span>
           </button>
         );
       })}
