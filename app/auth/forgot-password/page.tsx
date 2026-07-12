@@ -17,6 +17,9 @@ export default function ForgotPasswordPage() {
     setMessage("");
     setLoading(true);
     try {
+      if (!auth) {
+        throw new Error("ยังไม่ได้ตั้งค่า Firebase ในไฟล์ .env.local");
+      }
       await sendPasswordResetEmail(auth, email);
       setMessage("ส่งลิงก์รีเซ็ตรหัสผ่านไปที่อีเมลของคุณแล้ว โปรดตรวจสอบกล่องข้อความ");
     } catch (err: any) {
