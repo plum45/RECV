@@ -1,7 +1,7 @@
 import { EMA, RSI, MACD, ATR, BollingerBands, ADX, StochasticRSI } from "technicalindicators";
 import { KlineData, IndicatorData } from "../types/market";
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────
 
 function sma(arr: number[], period: number): number[] {
   const result: number[] = [];
@@ -29,7 +29,7 @@ export function calculateIndicators(klines: KlineData[]): IndicatorData {
   const opens   = klines.map((k) => k.open);
   const len     = klines.length;
 
-  // ── 1. EMAs ────────────────────────────────────────────────────────────
+  // ── 1. EMAs ───────────────────────────────────────────────────────────
   const ema20P   = Math.min(20, len - 1);
   const ema50P   = Math.min(50, len - 1);
   const ema200P  = Math.min(200, len - 1);
@@ -42,12 +42,12 @@ export function calculateIndicators(klines: KlineData[]): IndicatorData {
   const ema50  = ema50Arr[ema50Arr.length - 1]   || 0;
   const ema200 = ema200Arr.length > 0 ? ema200Arr[ema200Arr.length - 1] : 0;
 
-  // ── 2. RSI ─────────────────────────────────────────────────────────────
+  // ── 2. RSI ───────────────────────────────────────────────────────────
   const rsiP    = Math.min(14, len - 2);
   const rsiArr  = RSI.calculate({ period: rsiP, values: closes });
   const rsi14   = rsiArr[rsiArr.length - 1] || 50;
 
-  // ── 3. MACD + crossover detection ──────────────────────────────────────
+  // ── 3. MACD + crossover detection ─────────────────────────────────────
   let macdData: { macdLine: number; signalLine: number; histogram: number; crossover: "bullish" | "bearish" | "none" } = { macdLine: 0, signalLine: 0, histogram: 0, crossover: "none" };
   if (len >= 35) {
     const macdArr = MACD.calculate({
@@ -75,12 +75,12 @@ export function calculateIndicators(klines: KlineData[]): IndicatorData {
     };
   }
 
-  // ── 4. ATR ────────────────────────────────────────────────────────────
+  // ── 4. ATR ───────────────────────────────────────────────────────────
   const atrP   = Math.min(14, len - 2);
   const atrArr = ATR.calculate({ period: atrP, high: highs, low: lows, close: closes });
   const atr14  = atrArr[atrArr.length - 1] || 0;
 
-  // ── 5. Pivot Points ───────────────────────────────────────────────────
+  // ── 5. Pivot Points ──────────────────────────────────────────────────
   const prev = klines[len - 2];
   const P  = (prev.high + prev.low + prev.close) / 3;
   const R1 = 2 * P - prev.low;
@@ -99,29 +99,27 @@ export function calculateIndicators(klines: KlineData[]): IndicatorData {
   const volumeRatio   = avgVolume20 > 0 ? currentVolume / avgVolume20 : 1;
   const isVolumeSpike = volumeRatio >= 1.8;
 
-  // OBV: sum of volume * sign(close - prevClose) over last 20 candles
+  // OBV: build a cumulative series, then compare recent vs prior slope.
+  // Comparing signed volume buckets directly is incorrect when both are negative.
   let obv = 0;
+  const obvSeries = [0];
   const obvWindow = Math.min(20, len);
   const obvSlice = klines.slice(len - obvWindow);
   for (let i = 1; i < obvSlice.length; i++) {
     if (obvSlice[i].close > obvSlice[i - 1].close) obv += obvSlice[i].volume;
     else if (obvSlice[i].close < obvSlice[i - 1].close) obv -= obvSlice[i].volume;
+    obvSeries.push(obv);
   }
-  // OBV trend: compare last 5 vs prior 5 within the window
-  let obvRecent = 0, obvEarly = 0;
-  for (let i = obvSlice.length - 5; i < obvSlice.length; i++) {
-    if (obvSlice[i].close > obvSlice[i - 1].close) obvRecent += obvSlice[i].volume;
-    else if (obvSlice[i].close < obvSlice[i - 1].close) obvRecent -= obvSlice[i].volume;
-  }
-  for (let i = Math.max(1, obvSlice.length - 10); i < obvSlice.length - 5; i++) {
-    if (obvSlice[i].close > obvSlice[i - 1].close) obvEarly += obvSlice[i].volume;
-    else if (obvSlice[i].close < obvSlice[i - 1].close) obvEarly -= obvSlice[i].volume;
-  }
-  const obvTrend: "rising" | "falling" | "flat" = obvRecent > obvEarly * 1.1 ? "rising" : obvRecent < obvEarly * 0.9 ? "falling" : "flat";
+  const recentStart = Math.max(0, obvSeries.length - 6);
+  const recentChange = obvSeries[obvSeries.length - 1] - obvSeries[recentStart];
+  const noiseFloor = Math.max(avgVolume20 * 0.5, 1);
+  const obvTrend: "rising" | "falling" | "flat" = recentChange > noiseFloor
+    ? "rising"
+    : recentChange < -noiseFloor ? "falling" : "flat";
 
   const volumeAnalysis = { avgVolume20, isVolumeSpike, currentVolume, volumeRatio, obv, obvTrend };
 
-  // ── 7. Bollinger Bands (20, 2) ────────────────────────────────────────
+  // ── 7. Bollinger Bands (20, 2) ───────────────────────────────────────
   const bbP = Math.min(20, len - 1);
   const bbArr = BollingerBands.calculate({ period: bbP, stdDev: 2, values: closes });
   const bb = bbArr[bbArr.length - 1];
@@ -138,7 +136,7 @@ export function calculateIndicators(klines: KlineData[]): IndicatorData {
 
   const bollingerBands = { upper: bbUpper, middle: bbMiddle, lower: bbLower, bandwidth, percentB, squeeze: bbSqueeze };
 
-  // ── 8. ADX (14) ───────────────────────────────────────────────────────
+  // ── 8. ADX (14) ────────────────────────────────────────────────────
   const adxP = Math.min(14, len - 2);
   let adxData: { adx: number; plusDI: number; minusDI: number; trending: boolean; direction: "up" | "down" | "neutral" } = { adx: 0, plusDI: 0, minusDI: 0, trending: false, direction: "neutral" };
   if (len >= adxP * 2) {
@@ -158,7 +156,7 @@ export function calculateIndicators(klines: KlineData[]): IndicatorData {
     }
   }
 
-  // ── 9. Stochastic RSI (14,3,3) ────────────────────────────────────────
+  // ── 9. Stochastic RSI (14,3,3) ───────────────────────────────────────
   let stochRSI = { k: 50, d: 50, overbought: false, oversold: false };
   if (len >= 30) {
     const stochArr = StochasticRSI.calculate({

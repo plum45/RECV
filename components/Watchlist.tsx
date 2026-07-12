@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -26,8 +27,12 @@ export default function Watchlist() {
     const saved = localStorage.getItem("rocket_watchlist");
     if (saved) {
       try {
-        setSymbols(JSON.parse(saved));
-      } catch (e) {
+        const parsed = JSON.parse(saved);
+        const validSymbols = Array.isArray(parsed)
+          ? parsed.filter((symbol): symbol is string => typeof symbol === "string" && symbol.trim().length > 0)
+          : [];
+        setSymbols(validSymbols.length > 0 ? validSymbols : ["NVDA", "AAPL", "TSLA", "MSFT"]);
+      } catch {
         setSymbols(["NVDA", "AAPL", "TSLA", "MSFT"]); // defaults
       }
     } else {
@@ -99,14 +104,14 @@ export default function Watchlist() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-900/50 rounded-2xl border border-slate-800/60 p-6 overflow-hidden">
+    <div className="flex flex-col h-full bg-slate-900/50 rounded-2xl border border-slate-800/60 p-4 sm:p-6 overflow-hidden">
       {/* Header & Add */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
         <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
           <Star className="text-amber-400" size={20} fill="currentColor" />
           หุ้นตัวโปรด (Watchlist)
         </h2>
-        <form onSubmit={addSymbol} className="flex relative items-center w-64">
+        <form onSubmit={addSymbol} className="flex relative items-center w-full sm:w-64">
           <Search className="absolute left-3 text-slate-500" size={16} />
           <input
             type="text"
@@ -170,6 +175,8 @@ export default function Watchlist() {
                   </button>
 
                   <div className="flex items-center gap-3 mb-4">
+                    {/* Remote logos use a fallback chain that next/image cannot preserve. */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={`https://logo.clearbit.com/${logoDomain}`}
                       alt={q.symbol}

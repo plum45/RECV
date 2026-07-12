@@ -121,7 +121,7 @@ export default function TradingViewChart({
   }, [symbol, interval, theme]);
 
   return (
-    <div className="relative w-full h-[600px] md:h-[650px] bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
+    <div className="relative w-full h-[420px] sm:h-[520px] lg:h-[650px] bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
       <div ref={containerRef} className="w-full h-full" />
     </div>
   );

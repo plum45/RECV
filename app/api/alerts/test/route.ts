@@ -4,7 +4,7 @@ import axios from "axios";
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const { type, token, chatId } = body;
+    const { type, token, chatId, targetId } = body;
 
     const testMessage = "🚀 การเชื่อมต่อกับ Rocket AI Trading Assistant สำเร็จ! ระบบแจ้งเตือนบ็อตของคุณพร้อมทำงานแล้ว";
 
@@ -13,22 +13,20 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, error: "Missing Line Token" }, { status: 400 });
       }
 
-      const params = new URLSearchParams();
-      params.append("message", testMessage);
-
-      const response = await axios.post("https://notify-api.line.me/api/notify", params, {
+      if (!targetId) {
+        return NextResponse.json({ success: false, error: "Missing LINE User ID" }, { status: 400 });
+      }
+      await axios.post("https://api.line.me/v2/bot/message/push", {
+        to: targetId,
+        messages: [{ type: "text", text: testMessage }],
+      }, {
         headers: {
           "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/x-www-form-urlencoded",
+          "Content-Type": "application/json",
         },
         timeout: 8000,
       });
-
-      if (response.data.status === 200) {
-        return NextResponse.json({ success: true });
-      } else {
-        throw new Error(response.data.message || "Line Notify API error");
-      }
+      return NextResponse.json({ success: true });
     } else if (type === "telegram") {
       if (!token || !chatId) {
         return NextResponse.json({ success: false, error: "Missing Bot Token or Chat ID" }, { status: 400 });
