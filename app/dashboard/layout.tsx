@@ -7,7 +7,7 @@ import { Home, Search, BarChart2, Briefcase, Menu, X, Rocket, Zap, Sun, Moon } f
 import { useTheme } from "next-themes";
 import MobileNavBar from "../../components/MobileNavBar";
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -132,5 +132,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </div>
 
     </div>
+  );
+}
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="dashboard-canvas flex h-screen items-center justify-center text-slate-100">
+          <div className="h-10 w-10 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin" />
+        </div>
+      }
+    >
+      <DashboardShell>{children}</DashboardShell>
+    </React.Suspense>
   );
 }
