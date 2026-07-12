@@ -353,7 +353,7 @@ export default function SRChart({ klines, indicators, supportResistance, current
   ];
 
   return (
-    <div className="relative w-full bg-slate-950 border border-slate-800/80 rounded-2xl p-4 shadow-2xl flex flex-col gap-4 overflow-hidden">
+    <div className="relative w-full bg-slate-950 border border-slate-800/80 rounded-2xl p-1.5 sm:p-4 shadow-2xl flex flex-col gap-4 overflow-hidden">
       {/* Subtle grid backdrop */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.004)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.004)_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
 
@@ -380,7 +380,7 @@ export default function SRChart({ klines, indicators, supportResistance, current
       {/* Chart */}
       <div className="w-full h-[300px] md:h-[520px] relative z-10">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={chartData} margin={{ top: isMobile ? 15 : 20, right: isMobile ? 42 : 65, left: isMobile ? 6 : 100, bottom: 10 }}>
+          <ComposedChart data={chartData} margin={{ top: isMobile ? 15 : 20, right: isMobile ? 2 : 10, left: isMobile ? 4 : 100, bottom: 10 }}>
             <defs>
               <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#818cf8" stopOpacity={0.25} />
@@ -404,9 +404,9 @@ export default function SRChart({ klines, indicators, supportResistance, current
               tickLine={false}
               axisLine={false}
               orientation="right"
-              dx={isMobile ? 2 : 5}
+              dx={isMobile ? 1 : 4}
               tickFormatter={(val) => `$${val.toLocaleString(undefined, { minimumFractionDigits: 0 })}`}
-              width={isMobile ? 42 : 65}
+              width={isMobile ? 32 : 45}
             />
             <Tooltip content={<CustomTooltip />} />
 

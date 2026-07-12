@@ -456,7 +456,7 @@ function AnalyzePageContent() {
       </header>
 
       {/* ── MAIN CONTENT ─────────────────────────────────────────── */}
-      <main className="flex-1 p-4 md:p-6 max-w-[1800px] w-full mx-auto relative z-10 space-y-8 pb-12">
+      <main className="flex-1 p-1.5 sm:p-4 md:p-6 max-w-[1800px] w-full mx-auto relative z-10 space-y-8 pb-12">
 
         {/* Error Banner */}
         {error && (
