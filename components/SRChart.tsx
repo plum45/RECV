@@ -53,30 +53,31 @@ const SRLineLabel = ({
 }) => {
   const { x = 0, y = 0, width = 0 } = viewBox || {};
   if (isMobile) {
-    const boxW = 88;
-    const boxH = 17;
+    const boxW = 70;
+    const boxH = 14;
     return (
       <g>
         <rect
           x={x + width - boxW - 2}
-          y={y - 8.5}
+          y={y - 7}
           width={boxW}
           height={boxH}
-          rx={4}
+          rx={3}
           fill="#0b0f19"
-          fillOpacity={0.95}
+          fillOpacity={0.65}
           stroke={color}
-          strokeOpacity={0.85}
-          strokeWidth={1.2}
+          strokeOpacity={0.35}
+          strokeWidth={0.8}
         />
         <text
           x={x + width - boxW / 2 - 2}
           y={y + 3}
           textAnchor="middle"
           fill={color}
-          fontSize={8.5}
+          fontSize={7.5}
           fontWeight="extrabold"
           fontFamily="monospace"
+          style={{ textShadow: "0 1px 2px rgba(0,0,0,0.9)" }}
         >
           {value} · {score}
         </text>
@@ -86,25 +87,26 @@ const SRLineLabel = ({
   return (
     <g>
       <rect
-        x={x + width - 145}
-        y={y - 13}
-        width={140}
-        height={26}
-        rx={6}
+        x={x + width - 130}
+        y={y - 11}
+        width={125}
+        height={22}
+        rx={4}
         fill="#0b0f19"
-        fillOpacity={0.95}
+        fillOpacity={0.65}
         stroke={color}
-        strokeOpacity={0.7}
-        strokeWidth={1.5}
+        strokeOpacity={0.4}
+        strokeWidth={1}
       />
       <text
-        x={x + width - 75}
+        x={x + width - 67}
         y={y + 4}
         textAnchor="middle"
         fill={color}
-        fontSize={11}
+        fontSize={10}
         fontWeight="extrabold"
         fontFamily="monospace"
+        style={{ textShadow: "0 1px 2px rgba(0,0,0,0.9)" }}
       >
         {value} · {score}/10
       </text>
@@ -124,27 +126,29 @@ const CurrentPriceLabel = ({
 }) => {
   const { x = 0, y = 0 } = viewBox || {};
   if (isMobile) {
-    const boxW = 86;
-    const boxH = 17;
+    const boxW = 76;
+    const boxH = 15;
     return (
       <g>
         <rect
           x={x + 4}
-          y={y - 8.5}
+          y={y - 7.5}
           width={boxW}
           height={boxH}
-          rx={4}
-          fill="#4f46e5"
-          stroke="#818cf8"
-          strokeWidth={1.2}
+          rx={3}
+          fill="#ffffff"
+          fillOpacity={0.95}
+          stroke="#cbd5e1"
+          strokeOpacity={0.8}
+          strokeWidth={0.8}
         />
         <text
           x={x + 4 + boxW / 2}
           y={y + 3}
           textAnchor="middle"
-          fill="#ffffff"
-          fontSize={8.5}
-          fontWeight="bold"
+          fill="#0f172a"
+          fontSize={8}
+          fontWeight="extrabold"
           fontFamily="sans-serif"
         >
           ● ${value}
@@ -156,21 +160,23 @@ const CurrentPriceLabel = ({
     <g>
       <rect
         x={x + 10}
-        y={y - 13}
-        width={160}
-        height={26}
-        rx={6}
-        fill="#4f46e5"
-        stroke="#818cf8"
-        strokeWidth={1.5}
+        y={y - 11}
+        width={145}
+        height={22}
+        rx={4}
+        fill="#ffffff"
+        fillOpacity={0.95}
+        stroke="#cbd5e1"
+        strokeOpacity={0.8}
+        strokeWidth={1}
       />
       <text
-        x={x + 90}
+        x={x + 82}
         y={y + 4}
         textAnchor="middle"
-        fill="#ffffff"
-        fontSize={11}
-        fontWeight="bold"
+        fill="#0f172a"
+        fontSize={10.5}
+        fontWeight="extrabold"
         fontFamily="sans-serif"
       >
         ราคาปัจจุบัน: ${value}
@@ -413,7 +419,7 @@ export default function SRChart({ klines, indicators, supportResistance, current
             {/* === SUPPORT ZONES (green bands + midline) === */}
             {supportLevels.map((sz) => {
               const p = sz.parsed!;
-              const opacity = 0.04 + (sz.score / 10) * 0.06; // stronger zone = more visible
+              const opacity = 0.02 + (sz.score / 10) * 0.04;
               return (
                 <React.Fragment key={`s-${sz.idx}`}>
                   <ReferenceArea
@@ -427,9 +433,9 @@ export default function SRChart({ klines, indicators, supportResistance, current
                   <ReferenceLine
                     y={p.mid}
                     stroke="#10b981"
-                    strokeWidth={1.5}
-                    strokeDasharray="6 3"
-                    strokeOpacity={0.7}
+                    strokeWidth={1}
+                    strokeDasharray="2 4"
+                    strokeOpacity={0.45}
                     label={
                       <SRLineLabel
                         value={`S${sz.idx + 1} $${p.mid.toFixed(2)}`}
@@ -446,7 +452,7 @@ export default function SRChart({ klines, indicators, supportResistance, current
             {/* === RESISTANCE ZONES (red bands + midline) === */}
             {resistanceLevels.map((rz) => {
               const p = rz.parsed!;
-              const opacity = 0.04 + (rz.score / 10) * 0.06;
+              const opacity = 0.02 + (rz.score / 10) * 0.04;
               return (
                 <React.Fragment key={`r-${rz.idx}`}>
                   <ReferenceArea
@@ -460,9 +466,9 @@ export default function SRChart({ klines, indicators, supportResistance, current
                   <ReferenceLine
                     y={p.mid}
                     stroke="#f43f5e"
-                    strokeWidth={1.5}
-                    strokeDasharray="6 3"
-                    strokeOpacity={0.7}
+                    strokeWidth={1}
+                    strokeDasharray="2 4"
+                    strokeOpacity={0.45}
                     label={
                       <SRLineLabel
                         value={`R${rz.idx + 1} $${p.mid.toFixed(2)}`}
@@ -482,8 +488,8 @@ export default function SRChart({ klines, indicators, supportResistance, current
                 y={indicators.ema20}
                 stroke="#f59e0b"
                 strokeWidth={1}
-                strokeDasharray="4 4"
-                strokeOpacity={0.4}
+                strokeDasharray="3 5"
+                strokeOpacity={0.35}
               />
             )}
             {indicators.ema50 > 0 && (
@@ -491,65 +497,19 @@ export default function SRChart({ klines, indicators, supportResistance, current
                 y={indicators.ema50}
                 stroke="#a855f7"
                 strokeWidth={1}
-                strokeDasharray="4 4"
-                strokeOpacity={0.4}
+                strokeDasharray="3 5"
+                strokeOpacity={0.35}
               />
-            )}
-
-            {/* === Fibonacci Retracement Lines === */}
-            {indicators?.fibonacci && (
-              <>
-                <ReferenceLine
-                  y={indicators.fibonacci.r236}
-                  stroke="#475569"
-                  strokeWidth={1}
-                  strokeDasharray="3 3"
-                  strokeOpacity={0.25}
-                  label={<FibLineLabel value={`Fib 23.6% $${indicators.fibonacci.r236.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`} isMobile={isMobile} />}
-                />
-                <ReferenceLine
-                  y={indicators.fibonacci.r382}
-                  stroke="#475569"
-                  strokeWidth={1}
-                  strokeDasharray="3 3"
-                  strokeOpacity={0.25}
-                  label={<FibLineLabel value={`Fib 38.2% $${indicators.fibonacci.r382.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`} isMobile={isMobile} />}
-                />
-                <ReferenceLine
-                  y={indicators.fibonacci.r500}
-                  stroke="#475569"
-                  strokeWidth={1}
-                  strokeDasharray="3 3"
-                  strokeOpacity={0.25}
-                  label={<FibLineLabel value={`Fib 50.0% $${indicators.fibonacci.r500.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`} isMobile={isMobile} />}
-                />
-                <ReferenceLine
-                  y={indicators.fibonacci.r618}
-                  stroke="#6366f1"
-                  strokeWidth={1.2}
-                  strokeDasharray="3 3"
-                  strokeOpacity={0.4}
-                  label={<FibLineLabel value={`Fib 61.8% (Golden) $${indicators.fibonacci.r618.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`} color="#818cf8" isMobile={isMobile} />}
-                />
-                <ReferenceLine
-                  y={indicators.fibonacci.r786}
-                  stroke="#475569"
-                  strokeWidth={1}
-                  strokeDasharray="3 3"
-                  strokeOpacity={0.25}
-                  label={<FibLineLabel value={`Fib 78.6% $${indicators.fibonacci.r786.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`} isMobile={isMobile} />}
-                />
-              </>
             )}
 
             {/* === Current Price Line === */}
             {currentPrice && (
               <ReferenceLine
                 y={currentPrice}
-                stroke="#4f46e5"
-                strokeWidth={2}
-                strokeOpacity={0.95}
-                strokeDasharray="5 3"
+                stroke="#cbd5e1"
+                strokeWidth={1.5}
+                strokeOpacity={0.9}
+                strokeDasharray="4 3"
                 label={
                   <CurrentPriceLabel
                     value={currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

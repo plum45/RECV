@@ -31,15 +31,15 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     <div className="dashboard-canvas flex h-screen overflow-hidden text-slate-100">
       
       {/* Mobile Header / Hamburger */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 z-[60] flex items-center justify-between px-4">
-        <div className="flex items-center gap-2 text-indigo-400 font-bold">
-          <Rocket size={18} /> iVES
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-slate-950/95 backdrop-blur-md border-b border-slate-800/80 z-[60] flex items-center justify-between px-4">
+        <div className="flex items-center gap-2 text-white font-black text-lg tracking-tight">
+          <Rocket size={18} className="text-slate-200" /> iVES
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={toggleTheme} className="p-2 text-slate-400 hover:text-white transition-colors">
-            {theme === "dark" ? <Sun size={20} className="text-amber-400" /> : <Moon size={20} className="text-indigo-500" />}
+          <button onClick={toggleTheme} className="p-2 text-slate-400 hover:text-white transition-colors cursor-pointer">
+            {theme === "dark" ? <Sun size={20} className="text-amber-400" /> : <Moon size={20} className="text-slate-300" />}
           </button>
-          <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-slate-400 hover:text-white">
+          <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-slate-400 hover:text-white cursor-pointer">
             <Menu size={24} />
           </button>
         </div>
@@ -48,22 +48,22 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       {/* Sidebar Overlay (Mobile) */}
       {isSidebarOpen && (
         <div 
-          className="lg:hidden fixed inset-0 bg-black/60 z-[65] backdrop-blur-sm"
+          className="lg:hidden fixed inset-0 bg-black/70 z-[65] backdrop-blur-sm"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar Navigation */}
       <aside className={`
-        fixed lg:static top-0 left-0 h-full w-64 bg-slate-950/88 backdrop-blur-2xl border-r border-white/[0.07] z-[70] flex flex-col transition-transform duration-300
+        fixed lg:static top-0 left-0 h-full w-64 bg-slate-950/95 backdrop-blur-2xl border-r border-slate-800/80 z-[70] flex flex-col transition-transform duration-300
         ${isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
       `}>
-        <div className="h-14 lg:h-20 flex items-center justify-between px-6 border-b border-slate-800/60 shrink-0">
-          <Link href="/dashboard" className="flex items-center gap-2 text-xl font-black text-white hover:text-indigo-400 transition-colors">
-            <Rocket size={24} className="text-indigo-500" />
+        <div className="h-14 lg:h-20 flex items-center justify-between px-6 border-b border-slate-800/80 shrink-0">
+          <Link href="/dashboard" className="flex items-center gap-2 text-xl font-black text-white hover:text-slate-300 transition-colors">
+            <Rocket size={24} className="text-slate-200" />
             iVES
           </Link>
-          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden text-slate-400 hover:text-white">
+          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden text-slate-400 hover:text-white cursor-pointer">
             <X size={20} />
           </button>
         </div>
@@ -81,10 +81,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                 key={item.path}
                 href={item.path}
                 onClick={() => setIsSidebarOpen(false)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
                   isActive 
-                    ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shadow-inner"
-                    : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
+                    ? "bg-slate-850 bg-slate-900 text-white border border-slate-700/80 shadow-md font-bold"
+                    : "text-slate-400 hover:bg-slate-900/60 hover:text-slate-200"
                 }`}
               >
                 <item.icon size={18} />

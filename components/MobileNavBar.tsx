@@ -40,12 +40,12 @@ export default function MobileNavBar({ activeTab, setActiveTab }: MobileNavBarPr
             >
               <div className={`w-9 h-9 min-[380px]:w-10 min-[380px]:h-10 rounded-xl flex items-center justify-center shadow-md transition-all duration-300 ${
                 isActive 
-                  ? "bg-gradient-to-tr from-indigo-500 to-purple-500 text-white shadow-indigo-500/30 scale-105" 
-                  : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:scale-105"
+                  ? "bg-slate-900 text-white dark:bg-white dark:text-slate-950 shadow-sm scale-105" 
+                  : "bg-slate-100 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 hover:scale-105 border border-transparent dark:border-slate-700/50"
               }`}>
                 <Icon size={17} strokeWidth={isActive ? 2.5 : 2} />
               </div>
-              <span className={`text-[8.5px] mt-1 font-bold tracking-tight ${isActive ? "text-indigo-600 dark:text-indigo-400" : "text-slate-500 dark:text-slate-400"}`}>
+              <span className={`text-[8.5px] mt-1 font-bold tracking-tight ${isActive ? "text-slate-900 dark:text-white" : "text-slate-500 dark:text-slate-400"}`}>
                 {item.label}
               </span>
             </button>
@@ -57,11 +57,11 @@ export default function MobileNavBar({ activeTab, setActiveTab }: MobileNavBarPr
             key={item.id}
             onClick={() => handleNav(item)}
             className={`flex flex-col items-center gap-1 pb-1 pt-0.5 transition-colors cursor-pointer ${
-              isActive ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
+              isActive ? "text-slate-900 dark:text-white font-black" : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 font-medium"
             }`}
           >
             <Icon size={17} strokeWidth={isActive ? 2.5 : 2} />
-            <span className="text-[8px] font-semibold tracking-tight">{item.label}</span>
+            <span className="text-[8px] tracking-tight">{item.label}</span>
           </button>
         );
       })}

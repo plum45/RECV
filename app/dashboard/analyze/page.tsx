@@ -348,11 +348,11 @@ function AnalyzePageContent() {
       </div>
 
       {/* ── STICKY HEADER ────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 border-b border-slate-800/40 bg-slate-950/85 backdrop-blur-xl px-3 sm:px-6 py-3 sm:py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 shadow-[0_1px_0_rgba(99,102,241,0.06),0_8px_32px_rgba(0,0,0,0.4)]">
-        {/* Brand */}
-        <div className="flex items-center gap-3.5">
+      <header className="sticky top-0 z-30 border-b border-slate-800/80 bg-slate-950/95 backdrop-blur-xl px-3 sm:px-6 py-2 sm:py-3 flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4 shadow-[0_1px_0_rgba(255,255,255,0.04),0_8px_32px_rgba(0,0,0,0.5)]">
+        {/* Brand (Hidden on mobile because top bar already has iVES) */}
+        <div className="hidden lg:flex items-center gap-3.5">
           <div className="relative">
-            <div className="bg-gradient-to-tr from-indigo-600 to-purple-600 p-2.5 rounded-xl text-white shadow-[0_0_24px_rgba(99,102,241,0.4)] border border-indigo-400/20">
+            <div className="bg-slate-900 p-2.5 rounded-xl text-white shadow-sm border border-slate-800">
               <TrendingUp size={18} strokeWidth={2.5} />
             </div>
             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-slate-950 animate-pulse" />
@@ -361,22 +361,22 @@ function AnalyzePageContent() {
             <span className="font-heading font-black text-2xl tracking-tighter text-slate-100 flex items-center gap-1.5">
               iVES
             </span>
-            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.15em] mt-0.5">
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] mt-0.5">
               US Stock Analysis Terminal
             </p>
           </div>
         </div>
 
-        {/* Tab Navigation Pill - Mobile responsive: scale down text or hide if needed */}
-        <div className="flex bg-slate-900/80 border border-slate-800/70 backdrop-blur-md rounded-2xl p-1 gap-1 shadow-inner w-full sm:w-auto justify-center overflow-x-auto">
+        {/* Tab Navigation Pill - Monochromatic Gray/White Tone */}
+        <div className="flex bg-slate-900/90 border border-slate-800/80 backdrop-blur-md rounded-2xl p-1 gap-1 shadow-inner w-full sm:w-auto justify-center sm:justify-start overflow-x-auto">
           {(["dashboard", "portfolio"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-5 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all duration-300 cursor-pointer ${
+              className={`px-4 sm:px-5 py-1.5 sm:py-2 text-[10px] sm:text-xs font-black uppercase tracking-wider rounded-xl transition-all duration-300 cursor-pointer ${
                 activeTab === tab
-                  ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25"
-                  : "text-slate-500 hover:text-slate-300 hover:bg-slate-800/50"
+                  ? "bg-white text-slate-950 shadow-md font-extrabold"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 font-semibold"
               }`}
             >
               {tab === "dashboard" ? "📊 วิเคราะห์กราฟ" : "💼 พอร์ตจำลอง"}
@@ -384,13 +384,14 @@ function AnalyzePageContent() {
           ))}
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap justify-center sm:justify-end">
-          <div className="hidden lg:flex items-center gap-2 bg-emerald-950/40 border border-emerald-800/40 rounded-xl px-3 py-1.5 text-[10px] text-emerald-400 font-bold tracking-wide">
+        {/* Action Controls: Search + Refresh + Analyze + Profile */}
+        <div className="flex items-center gap-1.5 sm:gap-2.5 w-full sm:w-auto justify-between sm:justify-end">
+          <div className="hidden xl:flex items-center gap-2 bg-emerald-950/30 border border-emerald-800/40 rounded-xl px-3 py-1.5 text-[10px] text-emerald-400 font-bold tracking-wide">
             <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping" />
-            Yahoo Finance Live
+            Live Market
           </div>
 
-          <div className="relative">
+          <div className="relative flex-1 sm:flex-initial">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Search size={12} className="text-slate-400" />
             </div>
@@ -398,12 +399,12 @@ function AnalyzePageContent() {
               type="text"
               value={symbol}
               onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-              placeholder="e.g. AAPL, TSLA"
-              className="bg-slate-900/60 border border-slate-700/50 text-slate-100 text-xs rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 block w-20 sm:w-28 pl-8 pr-10 p-2 font-mono tracking-wider shadow-inner transition-all"
+              placeholder="AAPL, TSLA..."
+              className="bg-slate-900/80 border border-slate-800 text-slate-100 text-xs rounded-xl focus:ring-2 focus:ring-slate-400 focus:border-slate-500 block w-full sm:w-28 pl-8 pr-9 py-2 font-mono tracking-wider shadow-inner transition-all"
             />
             <button
               onClick={toggleWatchlist}
-              className="absolute inset-y-0 right-0 pr-2 flex items-center hover:scale-110 transition-transform"
+              className="absolute inset-y-0 right-0 pr-2.5 flex items-center hover:scale-110 transition-transform cursor-pointer"
               title={isInWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
             >
               <Heart size={14} className={isInWatchlist ? "text-rose-500 fill-rose-500" : "text-slate-400"} />
@@ -414,15 +415,15 @@ function AnalyzePageContent() {
             onClick={() => fetchMarketDataOnly()}
             disabled={initialLoading || loading}
             title="รีเฟรชข้อมูล"
-            className="hidden sm:flex p-2 bg-slate-900/80 border border-slate-800 hover:border-indigo-700/50 hover:bg-slate-800/80 text-slate-400 hover:text-slate-200 rounded-xl transition-all duration-300 cursor-pointer"
+            className="p-2 bg-slate-900/90 border border-slate-800 hover:border-slate-600 hover:bg-slate-800 text-slate-400 hover:text-slate-100 rounded-xl transition-all duration-300 cursor-pointer shrink-0"
           >
-            <RotateCw size={14} className={initialLoading ? "animate-spin text-indigo-400" : ""} />
+            <RotateCw size={14} className={initialLoading ? "animate-spin text-slate-200" : ""} />
           </button>
 
           <button
             onClick={handleAnalyze}
             disabled={loading || !symbol}
-            className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-[10px] sm:text-[11px] font-black uppercase tracking-widest px-3 sm:px-5 py-2.5 rounded-xl shadow-[0_0_20px_rgba(99,102,241,0.2)] hover:shadow-[0_0_25px_rgba(99,102,241,0.4)] transition-all duration-300 flex items-center gap-1.5 sm:gap-2 border border-indigo-400/20 cursor-pointer"
+            className="bg-white hover:bg-slate-100 dark:bg-white dark:hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 text-[10px] sm:text-xs font-black uppercase tracking-wider px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl shadow-md transition-all duration-300 flex items-center gap-1.5 sm:gap-2 border border-slate-200 cursor-pointer shrink-0"
           >
             {loading ? (
               <>
@@ -431,7 +432,7 @@ function AnalyzePageContent() {
               </>
             ) : (
               <>
-                <Zap size={14} className="text-amber-300" />
+                <Zap size={14} className="text-slate-900 fill-slate-900" />
                 <span>ANALYZE</span>
               </>
             )}
@@ -439,14 +440,14 @@ function AnalyzePageContent() {
           
           {/* User profile / Logout */}
           {user && (
-            <div className="flex items-center gap-3 border-l border-slate-800 pl-3 ml-1">
+            <div className="hidden sm:flex items-center gap-3 border-l border-slate-800 pl-3 ml-1">
               <div className="hidden xl:block text-[10px] text-slate-400 font-medium truncate max-w-[120px]">
                 {user.email}
               </div>
               <button 
                 onClick={logout}
                 title="ออกจากระบบ"
-                className="text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 px-3 py-1.5 rounded-lg transition-colors"
+                className="text-xs bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 px-3 py-1.5 rounded-lg transition-colors cursor-pointer font-semibold"
               >
                 Logout
               </button>
