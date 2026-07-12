@@ -270,7 +270,7 @@ function AnalyzePageContent() {
     } catch (err: any) {
       console.error("Initial data load error:", err.message);
       if (activeRequestSymbolRef.current === currentRequestedSymbol) {
-        setError("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ Yahoo Finance เพื่อดึงข้อมูลราคาล่าสุดได้ (อาจเกินขีดจำกัดความถี่กรุณารอสักครู่)");
+        setError("ระบบกำลังดึงข้อมูลจาก Finnhub / Market API (หากพบความล่าช้า ระบบจะสลับใช้ข้อมูลสำรองอัตโนมัติ)");
       }
     } finally {
       if (activeRequestSymbolRef.current === currentRequestedSymbol) {

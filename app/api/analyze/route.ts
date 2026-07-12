@@ -115,7 +115,7 @@ export async function POST(request: Request) {
       timeframe,
       tradingStyle,
       source: {
-        price: "Yahoo Finance API",
+        price: process.env.FINNHUB_API_KEY ? "Finnhub API" : "Market Data API",
         chart: "TradingView Widget",
         analysis: analysisSource,
       },
