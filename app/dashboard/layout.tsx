@@ -1,41 +1,22 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Home, Search, BarChart2, Briefcase, Settings, Menu, X, Rocket, Zap, Sun, Moon } from "lucide-react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { Home, Search, BarChart2, Briefcase, Menu, X, Rocket, Zap, Sun, Moon } from "lucide-react";
+import { useTheme } from "next-themes";
 import MobileNavBar from "../../components/MobileNavBar";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const [theme, setTheme] = useState("dark");
-
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 1024);
-    handleResize();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedTheme = localStorage.getItem("rocket_theme") || "dark";
-      setTheme(savedTheme);
-      document.documentElement.classList.remove("light", "dark");
-      document.documentElement.classList.add(savedTheme);
-    }
-  }, []);
+  const { resolvedTheme, setTheme } = useTheme();
+  const theme = resolvedTheme || "dark";
 
   const toggleTheme = () => {
     const nextTheme = theme === "dark" ? "light" : "dark";
     setTheme(nextTheme);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("rocket_theme", nextTheme);
-      document.documentElement.classList.remove("light", "dark");
-      document.documentElement.classList.add(nextTheme);
-    }
   };
 
   const navItems = [
@@ -47,7 +28,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   ];
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-950 text-slate-100">
+    <div className="dashboard-canvas flex h-screen overflow-hidden text-slate-100">
       
       {/* Mobile Header / Hamburger */}
       <div className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 z-[60] flex items-center justify-between px-4">
@@ -74,7 +55,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Sidebar Navigation */}
       <aside className={`
-        fixed lg:static top-0 left-0 h-full w-64 bg-slate-900 border-r border-slate-800/60 z-[70] flex flex-col transition-transform duration-300
+        fixed lg:static top-0 left-0 h-full w-64 bg-slate-950/88 backdrop-blur-2xl border-r border-white/[0.07] z-[70] flex flex-col transition-transform duration-300
         ${isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
       `}>
         <div className="h-14 lg:h-20 flex items-center justify-between px-6 border-b border-slate-800/60 shrink-0">
@@ -89,7 +70,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto custom-scrollbar">
           {navItems.map((item) => {
-            const isActive = pathname === item.path || (item.path === "/dashboard/analyze?tab=portfolio" && pathname === "/dashboard/analyze" && typeof window !== "undefined" && window.location.search.includes("tab=portfolio"));
+            const [itemPath, itemQuery] = item.path.split("?");
+            const isPortfolio = itemQuery === "tab=portfolio";
+            const isActive = pathname === itemPath && (isPortfolio
+              ? searchParams.get("tab") === "portfolio"
+              : searchParams.get("tab") !== "portfolio");
             
             return (
               <Link
@@ -141,7 +126,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
         
         {/* Render MobileNavBar only on small screens */}
-        {isMobile && <MobileNavBar activeTab={pathname.split("/").pop() || "home"} setActiveTab={() => {}} />}
+        <div className="lg:hidden">
+          <MobileNavBar activeTab={pathname.split("/").pop() || "home"} setActiveTab={() => {}} />
+        </div>
       </div>
 
     </div>

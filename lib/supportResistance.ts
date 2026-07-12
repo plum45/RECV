@@ -224,7 +224,7 @@ export function calculateSupportResistance(
     }
 
     const { score, reasons } = calculateGroupScore(nearby, indicators, currentPrice, threshold, avgVolume);
-    const type = mid < currentPrice ? "support" : "resistance";
+    const type: "support" | "resistance" = mid < currentPrice ? "support" : "resistance";
 
     let zoneStr = "";
     if (currentPrice > 1000) {

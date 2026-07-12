@@ -112,6 +112,26 @@ function mapTimeframeToYf(interval: string): { yfInterval: string; range: string
   }
 }
 
+function aggregateCandles(klines: KlineData[], hours: number): KlineData[] {
+  const bucketMs = hours * 60 * 60 * 1000;
+  const buckets = new Map<number, KlineData[]>();
+  for (const candle of klines) {
+    const bucket = Math.floor(candle.openTime / bucketMs) * bucketMs;
+    const group = buckets.get(bucket) || [];
+    group.push(candle);
+    buckets.set(bucket, group);
+  }
+  return [...buckets.entries()].sort(([a], [b]) => a - b).map(([openTime, group]) => ({
+    openTime,
+    open: group[0].open,
+    high: Math.max(...group.map((c) => c.high)),
+    low: Math.min(...group.map((c) => c.low)),
+    close: group[group.length - 1].close,
+    volume: group.reduce((sum, c) => sum + c.volume, 0),
+    closeTime: openTime + bucketMs,
+  }));
+}
+
 export async function getKlines(
   symbol: string,
   interval: string,
@@ -155,14 +175,16 @@ export async function getKlines(
       }
     }
 
-    const slicedKlines = klines.slice(-limit);
+    const normalizedKlines = interval.toLowerCase() === "4h" ? aggregateCandles(klines, 4) : klines;
+    const slicedKlines = normalizedKlines.slice(-limit);
     if (slicedKlines.length === 0) {
       throw new Error(`No valid price data returned for ${cleanSymbol}`);
     }
 
     return slicedKlines;
   } catch (error: any) {
-    console.warn(`Yahoo Finance chart fetch failed for ${symbol}, falling back to mock data:`, error.message);
+    if (process.env.NODE_ENV === "production") throw error;
+    console.warn(`Yahoo Finance chart fetch failed for ${symbol}; using development-only mock data:`, error.message);
     return getMockKlines(symbol, interval, limit);
   }
 }
@@ -215,7 +237,8 @@ export async function getTicker(symbol: string): Promise<TickerData> {
       prePostChange: prePostChange || undefined,
     };
   } catch (error: any) {
-    console.warn(`Yahoo Finance quote fetch failed for ${symbol}, falling back to mock data:`, error.message);
+    if (process.env.NODE_ENV === "production") throw error;
+    console.warn(`Yahoo Finance quote fetch failed for ${symbol}; using development-only mock data:`, error.message);
     return getMockTicker(symbol);
   }
 }

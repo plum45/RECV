@@ -82,6 +82,8 @@ export default function ScannerPage() {
   };
 
   useEffect(() => {
+    // Initial synchronization with the scanner API; subsequent calls use the interval.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchNearSupport();
     const interval = setInterval(fetchNearSupport, 120 * 1000);
     return () => clearInterval(interval);
@@ -89,6 +91,7 @@ export default function ScannerPage() {
 
   // Alerts configuration states (saved in localStorage)
   const [lineToken, setLineToken] = useState("");
+  const [lineTargetId, setLineTargetId] = useState("");
   const [tgToken, setTgToken] = useState("");
   const [tgChatId, setTgChatId] = useState("");
   const [testingLine, setTestingLine] = useState(false);
@@ -108,7 +111,9 @@ export default function ScannerPage() {
   // Load alert settings from localStorage
   useEffect(() => {
     if (typeof window !== "undefined") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLineToken(localStorage.getItem("line_notify_token") || "");
+      setLineTargetId(localStorage.getItem("line_target_id") || "");
       setTgToken(localStorage.getItem("tg_bot_token") || "");
       setTgChatId(localStorage.getItem("tg_chat_id") || "");
     }
@@ -117,6 +122,7 @@ export default function ScannerPage() {
   // Save settings helpers
   const saveLineSettings = () => {
     localStorage.setItem("line_notify_token", lineToken);
+    localStorage.setItem("line_target_id", lineTargetId);
     setAlertStatus({ type: "success", text: "บันทึก Line Notify Token สำเร็จ!" });
     setTimeout(() => setAlertStatus(null), 3000);
   };
@@ -144,6 +150,8 @@ export default function ScannerPage() {
   };
 
   useEffect(() => {
+    // Fetch whenever the selected ticker changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     performScan(symbol);
   }, [symbol]);
 
@@ -157,8 +165,8 @@ export default function ScannerPage() {
 
   // Test Alerts helpers
   const testLineAlert = async () => {
-    if (!lineToken.trim()) {
-      setAlertStatus({ type: "error", text: "กรุณากรอก Line Notify Token" });
+    if (!lineToken.trim() || !lineTargetId.trim()) {
+      setAlertStatus({ type: "error", text: "กรุณากรอก LINE Channel Access Token และ User ID" });
       return;
     }
     setTestingLine(true);
@@ -167,6 +175,7 @@ export default function ScannerPage() {
       const res = await axios.post("/api/alerts/test", {
         type: "line",
         token: lineToken,
+        targetId: lineTargetId,
       });
       if (res.data.success) {
         setAlertStatus({ type: "success", text: "ส่งข้อความทดสอบเข้า Line สำเร็จ!" });
@@ -588,23 +597,35 @@ export default function ScannerPage() {
                 <Bell size={18} />
               </div>
               <h2 className="text-lg font-bold text-slate-100">
-                Line Notify Alert Settings
+                LINE Messaging API
               </h2>
             </div>
             <p className="text-xs text-slate-400 mb-4 leading-relaxed">
-              กรอก LINE Notify Token เพื่อเปิดการใช้งานแจ้งเตือนแผนเทรดและจุดกลับตัวทาง Line ทันทีที่เกิดสัญญาณในกราฟรายชั่วโมง
+              เชื่อม LINE Official Account เพื่อรับสัญญาณผ่าน Messaging API (LINE Notify ยุติบริการแล้ว)
             </p>
 
             <div className="space-y-4">
               <div>
                 <label className="text-xs text-slate-500 font-bold uppercase tracking-wider block mb-1.5">
-                  LINE Notify Access Token
+                  Channel Access Token
                 </label>
                 <input
                   type="password"
-                  placeholder="Paste your LINE Token here..."
+                  placeholder="Channel access token..."
                   value={lineToken}
                   onChange={(e) => setLineToken(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-slate-300 text-sm focus:outline-none focus:border-indigo-500/50"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-500 font-bold uppercase tracking-wider block mb-1.5">
+                  LINE User ID
+                </label>
+                <input
+                  type="text"
+                  placeholder="เช่น U1234..."
+                  value={lineTargetId}
+                  onChange={(e) => setLineTargetId(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-slate-300 text-sm focus:outline-none focus:border-indigo-500/50"
                 />
               </div>
@@ -624,7 +645,7 @@ export default function ScannerPage() {
               className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-50 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5"
             >
               {testingLine ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
-              ทดลองส่งข้อความ Line
+              ทดลองส่งข้อความ LINE
             </button>
           </div>
         </div>
@@ -703,9 +724,10 @@ export default function ScannerPage() {
           </h3>
           <p className="text-xs text-slate-400 mt-1 leading-relaxed">
             การกรอกข้อมูลและทดสอบในหน้านี้จะเก็บข้อมูลไว้ที่เครื่องของคุณชั่วคราวเพื่อวัตถุประสงค์ในการทดลอง
-            หากต้องการให้เซิร์ฟเวอร์รันระบบแจ้งเตือนแบบออฟไลน์ตลอด 24 ชั่วโมง 
-            ให้คุณนำค่าโทเค็นไปตั้งค่าเป็น **Environment Variables** บน Render Dashboard ได้แก่: 
-            <code className="text-indigo-300 font-mono mx-1">LINE_NOTIFY_TOKEN</code>, 
+            หากต้องการให้เซิร์ฟเวอร์รันระบบแจ้งเตือนแบบออฟไลน์ตลอด 24 ชั่วโมง
+            ให้ตั้งค่า Environment Variables บน Render Dashboard ได้แก่:
+            <code className="text-indigo-300 font-mono mx-1">LINE_CHANNEL_ACCESS_TOKEN</code>,
+            <code className="text-indigo-300 font-mono mx-1">LINE_USER_ID</code>,
             <code className="text-indigo-300 font-mono mx-1">TELEGRAM_BOT_TOKEN</code>, และ 
             <code className="text-indigo-300 font-mono mx-1">TELEGRAM_CHAT_ID</code>
           </p>
