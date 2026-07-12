@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { sendPasswordResetEmail } from "firebase/auth";
-import { auth } from "../../../lib/firebase";
+import { auth, getAuthErrorMessage } from "../../../lib/firebase";
 import Link from "next/link";
 
 export default function ForgotPasswordPage() {
@@ -20,7 +20,7 @@ export default function ForgotPasswordPage() {
       await sendPasswordResetEmail(auth, email);
       setMessage("ส่งลิงก์รีเซ็ตรหัสผ่านไปที่อีเมลของคุณแล้ว โปรดตรวจสอบกล่องข้อความ");
     } catch (err: any) {
-      setError(err.message || "Failed to reset password");
+      setError(getAuthErrorMessage(err));
     } finally {
       setLoading(false);
     }

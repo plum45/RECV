@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
-import { auth } from "../../../lib/firebase";
+import { auth, getAuthErrorMessage } from "../../../lib/firebase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -24,7 +24,7 @@ export default function LoginPage() {
       await signInWithEmailAndPassword(auth, email, password);
       router.push("/dashboard");
     } catch (err: any) {
-      setError(err.message || "Failed to login");
+      setError(getAuthErrorMessage(err));
     } finally {
       setLoading(false);
     }

@@ -348,7 +348,7 @@ function AnalyzePageContent() {
       </div>
 
       {/* ── STICKY HEADER ────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 border-b border-slate-800/40 bg-slate-950/85 backdrop-blur-xl px-6 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-[0_1px_0_rgba(99,102,241,0.06),0_8px_32px_rgba(0,0,0,0.4)]">
+      <header className="sticky top-0 z-30 border-b border-slate-800/40 bg-slate-950/85 backdrop-blur-xl px-3 sm:px-6 py-3 sm:py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 shadow-[0_1px_0_rgba(99,102,241,0.06),0_8px_32px_rgba(0,0,0,0.4)]">
         {/* Brand */}
         <div className="flex items-center gap-3.5">
           <div className="relative">
@@ -384,8 +384,7 @@ function AnalyzePageContent() {
           ))}
         </div>
 
-        {/* Right controls */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap justify-center sm:justify-end">
           <div className="hidden lg:flex items-center gap-2 bg-emerald-950/40 border border-emerald-800/40 rounded-xl px-3 py-1.5 text-[10px] text-emerald-400 font-bold tracking-wide">
             <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping" />
             Yahoo Finance Live
@@ -400,7 +399,7 @@ function AnalyzePageContent() {
               value={symbol}
               onChange={(e) => setSymbol(e.target.value.toUpperCase())}
               placeholder="e.g. AAPL, TSLA"
-              className="bg-slate-900/60 border border-slate-700/50 text-slate-100 text-xs rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 block w-24 sm:w-28 pl-8 pr-10 p-2 font-mono tracking-wider shadow-inner transition-all"
+              className="bg-slate-900/60 border border-slate-700/50 text-slate-100 text-xs rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 block w-20 sm:w-28 pl-8 pr-10 p-2 font-mono tracking-wider shadow-inner transition-all"
             />
             <button
               onClick={toggleWatchlist}

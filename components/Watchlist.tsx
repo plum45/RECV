@@ -15,25 +15,23 @@ interface WatchlistQuote {
 
 export default function Watchlist() {
   const router = useRouter();
-  const [symbols, setSymbols] = useState<string[]>([]);
+  const [symbols, setSymbols] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("rocket_watchlist");
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          return ["NVDA", "AAPL", "TSLA", "MSFT"];
+        }
+      }
+    }
+    return ["NVDA", "AAPL", "TSLA", "MSFT"];
+  });
   const [quotes, setQuotes] = useState<WatchlistQuote[]>([]);
   const [newSymbol, setNewSymbol] = useState("");
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  // Load symbols from localStorage on mount
-  useEffect(() => {
-    const saved = localStorage.getItem("rocket_watchlist");
-    if (saved) {
-      try {
-        setSymbols(JSON.parse(saved));
-      } catch (e) {
-        setSymbols(["NVDA", "AAPL", "TSLA", "MSFT"]); // defaults
-      }
-    } else {
-      setSymbols(["NVDA", "AAPL", "TSLA", "MSFT"]);
-    }
-  }, []);
 
   // Fetch quotes when symbols change
   useEffect(() => {
@@ -170,6 +168,7 @@ export default function Watchlist() {
                   </button>
 
                   <div className="flex items-center gap-3 mb-4">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={`https://logo.clearbit.com/${logoDomain}`}
                       alt={q.symbol}

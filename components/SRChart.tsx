@@ -456,8 +456,8 @@ export default function SRChart({ klines, indicators, supportResistance, current
                 strokeOpacity={0.95}
                 strokeDasharray="5 3"
                 label={
-                  <CurrentPriceLabel 
-                    value={currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 
+                  <CurrentPriceLabel
+                    value={currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   />
                 }
               />

@@ -88,6 +88,7 @@ export default function InvestPage() {
                   onClick={() => handleCardClick(stock.symbol)}
                   className="group p-5 bg-slate-900/40 hover:bg-slate-800/80 backdrop-blur-sm border border-slate-800 hover:border-indigo-500/30 rounded-2xl cursor-pointer transition-all hover:shadow-lg hover:shadow-indigo-500/10 flex items-center gap-4"
                 >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={`https://logo.clearbit.com/${logoDomain}`}
                     alt={stock.symbol}

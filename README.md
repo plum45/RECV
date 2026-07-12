@@ -29,7 +29,7 @@
 
 ## 🛠️ เทคโนโลยีที่ใช้ (Tech Stack)
 
-- **Frontend**: Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS 4.0
+- **Frontend**: Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4.0
 - **Icon Library**: Lucide React
 - **API Requests**: Axios
 - **Indicator Calculations**: `technicalindicators`
@@ -74,6 +74,21 @@ npm run dev
 - **ไม่ใช่คำแนะนำทางการลงทุน (Not Financial Advice)**: ทุกข้อมูล แผนเทรด และระดับราคาเข้า/ตัดขาดทุน ไม่จัดเป็นคำแนะนำหรือชี้ชวนในการทำธุรกรรมซื้อขายสินทรัพย์ทางการเงินจริง
 - **การตัดสินใจลงทุน**: ผู้ใช้งานจำเป็นต้องใช้วิจารณญาณส่วนบุคคล วิเคราะห์ข้อมูลความเสี่ยงประกอบการตัดสินใจด้วยตนเอง และใช้ Stop Loss เสมอทุกครั้งที่มีการเปิดสถานะการเทรด
 - **ความเสี่ยงการใช้งาน API Key**: โปรดเก็บรักษากุญแจเชื่อมต่อ `OPENAI_API_KEY` ไว้เป็นความลับบนฝั่งเซิร์ฟเวอร์เท่านั้น ห้ามเผยแพร่หรือนำไปเก็บไว้ในฝั่ง Client
+
+---
+
+## 🚧 Known Issues & TODO
+
+รายการปัญหาที่ทราบและรอดำเนินการแก้ไข:
+
+| # | ปัญหา | สถานะ | หมายเหตุ |
+|---|-------|-------|----------|
+| 1 | ยังไม่มี `OPENAI_API_KEY` ทำให้ AI Analyze ไม่ทำงาน | ❌ รอใส่ Key | ใส่ค่าใน `.env.local` |
+| 2 | Dashboard/API ไม่มี auth guard ครอบคลุม | ❌ รอพัฒนา | เฉพาะ Analyze page มี redirect |
+| 3 | API `/api/analyze`, `/api/scanner` ไม่มี rate limiting | ❌ รอพัฒนา | เสี่ยงถูกเรียกซ้ำ / เสียค่า AI |
+| 4 | LINE/Telegram tokens เก็บใน localStorage | ⚠️ ชั่วคราว | ควรย้ายเป็น env variables สำหรับ prod |
+| 5 | ไม่มี automated test suite | ❌ รอพัฒนา | - |
+| 6 | Portfolio เก็บ local เท่านั้น ไม่ sync ข้ามอุปกรณ์ | ❌ รอพัฒนา | ควรเชื่อมกับ Firestore |
 
 ---
 

@@ -2,18 +2,18 @@
 
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Search, 
-  Settings, 
-  AlertTriangle, 
-  Zap, 
-  Check, 
-  Send, 
-  Bell, 
-  Loader2, 
-  Activity, 
+import {
+  TrendingUp,
+  TrendingDown,
+  Search,
+  Settings,
+  AlertTriangle,
+  Zap,
+  Check,
+  Send,
+  Bell,
+  Loader2,
+  Activity,
   Info,
   ArrowRight,
   Sparkles
@@ -82,15 +82,22 @@ export default function ScannerPage() {
   };
 
   useEffect(() => {
+    /* eslint-disable-next-line react-hooks/set-state-in-effect */
     fetchNearSupport();
     const interval = setInterval(fetchNearSupport, 120 * 1000);
     return () => clearInterval(interval);
   }, []);
 
-  // Alerts configuration states (saved in localStorage)
-  const [lineToken, setLineToken] = useState("");
-  const [tgToken, setTgToken] = useState("");
-  const [tgChatId, setTgChatId] = useState("");
+  // Alerts configuration states (initialized from localStorage)
+  const [lineToken, setLineToken] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("line_notify_token") || "" : ""
+  );
+  const [tgToken, setTgToken] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("tg_bot_token") || "" : ""
+  );
+  const [tgChatId, setTgChatId] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("tg_chat_id") || "" : ""
+  );
   const [testingLine, setTestingLine] = useState(false);
   const [testingTg, setTestingTg] = useState(false);
   const [alertStatus, setAlertStatus] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -105,14 +112,7 @@ export default function ScannerPage() {
     { label: "Apple", value: "AAPL" },
   ];
 
-  // Load alert settings from localStorage
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setLineToken(localStorage.getItem("line_notify_token") || "");
-      setTgToken(localStorage.getItem("tg_bot_token") || "");
-      setTgChatId(localStorage.getItem("tg_chat_id") || "");
-    }
-  }, []);
+  // Alert settings are now initialized via useState lazy initializers above
 
   // Save settings helpers
   const saveLineSettings = () => {
@@ -144,7 +144,7 @@ export default function ScannerPage() {
   };
 
   useEffect(() => {
-    performScan(symbol);
+    performScan(symbol); // eslint-disable-line react-hooks/set-state-in-effect -- async fetch, setState in callback not cascading
   }, [symbol]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -265,11 +265,10 @@ export default function ScannerPage() {
           <button
             key={item.value}
             onClick={() => setSymbol(item.value)}
-            className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-              symbol === item.value
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${symbol === item.value
                 ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/30"
                 : "bg-slate-900/40 text-slate-400 border-slate-800 hover:text-slate-200"
-            }`}
+              }`}
           >
             {item.label} ({item.value})
           </button>
@@ -298,11 +297,11 @@ export default function ScannerPage() {
               const isNear = asset.status === "near";
               const isBroken = asset.status === "broken";
               const isUp = asset.change24h >= 0;
-              
+
               let cardBg = "bg-slate-900/30 border-slate-800/60 hover:border-slate-700/60 hover:bg-slate-800/10 text-slate-400";
               let badgeColor = "bg-slate-800/60 text-slate-500";
               let badgeText = "ปกติ";
-              
+
               if (isNear) {
                 cardBg = "bg-emerald-950/20 border-emerald-500/20 hover:border-emerald-500/40 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.03)]";
                 badgeColor = "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20";
@@ -313,7 +312,7 @@ export default function ScannerPage() {
                 badgeText = "หลุดแนวรับ 🔴";
               }
 
-              const formattedPrice = asset.currentPrice >= 1.0 
+              const formattedPrice = asset.currentPrice >= 1.0
                 ? asset.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                 : asset.currentPrice.toFixed(4);
 
@@ -333,7 +332,7 @@ export default function ScannerPage() {
                       {isUp ? "+" : ""}{asset.change24h.toFixed(1)}%
                     </span>
                   </div>
-                  
+
                   <div className="my-2">
                     <div className="text-sm font-black font-mono text-slate-100">
                       ${formattedPrice}
@@ -344,7 +343,7 @@ export default function ScannerPage() {
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="flex justify-between items-center w-full mt-0.5">
                     <span className="text-[9px] font-black font-mono text-slate-400">
                       {asset.distancePercent > 0 ? "+" : ""}{asset.distancePercent.toFixed(1)}%
@@ -374,14 +373,14 @@ export default function ScannerPage() {
         </div>
       ) : scanData ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
+
           {/* LEFT/MAIN: Score & AI Analysis */}
           <div className="lg:col-span-1 flex flex-col gap-6">
-            
+
             {/* Score Card */}
             <div className={`p-6 bg-slate-900/40 backdrop-blur-md rounded-2xl border ${currentMeta.border} shadow-lg relative overflow-hidden flex flex-col items-center justify-center text-center h-[260px]`}>
               <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/5 to-transparent pointer-events-none" />
-              
+
               <h2 className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-4">
                 ฉันทามติทิศทางรวม (Consensus)
               </h2>
@@ -455,7 +454,7 @@ export default function ScannerPage() {
 
           {/* RIGHT: Confluence Matrix */}
           <div className="lg:col-span-2 flex flex-col gap-6">
-            
+
             {/* Table Matrix */}
             <div className="p-6 bg-slate-900/30 border border-slate-800/60 rounded-2xl shadow-xl overflow-hidden">
               <h2 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
@@ -489,7 +488,7 @@ export default function ScannerPage() {
                             <div className="flex items-center gap-2">
                               <span className="font-mono font-bold text-slate-300">{r.rsi}</span>
                               <div className="w-12 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                                <div 
+                                <div
                                   className={`h-full ${r.rsi < 30 ? "bg-amber-400" : r.rsi > 70 ? "bg-rose-500" : "bg-indigo-500"}`}
                                   style={{ width: `${Math.min(100, r.rsi)}%` }}
                                 />
@@ -506,9 +505,8 @@ export default function ScannerPage() {
                             )}
                           </td>
                           <td className="py-3.5 px-4">
-                            <span className={`text-xs uppercase font-bold ${
-                              r.structure === "uptrend" ? "text-emerald-400" : r.structure === "downtrend" ? "text-rose-400" : "text-slate-400"
-                            }`}>
+                            <span className={`text-xs uppercase font-bold ${r.structure === "uptrend" ? "text-emerald-400" : r.structure === "downtrend" ? "text-rose-400" : "text-slate-400"
+                              }`}>
                               {r.structure}
                             </span>
                           </td>
@@ -526,7 +524,7 @@ export default function ScannerPage() {
                 <Info size={18} className="text-amber-400" />
                 โซนกลับบทบาทแนวรับ-แนวต้านสำคัญ (S/R Flip Zones)
               </h2>
-              
+
               {/* Extract all S/R Flips across all timeframes */}
               {(() => {
                 const allFlips: { timeframe: string; zone: string; type: string; reasons: string[] }[] = [];
@@ -552,9 +550,8 @@ export default function ScannerPage() {
                           <span className="text-xs font-bold uppercase px-2 py-0.5 bg-slate-800 text-slate-400 rounded">
                             กรอบเวลา {f.timeframe}
                           </span>
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded ${
-                            f.type === "support" ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"
-                          }`}>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded ${f.type === "support" ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"
+                            }`}>
                             {f.type === "support" ? "กลายเป็นแนวรับ" : "กลายเป็นแนวต้าน"}
                           </span>
                         </div>
@@ -579,7 +576,7 @@ export default function ScannerPage() {
 
       {/* ALERT CONFIGURATION SECTION */}
       <section className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
+
         {/* Line Notify Settings */}
         <div className="p-6 bg-slate-900/40 border border-slate-800/60 rounded-2xl shadow-xl flex flex-col justify-between">
           <div>
@@ -703,10 +700,10 @@ export default function ScannerPage() {
           </h3>
           <p className="text-xs text-slate-400 mt-1 leading-relaxed">
             การกรอกข้อมูลและทดสอบในหน้านี้จะเก็บข้อมูลไว้ที่เครื่องของคุณชั่วคราวเพื่อวัตถุประสงค์ในการทดลอง
-            หากต้องการให้เซิร์ฟเวอร์รันระบบแจ้งเตือนแบบออฟไลน์ตลอด 24 ชั่วโมง 
-            ให้คุณนำค่าโทเค็นไปตั้งค่าเป็น **Environment Variables** บน Render Dashboard ได้แก่: 
-            <code className="text-indigo-300 font-mono mx-1">LINE_NOTIFY_TOKEN</code>, 
-            <code className="text-indigo-300 font-mono mx-1">TELEGRAM_BOT_TOKEN</code>, และ 
+            หากต้องการให้เซิร์ฟเวอร์รันระบบแจ้งเตือนแบบออฟไลน์ตลอด 24 ชั่วโมง
+            ให้คุณนำค่าโทเค็นไปตั้งค่าเป็น **Environment Variables** บน Render Dashboard ได้แก่:
+            <code className="text-indigo-300 font-mono mx-1">LINE_NOTIFY_TOKEN</code>,
+            <code className="text-indigo-300 font-mono mx-1">TELEGRAM_BOT_TOKEN</code>, และ
             <code className="text-indigo-300 font-mono mx-1">TELEGRAM_CHAT_ID</code>
           </p>
         </div>
@@ -719,11 +716,10 @@ export default function ScannerPage() {
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 50 }}
-            className={`fixed bottom-20 right-6 z-[100] px-4 py-3 rounded-xl border text-sm font-bold shadow-lg flex items-center gap-2 ${
-              alertStatus.type === "success" 
-                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
+            className={`fixed bottom-20 right-6 z-[100] px-4 py-3 rounded-xl border text-sm font-bold shadow-lg flex items-center gap-2 ${alertStatus.type === "success"
+                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                 : "bg-rose-500/10 text-rose-400 border-rose-500/20"
-            }`}
+              }`}
           >
             {alertStatus.type === "success" ? <Check size={16} /> : <AlertTriangle size={16} />}
             {alertStatus.text}

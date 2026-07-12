@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../../../lib/firebase";
+import { auth, getAuthErrorMessage } from "../../../lib/firebase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -27,7 +27,7 @@ export default function RegisterPage() {
       // Wait a moment for firestore trigger to create doc, or create explicitly
       router.push("/dashboard");
     } catch (err: any) {
-      setError(err.message || "Failed to register");
+      setError(getAuthErrorMessage(err));
     } finally {
       setLoading(false);
     }

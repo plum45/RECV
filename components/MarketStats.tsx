@@ -77,10 +77,10 @@ export default function MarketStats({
               ${marketData.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </span>
             {marketData.prePostPrice && (
-              <span className={`text-[10px] font-bold block mt-1.5 ${
+              <span className={`text-[10px] font-bold block mt-1.5 truncate ${
                 marketData.marketState === "PRE" ? "text-amber-400" : "text-purple-400"
               }`}>
-                {marketData.marketState === "PRE" ? "Pre-Market" : "After-Hours"}: 
+                {marketData.marketState === "PRE" ? "Pre" : "AH"}: 
                 ${marketData.prePostPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })} 
                 ({marketData.prePostChange && marketData.prePostChange >= 0 ? "+" : ""}
                 {marketData.prePostChange?.toFixed(2)}%)
@@ -146,11 +146,11 @@ export default function MarketStats({
             </div>
 
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3.5 text-sm">
-              <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                <span className="text-slate-400">RSI (14)</span>
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b border-slate-800 pb-2 gap-1">
+                <span className="text-slate-400 shrink-0">RSI (14)</span>
                 <div className="text-right">
                   <span className="text-slate-100 font-bold mr-2">{indicators.rsi14.toFixed(1)}</span>
-                  <span className={rsiColor}>{rsiLabel}</span>
+                  <span className={`text-xs ${rsiColor}`}>{rsiLabel}</span>
                 </div>
               </div>
               <div className="flex justify-between items-center border-b border-slate-800 pb-2">

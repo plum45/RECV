@@ -116,11 +116,11 @@ export default function NewsPanel({ news, loading, symbol }: NewsPanelProps) {
                 </a>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 pt-0.5 border-t border-slate-900/80 text-[10px] text-slate-400">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-1 border-t border-slate-900/80 text-[10px] text-slate-400">
                 <span className="font-semibold text-slate-300">{item.source}</span>
                 <span>•</span>
                 <span>{formattedDate}</span>
-                <span className="ml-auto flex items-center gap-1.5 flex-wrap">
+                <span className="flex items-center gap-1 flex-wrap mt-0.5 sm:mt-0 sm:ml-auto">
                   {getSentimentBadge(item.sentiment)}
                   {getImpactBadge(item.impact)}
                   {getPriceInBadge(item.isPriceIn)}
