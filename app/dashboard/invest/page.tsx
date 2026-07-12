@@ -34,7 +34,7 @@ export default function InvestPage() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0B0E14] text-slate-900 dark:text-slate-100 pb-24">
       {/* Top Banner Area */}
-      <div className="w-full bg-gradient-to-b from-indigo-900/40 to-[#0B0E14] pt-12 pb-8 px-6 border-b border-slate-800/60">
+      <div className="w-full bg-gradient-to-b from-indigo-900/40 to-[#0B0E14] pt-8 sm:pt-12 pb-8 px-4 sm:px-6 border-b border-slate-800/60">
         <div className="max-w-3xl mx-auto text-center">
           <h1 className="text-3xl md:text-5xl font-black text-slate-100 tracking-tight mb-4 flex items-center justify-center gap-3">
             <BarChart2 size={36} className="text-indigo-400" />
@@ -69,7 +69,7 @@ export default function InvestPage() {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-6 mt-10 space-y-10">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 mt-7 sm:mt-10 space-y-8 sm:space-y-10">
         
         {/* Popular Stocks Section */}
         <section>

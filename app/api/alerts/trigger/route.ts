@@ -5,25 +5,31 @@ import { calculateIndicators } from "../../../../lib/indicators";
 import { calculateSupportResistance } from "../../../../lib/supportResistance";
 import { generateAnalysisReport } from "../../../../lib/openai";
 
-export async function GET() {
-  return triggerAlerts();
+export async function GET(request: Request) {
+  return triggerAlerts(request);
 }
 
-export async function POST() {
-  return triggerAlerts();
+export async function POST(request: Request) {
+  return triggerAlerts(request);
 }
 
-async function triggerAlerts() {
+async function triggerAlerts(request: Request) {
   try {
-    const lineToken = process.env.LINE_NOTIFY_TOKEN;
+    const cronSecret = process.env.ALERT_CRON_SECRET;
+    if (process.env.NODE_ENV === "production" && (!cronSecret || request.headers.get("authorization") !== `Bearer ${cronSecret}`)) {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    }
+
+    const lineToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+    const lineUserId = process.env.LINE_USER_ID;
     const tgToken = process.env.TELEGRAM_BOT_TOKEN;
     const tgChatId = process.env.TELEGRAM_CHAT_ID;
     const symbolStr = process.env.ALERT_SYMBOLS || "BTC-USD,ETH-USD,SOL-USD";
 
-    if (!lineToken && (!tgToken || !tgChatId)) {
+    if ((!lineToken || !lineUserId) && (!tgToken || !tgChatId)) {
       return NextResponse.json({
         success: false,
-        message: "No alert channels (Line or Telegram) configured in environment variables.",
+        message: "No complete LINE or Telegram channel configuration was found.",
       });
     }
 
@@ -147,17 +153,20 @@ Format requirements:
           }
 
           // Send to Line Notify
-          if (lineToken) {
+          let delivered = false;
+          if (lineToken && lineUserId) {
             try {
-              const params = new URLSearchParams();
-              params.append("message", message);
-              await axios.post("https://notify-api.line.me/api/notify", params, {
+              await axios.post("https://api.line.me/v2/bot/message/push", {
+                to: lineUserId,
+                messages: [{ type: "text", text: message }],
+              }, {
                 headers: {
                   "Authorization": `Bearer ${lineToken}`,
-                  "Content-Type": "application/x-www-form-urlencoded",
+                  "Content-Type": "application/json",
                 },
                 timeout: 8000,
               });
+              delivered = true;
             } catch (err: any) {
               console.error(`Failed to send Line alert for ${symbol}:`, err.message);
             }
@@ -171,12 +180,13 @@ Format requirements:
                 chat_id: tgChatId,
                 text: message,
               }, { timeout: 8000 });
+              delivered = true;
             } catch (err: any) {
               console.error(`Failed to send Telegram alert for ${symbol}:`, err.message);
             }
           }
 
-          alertsSent.push(symbol);
+          if (delivered) alertsSent.push(symbol);
         }
       } catch (err: any) {
         console.error(`Error processing alert checks for ${symbol}:`, err.message);

@@ -34,16 +34,16 @@ export default function MarketIndices() {
 
   if (loading) {
     return (
-      <div className="flex gap-4 overflow-hidden py-3 opacity-50">
+      <div className="grid grid-cols-1 gap-3 py-3 opacity-50 sm:grid-cols-2 xl:grid-cols-3">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-16 w-48 bg-slate-800/50 rounded-lg animate-pulse" />
+          <div key={i} className="h-20 w-full bg-slate-800/50 rounded-xl animate-pulse" />
         ))}
       </div>
     );
   }
 
   return (
-    <div className="flex flex-wrap gap-4 py-3">
+    <div className="grid grid-cols-1 gap-3 py-3 sm:grid-cols-2 xl:grid-cols-3">
       {indices.map((idx) => {
         const isUp = idx.change > 0;
         const isDown = idx.change < 0;
@@ -53,7 +53,7 @@ export default function MarketIndices() {
         return (
           <div
             key={idx.symbol}
-            className="flex-1 min-w-[140px] px-4 py-3 bg-slate-800/40 backdrop-blur-md rounded-xl border border-slate-700/50 flex flex-col justify-between"
+            className="min-w-0 px-4 py-3.5 bg-slate-800/40 backdrop-blur-md rounded-2xl border border-slate-700/50 flex flex-col justify-between"
           >
             <div className="text-xs font-semibold text-slate-400 tracking-wider">
               {idx.name}

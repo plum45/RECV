@@ -101,8 +101,16 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const symbols = body.symbols && Array.isArray(body.symbols) && body.symbols.length > 0
-      ? body.symbols.map((s: string) => s.trim().toUpperCase())
+      ? body.symbols
+          .filter((s: unknown): s is string => typeof s === "string")
+          .map((s: string) => s.trim().toUpperCase())
+          .filter((s: string) => /^[A-Z0-9.^=-]{1,15}$/.test(s))
+          .slice(0, 20)
       : DEFAULT_SYMBOLS;
+
+    if (symbols.length === 0) {
+      return NextResponse.json({ error: "No valid symbols provided" }, { status: 400 });
+    }
 
     const data = await scanSupport(symbols);
     return NextResponse.json(data);

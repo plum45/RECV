@@ -26,7 +26,7 @@ export default function MobileNavBar({ activeTab, setActiveTab }: MobileNavBarPr
   };
 
   return (
-    <div className="fixed bottom-0 left-0 w-full bg-white dark:bg-[#12151f] border-t border-slate-200 dark:border-slate-800/50 pb-safe pt-2 px-6 flex justify-between items-end z-50 rounded-t-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+    <div className="fixed bottom-0 left-0 w-full bg-white/95 dark:bg-[#12151f]/95 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800/50 pb-safe pt-2 px-2 min-[380px]:px-4 sm:px-8 flex justify-between items-end z-50 rounded-t-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
       {navItems.map((item) => {
         const Icon = item.icon;
         const isActive = activeTab === item.id;
@@ -38,7 +38,7 @@ export default function MobileNavBar({ activeTab, setActiveTab }: MobileNavBarPr
               onClick={() => handleNav(item)}
               className="relative flex flex-col items-center justify-center -translate-y-4"
             >
-              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg transition-all duration-300 ${
+              <div className={`w-12 h-12 min-[380px]:w-14 min-[380px]:h-14 rounded-2xl flex items-center justify-center shadow-lg transition-all duration-300 ${
                 isActive 
                   ? "bg-gradient-to-tr from-indigo-500 to-purple-500 text-white shadow-indigo-500/40" 
                   : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"

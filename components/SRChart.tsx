@@ -170,7 +170,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 export default function SRChart({ klines, indicators, supportResistance, currentPrice }: SRChartProps) {
   if (!klines || klines.length === 0 || !indicators) {
     return (
-      <div className="w-full h-[600px] bg-slate-900 border border-slate-800 rounded-2xl flex flex-col items-center justify-center text-slate-500 shadow-2xl gap-3">
+      <div className="w-full h-[420px] sm:h-[520px] lg:h-[600px] bg-slate-900 border border-slate-800 rounded-2xl flex flex-col items-center justify-center text-slate-500 shadow-2xl gap-3">
         <div className="text-3xl opacity-30">📊</div>
         <p className="text-sm font-semibold">ไม่มีข้อมูลกราฟเทคนิคอล</p>
         <p className="text-xs text-slate-600">กรุณากด Analyze หรือรอข้อมูลโหลดเสร็จ</p>
