@@ -1,26 +1,79 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Home, Star, LayoutGrid, SlidersHorizontal, Briefcase } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 
 interface MobileNavBarProps {
-  activeTab: string;
+  activeTab?: string;
   setActiveTab?: (tab: string) => void;
 }
 
-export default function MobileNavBar({ activeTab, setActiveTab }: MobileNavBarProps) {
+export default function MobileNavBar({ setActiveTab }: MobileNavBarProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [currentHash, setCurrentHash] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setCurrentHash(window.location.hash);
+      const handleHashChange = () => setCurrentHash(window.location.hash);
+      window.addEventListener("hashchange", handleHashChange);
+      return () => window.removeEventListener("hashchange", handleHashChange);
+    }
+  }, [pathname]);
 
   const navItems = [
     { id: "home", label: "หน้าแรก", icon: Home, path: "/dashboard" },
-    { id: "favorites", label: "หุ้นโปรด", icon: Star, path: "/dashboard" },
+    { id: "favorites", label: "หุ้นโปรด", icon: Star, path: "/dashboard#watchlist" },
     { id: "invest", label: "ค้นหาหุ้น", icon: LayoutGrid, isCenter: true, path: "/dashboard/invest" },
-    { id: "tools", label: "เครื่องมือ", icon: SlidersHorizontal, path: "/dashboard" },
-    { id: "portfolio", label: "พอร์ต", icon: Briefcase, path: "/dashboard?tab=portfolio" },
+    { id: "tools", label: "เครื่องมือ", icon: SlidersHorizontal, path: "/dashboard/scanner" },
+    { id: "portfolio", label: "พอร์ต", icon: Briefcase, path: "/dashboard/analyze?tab=portfolio" },
   ];
+
+  const getIsActive = (item: typeof navItems[0]) => {
+    const tabParam = searchParams.get("tab");
+    if (item.id === "portfolio") {
+      return pathname === "/dashboard/analyze" && tabParam === "portfolio";
+    }
+    if (item.id === "tools") {
+      return pathname === "/dashboard/scanner";
+    }
+    if (item.id === "invest") {
+      return pathname === "/dashboard/invest";
+    }
+    if (item.id === "favorites") {
+      return pathname === "/dashboard" && currentHash === "#watchlist" && !tabParam;
+    }
+    if (item.id === "home") {
+      return pathname === "/dashboard" && currentHash !== "#watchlist" && !tabParam;
+    }
+    return false;
+  };
 
   const handleNav = (item: typeof navItems[0]) => {
     if (setActiveTab) {
       setActiveTab(item.id);
+    }
+    if (item.id === "favorites") {
+      setCurrentHash("#watchlist");
+      if (pathname === "/dashboard") {
+        window.location.hash = "watchlist";
+        const el = document.getElementById("watchlist");
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth" });
+        } else {
+          router.push("/dashboard#watchlist");
+        }
+      } else {
+        router.push("/dashboard#watchlist");
+      }
+      return;
+    }
+    if (item.id === "home" && pathname === "/dashboard") {
+      setCurrentHash("");
+      window.history.pushState("", "", "/dashboard");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
     }
     router.push(item.path);
   };
@@ -29,7 +82,7 @@ export default function MobileNavBar({ activeTab, setActiveTab }: MobileNavBarPr
     <div className="fixed bottom-0 left-0 right-0 w-full bg-white/95 dark:bg-[#12151f]/95 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800/50 pb-2 pt-1.5 px-3 min-[380px]:px-6 flex justify-around items-center z-50 rounded-t-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
       {navItems.map((item) => {
         const Icon = item.icon;
-        const isActive = activeTab === item.id;
+        const isActive = getIsActive(item);
 
         if (item.isCenter) {
           return (
@@ -68,3 +121,4 @@ export default function MobileNavBar({ activeTab, setActiveTab }: MobileNavBarPr
     </div>
   );
 }
+

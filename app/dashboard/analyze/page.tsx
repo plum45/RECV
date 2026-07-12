@@ -7,7 +7,7 @@ import { Play, RotateCw, Settings, Sliders, TrendingUp, HelpCircle, Activity, Ch
 import SymbolSelector from "../../../components/SymbolSelector";
 import TimeframeSelector from "../../../components/TimeframeSelector";
 import TradingViewChart from "../../../components/TradingViewChart";
-import MarketStats from "../../../components/MarketStats";
+import MarketStats, { SupportResistanceZonesPanel } from "../../../components/MarketStats";
 import SentimentPanel from "../../../components/SentimentPanel";
 import NewsPanel from "../../../components/NewsPanel";
 import RocketScoreCard from "../../../components/RocketScoreCard";
@@ -523,6 +523,9 @@ function AnalyzePageContent() {
                     />
                   )}
                 </div>
+
+                {/* Support & Resistance Zones right below chart */}
+                <SupportResistanceZonesPanel supportResistance={supportResistance} />
 
                 {/* News and Sentiment Side-by-Side */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

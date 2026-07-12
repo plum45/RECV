@@ -16,9 +16,17 @@ import {
   Activity,
   Info,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  ExternalLink,
+  LogOut,
+  CheckCircle2,
+  ShieldCheck,
+  SlidersHorizontal,
+  ToggleLeft,
+  ToggleRight
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "../../../contexts/AuthContext";
 
 interface TimeframeResult {
   timeframe: string;
@@ -46,11 +54,32 @@ interface ScanData {
 }
 
 export default function ScannerPage() {
+  const { user, getIdToken } = useAuth();
   const [symbol, setSymbol] = useState("BTC-USD");
   const [searchInput, setSearchInput] = useState("");
   const [scanData, setScanData] = useState<ScanData | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Multi-user Telegram Auth & Alert states
+  const [telegramStatus, setTelegramStatus] = useState<{
+    enabled: boolean;
+    chatId: string | null;
+    username?: string;
+    connectedAt?: number;
+  } | null>(null);
+  const [telegramAlertSettings, setTelegramAlertSettings] = useState<{
+    enabled: boolean;
+    symbols: string[];
+    rsiEnabled: boolean;
+    macdEnabled: boolean;
+    srFlipEnabled: boolean;
+    supportEnabled: boolean;
+    cooldownMinutes: number;
+  } | null>(null);
+  const [loadingTelegramSettings, setLoadingTelegramSettings] = useState(false);
+  const [showAlertConfigModal, setShowAlertConfigModal] = useState(false);
+  const [savingAlertConfig, setSavingAlertConfig] = useState(false);
 
   // States for assets near support
   const [nearSupportData, setNearSupportData] = useState<any[]>([]);
@@ -186,28 +215,119 @@ export default function ScannerPage() {
     }
   };
 
-  const testTelegramAlert = async () => {
-    if (!tgToken.trim() || !tgChatId.trim()) {
-      setAlertStatus({ type: "error", text: "กรุณากรอก Bot Token และ Chat ID" });
+  const fetchTelegramStatus = async () => {
+    if (!user) {
+      setTelegramStatus(null);
+      setTelegramAlertSettings(null);
       return;
     }
+    setLoadingTelegramSettings(true);
+    try {
+      const token = await getIdToken();
+      const res = await axios.get("/api/telegram/settings", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data.success) {
+        setTelegramStatus(res.data.telegram);
+        setTelegramAlertSettings(res.data.alertSettings);
+      }
+    } catch (err) {
+      console.error("Failed to fetch Telegram settings:", err);
+    } finally {
+      setLoadingTelegramSettings(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTelegramStatus();
+  }, [user]);
+
+  const testTelegramAlert = async () => {
+    if (!user) {
+      // Fallback if testing without login using local tgToken/tgChatId
+      if (!tgToken.trim() || !tgChatId.trim()) {
+        setAlertStatus({ type: "error", text: "กรุณาเข้าสู่ระบบ หรือระบุ Bot Token และ Chat ID" });
+        return;
+      }
+      setTestingTg(true);
+      setAlertStatus(null);
+      try {
+        const res = await axios.post("/api/alerts/test", {
+          type: "telegram",
+          token: tgToken,
+          chatId: tgChatId,
+        });
+        if (res.data.success) {
+          setAlertStatus({ type: "success", text: "ส่งข้อความทดสอบเข้า Telegram สำเร็จ!" });
+        } else {
+          throw new Error(res.data.error || "Failed");
+        }
+      } catch (err: any) {
+        setAlertStatus({ type: "error", text: `ทดสอบ Telegram ล้มเหลว: ${err.message}` });
+      } finally {
+        setTestingTg(false);
+      }
+      return;
+    }
+
     setTestingTg(true);
     setAlertStatus(null);
     try {
-      const res = await axios.post("/api/alerts/test", {
-        type: "telegram",
-        token: tgToken,
-        chatId: tgChatId,
+      const token = await getIdToken();
+      const res = await axios.post("/api/telegram/test", {}, {
+        headers: { Authorization: `Bearer ${token}` }
       });
       if (res.data.success) {
-        setAlertStatus({ type: "success", text: "ส่งข้อความทดสอบเข้า Telegram สำเร็จ!" });
+        setAlertStatus({ type: "success", text: "ส่งข้อความทดสอบเข้า Telegram ของคุณสำเร็จ!" });
       } else {
-        throw new Error(res.data.error || "Failed");
+        throw new Error(res.data.message || "Failed");
       }
     } catch (err: any) {
-      setAlertStatus({ type: "error", text: `ทดสอบ Telegram ล้มเหลว: ${err.message}` });
+      setAlertStatus({ type: "error", text: `ทดสอบ Telegram ล้มเหลว: ${err.response?.data?.message || err.message}` });
     } finally {
       setTestingTg(false);
+    }
+  };
+
+  const disconnectTelegram = async () => {
+    if (!user) return;
+    if (!window.confirm("ต้องการตัดการเชื่อมต่อ Telegram หรือไม่? คุณจะไม่ได้รับแจ้งเตือนอัตโนมัติจนกว่าจะเชื่อมต่อใหม่")) return;
+    try {
+      const token = await getIdToken();
+      const res = await axios.post("/api/telegram/settings", {
+        action: "disconnect"
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data.success) {
+        setTelegramStatus({ enabled: false, chatId: null });
+        setAlertStatus({ type: "success", text: "ตัดการเชื่อมต่อ Telegram เรียบร้อยแล้ว" });
+      }
+    } catch (err: any) {
+      setAlertStatus({ type: "error", text: `ตัดการเชื่อมต่อไม่สำเร็จ: ${err.message}` });
+    }
+  };
+
+  const saveTelegramAlertConfig = async () => {
+    if (!user || !telegramAlertSettings) return;
+    setSavingAlertConfig(true);
+    try {
+      const token = await getIdToken();
+      const res = await axios.post("/api/telegram/settings", {
+        action: "update_alerts",
+        alertSettings: telegramAlertSettings
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data.success) {
+        setTelegramAlertSettings(res.data.alertSettings);
+        setAlertStatus({ type: "success", text: "บันทึกเงื่อนไขแจ้งเตือน Telegram สำเร็จ!" });
+        setShowAlertConfigModal(false);
+      }
+    } catch (err: any) {
+      setAlertStatus({ type: "error", text: `บันทึกไม่สำเร็จ: ${err.message}` });
+    } finally {
+      setSavingAlertConfig(false);
     }
   };
 
@@ -223,15 +343,40 @@ export default function ScannerPage() {
   const getBiasBadge = (bias: string) => {
     switch (bias) {
       case "Strong Bullish":
-        return <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)]">Strong Bullish 🟢🟢</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1 text-xs font-bold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.15)] shrink-0">
+            <span>Strong Bullish</span>
+            <span className="inline-flex gap-0.5 shrink-0">🟢🟢</span>
+          </span>
+        );
       case "Bullish":
-        return <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-emerald-500/5 text-emerald-300 border border-emerald-500/10">Bullish 🟢</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1 text-xs font-bold rounded-full bg-emerald-500/5 text-emerald-300 border border-emerald-500/20 shrink-0">
+            <span>Bullish</span>
+            <span className="shrink-0">🟢</span>
+          </span>
+        );
       case "Bearish":
-        return <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-rose-500/5 text-rose-300 border border-rose-500/10">Bearish 🔴</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1 text-xs font-bold rounded-full bg-rose-500/5 text-rose-300 border border-rose-500/20 shrink-0">
+            <span>Bearish</span>
+            <span className="shrink-0">🔴</span>
+          </span>
+        );
       case "Strong Bearish":
-        return <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 shadow-[0_0_10px_rgba(244,63,94,0.1)]">Strong Bearish 🔴🔴</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1 text-xs font-bold rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/30 shadow-[0_0_10px_rgba(244,63,94,0.15)] shrink-0">
+            <span>Strong Bearish</span>
+            <span className="inline-flex gap-0.5 shrink-0">🔴🔴</span>
+          </span>
+        );
       default:
-        return <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-slate-800 text-slate-300 border border-slate-700/50">Neutral 🟡</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1 text-xs font-bold rounded-full bg-slate-800 text-slate-300 border border-slate-700/60 shrink-0">
+            <span>Neutral</span>
+            <span className="shrink-0">🟡</span>
+          </span>
+        );
     }
   };
 
@@ -468,16 +613,16 @@ export default function ScannerPage() {
                 ตารางสัญญาณร่วม 5 กรอบเวลา (Confluence Matrix)
               </h2>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+              <div className="overflow-x-auto custom-scrollbar">
+                <table className="w-full text-left border-collapse min-w-[700px]">
                   <thead>
-                    <tr className="border-b border-slate-800/80 text-xs text-slate-500 font-bold uppercase tracking-wider">
-                      <th className="py-3 px-4">กรอบเวลา</th>
-                      <th className="py-3 px-4">แนวโน้ม (Bias)</th>
-                      <th className="py-3 px-4">ความแรง (Score)</th>
-                      <th className="py-3 px-4">RSI (14)</th>
-                      <th className="py-3 px-4">MACD Crossover</th>
-                      <th className="py-3 px-4">โครงสร้าง (Trend)</th>
+                    <tr className="border-b border-slate-800/80 text-xs text-slate-400 font-bold uppercase tracking-wider">
+                      <th className="py-3 px-4 whitespace-nowrap">กรอบเวลา</th>
+                      <th className="py-3 px-4 whitespace-nowrap">แนวโน้ม (Bias)</th>
+                      <th className="py-3 px-4 whitespace-nowrap">ความแรง (Score)</th>
+                      <th className="py-3 px-4 whitespace-nowrap min-w-[150px]">RSI (14)</th>
+                      <th className="py-3 px-4 whitespace-nowrap">MACD Crossover</th>
+                      <th className="py-3 px-4 whitespace-nowrap">โครงสร้าง (Trend)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -485,15 +630,15 @@ export default function ScannerPage() {
                       const timeframeColor = getScoreColor(r.score);
                       return (
                         <tr key={r.timeframe} className="border-b border-slate-800/40 hover:bg-slate-800/20 transition-colors text-sm">
-                          <td className="py-3.5 px-4 font-black text-slate-300">{r.timeframe}</td>
-                          <td className="py-3.5 px-4">{getBiasBadge(r.bias)}</td>
-                          <td className="py-3.5 px-4 font-mono font-bold">
+                          <td className="py-3.5 px-4 font-black text-slate-200 whitespace-nowrap align-middle">{r.timeframe}</td>
+                          <td className="py-3.5 px-4 whitespace-nowrap align-middle">{getBiasBadge(r.bias)}</td>
+                          <td className="py-3.5 px-4 font-mono font-bold whitespace-nowrap align-middle">
                             <span className={timeframeColor.text}>{r.score}%</span>
                           </td>
-                          <td className="py-3.5 px-4">
+                          <td className="py-3.5 px-4 whitespace-nowrap align-middle">
                             <div className="flex items-center gap-2">
-                              <span className="font-mono font-bold text-slate-300">{r.rsi}</span>
-                              <div className="w-12 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                              <span className="font-mono font-bold text-slate-300 w-8">{r.rsi}</span>
+                              <div className="w-14 h-1.5 bg-slate-800 rounded-full overflow-hidden">
                                 <div
                                   className={`h-full ${r.rsi < 30 ? "bg-amber-400" : r.rsi > 70 ? "bg-rose-500" : "bg-indigo-500"}`}
                                   style={{ width: `${Math.min(100, r.rsi)}%` }}
@@ -501,17 +646,17 @@ export default function ScannerPage() {
                               </div>
                             </div>
                           </td>
-                          <td className="py-3.5 px-4">
+                          <td className="py-3.5 px-4 whitespace-nowrap align-middle">
                             {r.macdCrossover === "bullish" ? (
-                              <span className="text-emerald-400 font-bold text-xs bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">Bullish 🚀</span>
+                              <span className="text-emerald-400 font-bold text-xs bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 inline-flex items-center gap-1">Bullish 🚀</span>
                             ) : r.macdCrossover === "bearish" ? (
-                              <span className="text-rose-400 font-bold text-xs bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">Bearish 📉</span>
+                              <span className="text-rose-400 font-bold text-xs bg-rose-500/10 px-2.5 py-1 rounded-full border border-rose-500/20 inline-flex items-center gap-1">Bearish 📉</span>
                             ) : (
                               <span className="text-slate-500 text-xs">-</span>
                             )}
                           </td>
-                          <td className="py-3.5 px-4">
-                            <span className={`text-xs uppercase font-bold ${r.structure === "uptrend" ? "text-emerald-400" : r.structure === "downtrend" ? "text-rose-400" : "text-slate-400"
+                          <td className="py-3.5 px-4 whitespace-nowrap align-middle">
+                            <span className={`text-xs uppercase font-bold px-2 py-0.5 rounded ${r.structure === "uptrend" ? "text-emerald-400 bg-emerald-500/10" : r.structure === "downtrend" ? "text-rose-400 bg-rose-500/10" : "text-slate-400 bg-slate-800/50"
                               }`}>
                               {r.structure}
                             </span>
@@ -644,66 +789,151 @@ export default function ScannerPage() {
           </div>
         </div>
 
-        {/* Telegram Bot Settings */}
-        <div className="p-6 bg-slate-900/40 border border-slate-800/60 rounded-2xl shadow-xl flex flex-col justify-between">
+        {/* Telegram Bot Settings (Multi-User Auto Alert System) */}
+        <div className="p-6 bg-slate-900/40 border border-slate-800/60 rounded-2xl shadow-xl flex flex-col justify-between relative overflow-hidden">
           <div>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-lg bg-sky-500/10 flex items-center justify-center text-sky-400">
-                <Send size={18} />
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-sky-500/10 flex items-center justify-center text-sky-400">
+                  <Send size={18} />
+                </div>
+                <h2 className="text-lg font-bold text-slate-100">
+                  Telegram Bot Alert (24 ชั่วโมง แม้ปิดเว็บ)
+                </h2>
               </div>
-              <h2 className="text-lg font-bold text-slate-100">
-                Telegram Bot Alert Settings
-              </h2>
+              {telegramStatus?.enabled && telegramStatus?.chatId ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+                  <CheckCircle2 size={12} /> เชื่อมต่อแล้ว
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-slate-800 text-slate-400 border border-slate-700">
+                  ⚪ ยังไม่ได้เชื่อมต่อ
+                </span>
+              )}
             </div>
-            <p className="text-xs text-slate-400 mb-4 leading-relaxed">
-              เชื่อมโยงบ็อตเข้ากับห้องแช็ต Telegram เพื่อส่งแผนเทรดวิเคราะห์ AI รายชั่วโมง
-            </p>
 
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs text-slate-500 font-bold uppercase tracking-wider block mb-1.5">
-                    Telegram Bot Token
-                  </label>
-                  <input
-                    type="password"
-                    placeholder="e.g. 123456:ABC-DEF..."
-                    value={tgToken}
-                    onChange={(e) => setTgToken(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-slate-300 text-sm focus:outline-none focus:border-indigo-500/50"
-                  />
+            {loadingTelegramSettings ? (
+              <div className="py-8 flex items-center justify-center gap-2 text-slate-400 text-xs">
+                <Loader2 className="animate-spin text-sky-400" size={16} /> กำลังโหลดสถานะ Telegram ของคุณ...
+              </div>
+            ) : !user ? (
+              <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 text-center my-4">
+                <p className="text-xs text-slate-300 font-bold mb-1">กรุณาเข้าสู่ระบบ (Log in)</p>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  เพื่อเชื่อมต่อ Telegram ส่วนบุคคล ระบบจะทำการส่งแจ้งเตือน Confluence & S/R Flip ให้คุณอัตโนมัติตลอด 24 ชั่วโมง โดยไม่ต้องเปิดหน้าเว็บทิ้งไว้
+                </p>
+              </div>
+            ) : telegramStatus?.enabled && telegramStatus?.chatId ? (
+              <div className="space-y-4 my-3">
+                <div className="p-3.5 bg-slate-950 border border-slate-800/80 rounded-xl space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-500">สถานะระบบ:</span>
+                    <span className="text-emerald-400 font-bold flex items-center gap-1">
+                      <ShieldCheck size={14} /> แจ้งเตือน Cloud 24 ชม. ทำงานอยู่
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-500">บัญชี Telegram:</span>
+                    <span className="text-slate-200 font-mono font-bold">
+                      {telegramStatus.username ? `@${telegramStatus.username}` : `ID: ${telegramStatus.chatId}`}
+                    </span>
+                  </div>
+                  {telegramAlertSettings && (
+                    <div className="flex justify-between text-xs border-t border-slate-900 pt-2">
+                      <span className="text-slate-500">เงื่อนไขที่แจ้งเตือน:</span>
+                      <span className="text-indigo-400 font-bold">
+                        {telegramAlertSettings.symbols.length} สัญลักษณ์ ({telegramAlertSettings.cooldownMinutes} นาที Cooldown)
+                      </span>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <label className="text-xs text-slate-500 font-bold uppercase tracking-wider block mb-1.5">
-                    Telegram Chat ID
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. -1001234567"
-                    value={tgChatId}
-                    onChange={(e) => setTgChatId(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-slate-300 text-sm focus:outline-none focus:border-indigo-500/50"
-                  />
+
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <button
+                    onClick={() => setShowAlertConfigModal(true)}
+                    className="flex-1 px-3 py-2 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <SlidersHorizontal size={14} />
+                    ตั้งค่าเงื่อนไขแจ้งเตือน
+                  </button>
+                  <button
+                    onClick={disconnectTelegram}
+                    className="px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                    title="ตัดการเชื่อมต่อ Telegram"
+                  >
+                    <LogOut size={14} />
+                    ยกเลิกเชื่อมต่อ
+                  </button>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-4 my-3">
+                <div className="p-4 bg-sky-950/20 border border-sky-500/20 rounded-xl space-y-2.5">
+                  <p className="text-xs font-bold text-sky-300 flex items-center gap-1.5">
+                    <Sparkles size={14} /> วิธีเชื่อมต่อ Telegram Bot อัตโนมัติ:
+                  </p>
+                  <ol className="text-xs text-slate-300 space-y-1.5 list-decimal pl-4 leading-relaxed">
+                    <li>เปิดแอป Telegram และค้นหาบ็อต หรือกดลิงก์เพิ่มบ็อต</li>
+                    <li>พิมพ์คำสั่ง <code className="bg-slate-900 px-1.5 py-0.5 rounded text-sky-400 font-mono font-bold">/start</code> ในห้องแช็ตของบ็อต</li>
+                    <li>บ็อตจะผูกบัญชีกับระบบ Rocket AI อัตโนมัติทันที และแจ้งเตือนสัญญาณเทรด 24 ชม. แม้ปิดเว็บ</li>
+                  </ol>
+                  <div className="pt-1">
+                    <a
+                      href="https://t.me/RocketAiAlertBot"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-black rounded-lg shadow-lg transition-all"
+                    >
+                      <span>เปิด Telegram Bot เพื่อเชื่อมต่อ</span>
+                      <ExternalLink size={14} />
+                    </a>
+                  </div>
+                </div>
+
+                {/* Fallback manual input for testing */}
+                <details className="text-xs text-slate-500">
+                  <summary className="cursor-pointer hover:text-slate-400 font-semibold py-1">
+                    ตัวเลือกเสริม: ทดสอบด้วย Custom Bot Token & Chat ID ชั่วคราว (แบบ Manual)
+                  </summary>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2 pt-2 border-t border-slate-800">
+                    <div>
+                      <input
+                        type="password"
+                        placeholder="Bot Token..."
+                        value={tgToken}
+                        onChange={(e) => setTgToken(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="Chat ID..."
+                        value={tgChatId}
+                        onChange={(e) => setTgChatId(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 text-xs"
+                      />
+                    </div>
+                  </div>
+                </details>
+              </div>
+            )}
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-3 pt-4 border-t border-slate-800/40">
-            <button
-              onClick={saveTgSettings}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition-colors"
-            >
-              บันทึกการตั้งค่า
-            </button>
+          <div className="mt-6 flex flex-wrap justify-between items-center gap-3 pt-4 border-t border-slate-800/40">
             <button
               onClick={testTelegramAlert}
-              disabled={testingTg}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-50 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5"
+              disabled={testingTg || (!user && (!tgToken.trim() || !tgChatId.trim()))}
+              className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white disabled:opacity-50 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 shadow-[0_0_15px_rgba(14,165,233,0.2)]"
             >
               {testingTg ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
               ทดลองส่งข้อความ Telegram
             </button>
+            {user && telegramStatus?.enabled && (
+              <span className="text-[11px] text-slate-500 font-medium">
+                * ระบบตรวจสอบความเคลื่อนไหวทุกชั่วโมงบน Cloud
+              </span>
+            )}
           </div>
         </div>
 
@@ -714,19 +944,153 @@ export default function ScannerPage() {
         <Info className="text-indigo-400 shrink-0 mt-0.5" size={20} />
         <div>
           <h3 className="text-sm font-bold text-slate-200">
-            คำแนะนำสำหรับการแจ้งเตือนอัตโนมัติ 24 ชั่วโมง
+            ระบบแจ้งเตือนอัตโนมัติ 24 ชั่วโมง (Multi-User Cloud Alert)
           </h3>
           <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-            การกรอกข้อมูลและทดสอบในหน้านี้จะเก็บข้อมูลไว้ที่เครื่องของคุณชั่วคราวเพื่อวัตถุประสงค์ในการทดลอง
-            หากต้องการให้เซิร์ฟเวอร์รันระบบแจ้งเตือนแบบออฟไลน์ตลอด 24 ชั่วโมง
-            ให้ตั้งค่า Environment Variables บน Render Dashboard ได้แก่:
-            <code className="text-indigo-300 font-mono mx-1">LINE_CHANNEL_ACCESS_TOKEN</code>,
-            <code className="text-indigo-300 font-mono mx-1">LINE_USER_ID</code>,
-            <code className="text-indigo-300 font-mono mx-1">TELEGRAM_BOT_TOKEN</code>, และ
-            <code className="text-indigo-300 font-mono mx-1">TELEGRAM_CHAT_ID</code>
+            ผู้ใช้แต่ละท่านสามารถเชื่อมต่อ Telegram ได้อย่างเป็นส่วนตัวผ่านบัญชี Firebase Auth ระบบจะรัน Cron Job บน Render (<code className="text-indigo-300 font-mono">app/api/alerts/trigger</code>) เพื่อสแกนตลาดทุกชั่วโมงและแจ้งเตือนเข้าห้องแช็ต Telegram ของคุณทันทีเมื่อพบคอนฟลูเอนซ์สำคัญ ไม่ต้องเปิดหน้าเว็บทิ้งไว้
           </p>
         </div>
       </section>
+
+      {/* Alert Config Modal */}
+      <AnimatePresence>
+        {showAlertConfigModal && telegramAlertSettings && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 flex flex-col gap-5 max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 className="text-base font-black text-slate-100 flex items-center gap-2">
+                  <SlidersHorizontal size={18} className="text-indigo-400" />
+                  ตั้งค่าเงื่อนไขแจ้งเตือน Telegram
+                </h3>
+                <button
+                  onClick={() => setShowAlertConfigModal(false)}
+                  className="text-slate-400 hover:text-slate-200 text-sm font-bold px-2 py-1"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Toggle Master */}
+              <div className="flex items-center justify-between p-3.5 bg-slate-950 rounded-xl border border-slate-800">
+                <div>
+                  <div className="text-xs font-bold text-slate-200">เปิดใช้งานแจ้งเตือน (Master Switch)</div>
+                  <div className="text-[11px] text-slate-500">รับหรือหยุดชั่วคราวสำหรับทุกข้อความแจ้งเตือน</div>
+                </div>
+                <button
+                  onClick={() => setTelegramAlertSettings({ ...telegramAlertSettings, enabled: !telegramAlertSettings.enabled })}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 ${
+                    telegramAlertSettings.enabled ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-slate-800 text-slate-400"
+                  }`}
+                >
+                  {telegramAlertSettings.enabled ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
+                  {telegramAlertSettings.enabled ? "เปิดอยู่" : "ปิด"}
+                </button>
+              </div>
+
+              {/* Symbols */}
+              <div>
+                <label className="text-xs text-slate-400 font-bold block mb-2">สัญลักษณ์ที่เฝ้าระวัง (Symbols)</label>
+                <div className="flex flex-wrap gap-2">
+                  {["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "NVDA", "TSLA", "AAPL", "MSFT"].map((sym) => {
+                    const isSelected = telegramAlertSettings.symbols.includes(sym);
+                    return (
+                      <button
+                        key={sym}
+                        onClick={() => {
+                          const updated = isSelected
+                            ? telegramAlertSettings.symbols.filter((s) => s !== sym)
+                            : [...telegramAlertSettings.symbols, sym];
+                          setTelegramAlertSettings({ ...telegramAlertSettings, symbols: updated });
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                          isSelected
+                            ? "bg-indigo-600 text-white border-indigo-500 shadow-lg shadow-indigo-500/20"
+                            : "bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700"
+                        }`}
+                      >
+                        {sym} {isSelected ? "✓" : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Conditions */}
+              <div className="space-y-3 border-t border-slate-800/80 pt-4">
+                <label className="text-xs text-slate-400 font-bold block">ตัวกรองสัญญาณเทคนิค (Technical Filters)</label>
+
+                {[
+                  { key: "rsiEnabled", label: "RSI สุดโต่ง (Overbought ≥ 70 / Oversold ≤ 30)", desc: "แจ้งเตือนเมื่อภาวะซื้อหรือขายมากเกินไปในกรอบ 4H / 1D" },
+                  { key: "macdEnabled", label: "MACD Crossover", desc: "แจ้งเตือนเมื่อเส้น MACD ตัด Signal Line ขึ้นหรือลงในกรอบใหญ่" },
+                  { key: "srFlipEnabled", label: "S/R Flip (เปลี่ยนแนวต้านเป็นแนวรับ / แนวรับเป็นต้าน)", desc: "แจ้งเตือนเมื่อราคาทะลุและย่อกลับมาทดสอบแนวสำคัญพอดี" },
+                  { key: "supportEnabled", label: "เข้าใกล้โซนแนวรับ/แนวต้าน (Support & Resistance Zone)", desc: "แจ้งเตือนเมื่อราคาเข้าใกล้กรอบที่ระบบวิเคราะห์ไว้ ≤ 1.5%" },
+                ].map((item) => {
+                  const val = (telegramAlertSettings as any)[item.key];
+                  return (
+                    <div key={item.key} className="flex items-start justify-between p-3 bg-slate-950/60 rounded-xl border border-slate-800/60">
+                      <div className="pr-2">
+                        <div className="text-xs font-bold text-slate-200">{item.label}</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5">{item.desc}</div>
+                      </div>
+                      <button
+                        onClick={() => setTelegramAlertSettings({ ...telegramAlertSettings, [item.key]: !val })}
+                        className={`shrink-0 px-2.5 py-1 rounded-md text-xs font-bold ${
+                          val ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" : "bg-slate-800 text-slate-500"
+                        }`}
+                      >
+                        {val ? "เปิด" : "ปิด"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Cooldown */}
+              <div>
+                <label className="text-xs text-slate-400 font-bold block mb-1">ระยะเวลาพักแจ้งเตือนซ้ำ (Cooldown - นาที)</label>
+                <div className="flex gap-2">
+                  {[60, 120, 240, 360].map((mins) => (
+                    <button
+                      key={mins}
+                      onClick={() => setTelegramAlertSettings({ ...telegramAlertSettings, cooldownMinutes: mins })}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold border ${
+                        telegramAlertSettings.cooldownMinutes === mins
+                          ? "bg-indigo-600 text-white border-indigo-500"
+                          : "bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700"
+                      }`}
+                    >
+                      {mins / 60} ชั่วโมง ({mins} น.)
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  onClick={() => setShowAlertConfigModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-slate-200 bg-slate-800/60 hover:bg-slate-800 transition-colors"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  onClick={saveTelegramAlertConfig}
+                  disabled={savingAlertConfig}
+                  className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 transition-colors flex items-center gap-1.5 shadow-lg shadow-indigo-500/25"
+                >
+                  {savingAlertConfig ? <Loader2 className="animate-spin" size={14} /> : <Check size={14} />}
+                  บันทึกการตั้งค่า
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Global Status Toast */}
       <AnimatePresence>

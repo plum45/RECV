@@ -1,0 +1,43 @@
+import { NextResponse } from "next/server";
+import crypto from "crypto";
+import { verifyFirebaseIdToken, getFirebaseAdminDb } from "../../../../lib/firebaseAdmin";
+
+export async function POST(request: Request) {
+  try {
+    const decoded = await verifyFirebaseIdToken(request);
+    if (!decoded || !decoded.uid) {
+      return NextResponse.json({ success: false, message: "Unauthorized: Invalid Firebase ID token" }, { status: 401 });
+    }
+
+    const uid = decoded.uid;
+    const db = getFirebaseAdminDb();
+    if (!db) {
+      return NextResponse.json({ success: false, message: "Database not initialized" }, { status: 500 });
+    }
+
+    // Generate secure one-time connection token
+    const tokenStr = `conn_${uid}_${crypto.randomBytes(12).toString("hex")}`;
+    const now = Date.now();
+    const expiresAt = now + 15 * 60 * 1000; // 15 minutes expiry
+
+    await db.collection("telegramConnectionTokens").doc(tokenStr).set({
+      uid,
+      createdAt: now,
+      expiresAt,
+      used: false,
+    });
+
+    const botUsername = process.env.TELEGRAM_BOT_USERNAME || "RocketAIAlertBot";
+
+    return NextResponse.json({
+      success: true,
+      token: tokenStr,
+      botUsername,
+      startUrl: `https://t.me/${botUsername}?start=${tokenStr}`,
+      expiresAt,
+    });
+  } catch (error: any) {
+    console.error("Generate telegram token error:", error.message);
+    return NextResponse.json({ success: false, message: "Internal server error generating token" }, { status: 500 });
+  }
+}

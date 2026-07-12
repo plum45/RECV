@@ -270,167 +270,170 @@ export default function MarketStats({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Support & Resistance Zones */}
-      {supportResistance && (
-        <div className="bg-slate-950 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl min-w-0">
-          <h3 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2 mb-4">
-            <ShieldAlert size={18} className="text-indigo-400 shrink-0" />
-            <span className="truncate">โซนรับ-ต้านสำคัญ</span>
-          </h3>
-          <div className="grid grid-cols-1 @[680px]/stats:grid-cols-2 gap-6 min-w-0">
-            {/* Support Zones */}
-            <div className="space-y-3 min-w-0">
-              <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest block truncate">Support Zones (โซนแนวรับ)</span>
-              <div className="space-y-2.5 min-w-0">
-                {supportResistance.supportZones.map((sz, idx) => (
-                  <div key={idx} className="bg-slate-900/40 border border-emerald-950/30 rounded-xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2.5 sm:gap-4 min-w-0">
-                    <div className="space-y-1.5 min-w-0 flex-1">
-                      <div className="flex items-center justify-between sm:justify-start gap-2 flex-wrap min-w-0">
-                        <span className="text-sm font-bold text-emerald-300 block truncate">${sz.zone}</span>
-                        <span className="sm:hidden bg-emerald-950/80 text-emerald-400 text-[11px] font-bold px-2 py-0.5 rounded-lg border border-emerald-800/40 shrink-0">
-                          Score: {sz.score}/10
-                        </span>
-                      </div>
-                      {/* Status & Quant Badges */}
-                      <div className="flex flex-wrap gap-1.5 pt-0.5">
-                        {sz.freshness === "fresh" && (
-                          <span className="bg-emerald-950/90 text-emerald-300 border border-emerald-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                            ⚡ Fresh
-                          </span>
-                        )}
-                        {sz.freshness === "historical" && (
-                          <span className="bg-slate-900 text-slate-400 border border-slate-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                            📜 Historical
-                          </span>
-                        )}
-                        {sz.strength === "major" && (
-                          <span className="bg-purple-950/90 text-purple-300 border border-purple-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                            🔥 Major
-                          </span>
-                        )}
-                        {sz.status === "flipped" && (
-                          <span className="bg-indigo-950/90 text-indigo-300 border border-indigo-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                            🔄 Flipped
-                          </span>
-                        )}
-                        {sz.status === "tested" && (
-                          <span className="bg-amber-950/90 text-amber-300 border border-amber-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                            🎯 Tested
-                          </span>
-                        )}
-                        {sz.status === "weakened" && (
-                          <span className="bg-orange-950/90 text-orange-300 border border-orange-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                            📉 Weakened
-                          </span>
-                        )}
-                        {sz.status === "broken" && (
-                          <span className="bg-rose-950/90 text-rose-300 border border-rose-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                            💥 Broken
-                          </span>
-                        )}
-                        {typeof sz.touches === "number" && sz.touches > 0 && (
-                          <span className="bg-slate-900 text-slate-300 border border-slate-800 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                            👆 {sz.touches} Touches
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 pt-0.5">
-                        {sz.reasons.map((r, rIdx) => (
-                          <span key={rIdx} className="bg-slate-950 text-[10px] text-slate-300 px-2 py-1 rounded-md border border-slate-800/80 leading-normal break-words">
-                            {r}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <span className="hidden sm:inline-block bg-emerald-950/80 text-emerald-400 text-xs font-bold px-2.5 py-1 rounded-lg border border-emerald-800/40 shrink-0 self-start">
+export function SupportResistanceZonesPanel({ supportResistance }: { supportResistance: any }) {
+  if (!supportResistance) return null;
+
+  return (
+    <div className="bg-slate-950 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl min-w-0">
+      <h3 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2 mb-4">
+        <span className="text-indigo-400 shrink-0">🛡️</span>
+        <span className="truncate">โซนรับ-ต้านสำคัญ</span>
+      </h3>
+      <div className="grid grid-cols-1 @[680px]/stats:grid-cols-2 gap-6 min-w-0">
+        {/* Support Zones */}
+        <div className="space-y-3 min-w-0">
+          <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest block truncate">Support Zones (โซนแนวรับ)</span>
+          <div className="space-y-2.5 min-w-0">
+            {supportResistance.supportZones.map((sz: any, idx: number) => (
+              <div key={idx} className="bg-slate-900/40 border border-emerald-950/30 rounded-xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2.5 sm:gap-4 min-w-0">
+                <div className="space-y-1.5 min-w-0 flex-1">
+                  <div className="flex items-center justify-between sm:justify-start gap-2 flex-wrap min-w-0">
+                    <span className="text-sm font-bold text-emerald-300 block truncate">${sz.zone}</span>
+                    <span className="sm:hidden bg-emerald-950/80 text-emerald-400 text-[11px] font-bold px-2 py-0.5 rounded-lg border border-emerald-800/40 shrink-0">
                       Score: {sz.score}/10
                     </span>
                   </div>
-                ))}
-                {supportResistance.supportZones.length === 0 && (
-                  <div className="text-slate-500 text-sm">ไม่มีโซนแนวรับที่คำนวณได้</div>
-                )}
+                  {/* Status & Quant Badges */}
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    {sz.freshness === "fresh" && (
+                      <span className="bg-emerald-950/90 text-emerald-300 border border-emerald-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                        ⚡ Fresh
+                      </span>
+                    )}
+                    {sz.freshness === "historical" && (
+                      <span className="bg-slate-900 text-slate-400 border border-slate-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                        📜 Historical
+                      </span>
+                    )}
+                    {sz.strength === "major" && (
+                      <span className="bg-purple-950/90 text-purple-300 border border-purple-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                        🔥 Major
+                      </span>
+                    )}
+                    {sz.status === "flipped" && (
+                      <span className="bg-indigo-950/90 text-indigo-300 border border-indigo-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                        🔄 Flipped
+                      </span>
+                    )}
+                    {sz.status === "tested" && (
+                      <span className="bg-amber-950/90 text-amber-300 border border-amber-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                        🎯 Tested
+                      </span>
+                    )}
+                    {sz.status === "weakened" && (
+                      <span className="bg-orange-950/90 text-orange-300 border border-orange-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                        📉 Weakened
+                      </span>
+                    )}
+                    {sz.status === "broken" && (
+                      <span className="bg-rose-950/90 text-rose-300 border border-rose-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                        💥 Broken
+                      </span>
+                    )}
+                    {typeof sz.touches === "number" && sz.touches > 0 && (
+                      <span className="bg-slate-900 text-slate-300 border border-slate-800 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                        👆 {sz.touches} Touches
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    {sz.reasons.map((r: string, rIdx: number) => (
+                      <span key={rIdx} className="bg-slate-950 text-[10px] text-slate-300 px-2 py-1 rounded-md border border-slate-800/80 leading-normal break-words">
+                        {r}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <span className="hidden sm:inline-block bg-emerald-950/80 text-emerald-400 text-xs font-bold px-2.5 py-1 rounded-lg border border-emerald-800/40 shrink-0 self-start">
+                  Score: {sz.score}/10
+                </span>
               </div>
-            </div>
+            ))}
+            {supportResistance.supportZones.length === 0 && (
+              <div className="text-slate-500 text-sm">ไม่มีโซนแนวรับที่คำนวณได้</div>
+            )}
+          </div>
+        </div>
 
-            {/* Resistance Zones */}
-            <div className="space-y-3 min-w-0">
-              <span className="text-xs font-bold text-rose-400 uppercase tracking-widest block truncate">Resistance Zones (โซนแนวต้าน)</span>
-              <div className="space-y-2.5 min-w-0">
-                {supportResistance.resistanceZones.map((rz, idx) => (
-                  <div key={idx} className="bg-slate-900/40 border border-rose-950/30 rounded-xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2.5 sm:gap-4 min-w-0">
-                    <div className="space-y-1.5 min-w-0 flex-1">
-                      <div className="flex items-center justify-between sm:justify-start gap-2 flex-wrap min-w-0">
-                        <span className="text-sm font-bold text-rose-300 block truncate">${rz.zone}</span>
-                        <span className="sm:hidden bg-rose-950/80 text-rose-400 text-[11px] font-bold px-2 py-0.5 rounded-lg border border-rose-800/40 shrink-0">
-                          Score: {rz.score}/10
-                        </span>
-                      </div>
-                      {/* Status & Quant Badges */}
-                      <div className="flex flex-wrap gap-1.5 pt-0.5">
-                        {rz.freshness === "fresh" && (
-                          <span className="bg-emerald-950/90 text-emerald-300 border border-emerald-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                            ⚡ Fresh
-                          </span>
-                        )}
-                        {rz.freshness === "historical" && (
-                          <span className="bg-slate-900 text-slate-400 border border-slate-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                            📜 Historical
-                          </span>
-                        )}
-                        {rz.strength === "major" && (
-                          <span className="bg-purple-950/90 text-purple-300 border border-purple-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                            🔥 Major
-                          </span>
-                        )}
-                        {rz.status === "flipped" && (
-                          <span className="bg-indigo-950/90 text-indigo-300 border border-indigo-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                            🔄 Flipped
-                          </span>
-                        )}
-                        {rz.status === "tested" && (
-                          <span className="bg-amber-950/90 text-amber-300 border border-amber-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                            🎯 Tested
-                          </span>
-                        )}
-                        {rz.status === "weakened" && (
-                          <span className="bg-orange-950/90 text-orange-300 border border-orange-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                            📉 Weakened
-                          </span>
-                        )}
-                        {rz.status === "broken" && (
-                          <span className="bg-rose-950/90 text-rose-300 border border-rose-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                            💥 Broken
-                          </span>
-                        )}
-                        {typeof rz.touches === "number" && rz.touches > 0 && (
-                          <span className="bg-slate-900 text-slate-300 border border-slate-800 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                            👆 {rz.touches} Touches
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 pt-0.5">
-                        {rz.reasons.map((r, rIdx) => (
-                          <span key={rIdx} className="bg-slate-950 text-[10px] text-slate-300 px-2 py-1 rounded-md border border-slate-800/80 leading-normal break-words">
-                            {r}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <span className="hidden sm:inline-block bg-rose-950/80 text-rose-400 text-xs font-bold px-2.5 py-1 rounded-lg border border-rose-800/40 shrink-0 self-start">
+        {/* Resistance Zones */}
+        <div className="space-y-3 min-w-0">
+          <span className="text-xs font-bold text-rose-400 uppercase tracking-widest block truncate">Resistance Zones (โซนแนวต้าน)</span>
+          <div className="space-y-2.5 min-w-0">
+            {supportResistance.resistanceZones.map((rz: any, idx: number) => (
+              <div key={idx} className="bg-slate-900/40 border border-rose-950/30 rounded-xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2.5 sm:gap-4 min-w-0">
+                <div className="space-y-1.5 min-w-0 flex-1">
+                  <div className="flex items-center justify-between sm:justify-start gap-2 flex-wrap min-w-0">
+                    <span className="text-sm font-bold text-rose-300 block truncate">${rz.zone}</span>
+                    <span className="sm:hidden bg-rose-950/80 text-rose-400 text-[11px] font-bold px-2 py-0.5 rounded-lg border border-rose-800/40 shrink-0">
                       Score: {rz.score}/10
                     </span>
                   </div>
-                ))}
-                {supportResistance.resistanceZones.length === 0 && (
-                  <div className="text-slate-500 text-sm">ไม่มีโซนแนวต้านที่คำนวณได้</div>
-                )}
+                  {/* Status & Quant Badges */}
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    {rz.freshness === "fresh" && (
+                      <span className="bg-emerald-950/90 text-emerald-300 border border-emerald-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                        ⚡ Fresh
+                      </span>
+                    )}
+                    {rz.freshness === "historical" && (
+                      <span className="bg-slate-900 text-slate-400 border border-slate-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                        📜 Historical
+                      </span>
+                    )}
+                    {rz.strength === "major" && (
+                      <span className="bg-purple-950/90 text-purple-300 border border-purple-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                        🔥 Major
+                      </span>
+                    )}
+                    {rz.status === "flipped" && (
+                      <span className="bg-indigo-950/90 text-indigo-300 border border-indigo-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                        🔄 Flipped
+                      </span>
+                    )}
+                    {rz.status === "tested" && (
+                      <span className="bg-amber-950/90 text-amber-300 border border-amber-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                        🎯 Tested
+                      </span>
+                    )}
+                    {rz.status === "weakened" && (
+                      <span className="bg-orange-950/90 text-orange-300 border border-orange-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                        📉 Weakened
+                      </span>
+                    )}
+                    {rz.status === "broken" && (
+                      <span className="bg-rose-950/90 text-rose-300 border border-rose-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                        💥 Broken
+                      </span>
+                    )}
+                    {typeof rz.touches === "number" && rz.touches > 0 && (
+                      <span className="bg-slate-900 text-slate-300 border border-slate-800 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                        👆 {rz.touches} Touches
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    {rz.reasons.map((r: string, rIdx: number) => (
+                      <span key={rIdx} className="bg-slate-950 text-[10px] text-slate-300 px-2 py-1 rounded-md border border-slate-800/80 leading-normal break-words">
+                        {r}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <span className="hidden sm:inline-block bg-rose-950/80 text-rose-400 text-xs font-bold px-2.5 py-1 rounded-lg border border-rose-800/40 shrink-0 self-start">
+                  Score: {rz.score}/10
+                </span>
               </div>
-            </div>
+            ))}
+            {supportResistance.resistanceZones.length === 0 && (
+              <div className="text-slate-500 text-sm">ไม่มีโซนแนวต้านที่คำนวณได้</div>
+            )}
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

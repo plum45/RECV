@@ -3,8 +3,7 @@ import axios from "axios";
 import { getTicker, getKlines } from "../../../../lib/binance";
 import { calculateIndicators } from "../../../../lib/indicators";
 import { calculateSupportResistance } from "../../../../lib/supportResistance";
-import { generateAnalysisReport } from "../../../../lib/openai";
-import { checkRateLimit, getAiCache, setAiCache } from "../../../../lib/aiCache";
+import { getFirebaseAdminDb } from "../../../../lib/firebaseAdmin";
 
 export async function GET(request: Request) {
   return triggerAlerts(request);
@@ -16,96 +15,97 @@ export async function POST(request: Request) {
 
 async function triggerAlerts(request: Request) {
   try {
-    const clientIp = request.headers.get("x-forwarded-for") || "local-client";
-    const rateCheck = checkRateLimit(`alerts:${clientIp}`, 10, 60 * 1000);
-    if (!rateCheck.allowed) {
-      return NextResponse.json({ success: false, message: "Rate limit exceeded" }, { status: 429 });
-    }
-
     const cronSecret = process.env.ALERT_CRON_SECRET;
-    if (process.env.NODE_ENV === "production" && (!cronSecret || request.headers.get("authorization") !== `Bearer ${cronSecret}`)) {
-      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    const authHeader = request.headers.get("authorization");
+    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+      if (process.env.NODE_ENV === "production") {
+        return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+      }
     }
 
-    const lineToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-    const lineUserId = process.env.LINE_USER_ID;
-    const tgToken = process.env.TELEGRAM_BOT_TOKEN;
-    const tgChatId = process.env.TELEGRAM_CHAT_ID;
-    const symbolStr = process.env.ALERT_SYMBOLS || "BTC-USD,ETH-USD,SOL-USD";
+    const db = getFirebaseAdminDb();
+    const activeSubscribers: any[] = [];
 
-    if ((!lineToken || !lineUserId) && (!tgToken || !tgChatId)) {
+    // Load active subscribers from Firestore
+    if (db) {
+      try {
+        const subsSnap = await db.collection("activeAlertSubscriptions").where("enabled", "==", true).get();
+        subsSnap.forEach((doc) => {
+          const data = doc.data();
+          if (data.chatId && data.enabled) {
+            activeSubscribers.push(data);
+          }
+        });
+      } catch (err: any) {
+        console.error("Failed to query activeAlertSubscriptions:", err.message);
+      }
+    }
+
+    // Also support legacy/single-account env var fallback if configured
+    const legacyTgToken = process.env.TELEGRAM_BOT_TOKEN;
+    const legacyTgChatId = process.env.TELEGRAM_CHAT_ID;
+    const legacyLineToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+    const legacyLineUserId = process.env.LINE_USER_ID;
+
+    if (activeSubscribers.length === 0 && (!legacyTgToken || !legacyTgChatId) && (!legacyLineToken || !legacyLineUserId)) {
       return NextResponse.json({
-        success: false,
-        message: "No complete LINE or Telegram channel configuration was found.",
+        success: true,
+        message: "No active Telegram subscribers or legacy alert configuration found.",
+        triggeredCount: 0,
       });
     }
 
-    const symbols = symbolStr.split(",").map((s) => s.trim().toUpperCase());
-    const alertsSent: string[] = [];
+    // Gather unique symbols across all subscribers plus legacy fallback symbols
+    const defaultSymbols = (process.env.ALERT_SYMBOLS || "BTC-USD,ETH-USD,SOL-USD").split(",").map((s) => s.trim().toUpperCase());
+    const symbolSet = new Set<string>();
 
-    for (const symbol of symbols) {
+    activeSubscribers.forEach((sub) => {
+      const symbols = Array.isArray(sub.symbols) && sub.symbols.length > 0 ? sub.symbols : defaultSymbols;
+      symbols.forEach((s: string) => symbolSet.add(s.toUpperCase()));
+    });
+
+    if (legacyTgChatId || legacyLineUserId) {
+      defaultSymbols.forEach((s) => symbolSet.add(s));
+    }
+
+    const symbolsToScan = Array.from(symbolSet);
+    const alertsSentCount: Record<string, number> = {};
+    const now = Date.now();
+
+    // Loop exactly ONCE per symbol
+    for (const symbol of symbolsToScan) {
       try {
-        // 1. Fetch data
         const ticker = await getTicker(symbol);
         const isCrypto = symbol.toUpperCase().endsWith("-USD");
         const timeframe = isCrypto ? "4H" : "1D";
         const klines = await getKlines(symbol, timeframe, 450);
 
-        // 2. Indicators & SR
         const indicators = calculateIndicators(klines);
-        const supportResistance = calculateSupportResistance(
-          klines,
-          indicators,
-          ticker.currentPrice
-        );
-
+        const supportResistance = calculateSupportResistance(klines, indicators, ticker.currentPrice);
         const price = ticker.currentPrice;
         const { rsi14, macd } = indicators;
 
-        // 3. Evaluate triggers
-        const triggers: string[] = [];
-
-        // Condition A: RSI Extreme
-        if (rsi14 < 30) {
-          triggers.push(`RSI Oversold (${Math.round(rsi14)}) - สัญญาณขายมากเกินไป มีโอกาสกลับตัวขึ้น`);
-        } else if (rsi14 > 70) {
-          triggers.push(`RSI Overbought (${Math.round(rsi14)}) - สัญญาณซื้อมากเกินไป มีโอกาสปรับฐานลง`);
-        }
-
-        // Condition B: MACD Crossover
-        if (macd.crossover === "bullish") {
-          triggers.push("MACD เกิดสัญญาณ Bullish Crossover (สัญญาณซื้อ)");
-        } else if (macd.crossover === "bearish") {
-          triggers.push("MACD เกิดสัญญาณ Bearish Crossover (สัญญาณขาย)");
-        }
-
-        // Condition C: S/R Flip Zone Touch
+        // Evaluate S/R Flip Zone touch
         let touchedFlipZone = "";
-        const allZones = [
-          ...supportResistance.supportZones,
-          ...supportResistance.resistanceZones,
-        ];
-        const flipZones = allZones.filter((z) =>
-          z.reasons.some((r) => r.includes("S/R Flip"))
-        );
+        const allZones = [...supportResistance.supportZones, ...supportResistance.resistanceZones];
+        const flipZones = allZones.filter((z) => z.reasons.some((r) => r.includes("S/R Flip")));
 
         for (const f of flipZones) {
           const [lowStr, highStr] = f.zone.replace(/,/g, "").split("-");
           const lowVal = parseFloat(lowStr);
           const highVal = parseFloat(highStr);
-
           if (!isNaN(lowVal) && !isNaN(highVal)) {
             const margin = price * 0.005; // 0.5% margin
             if (price >= lowVal - margin && price <= highVal + margin) {
               touchedFlipZone = `${f.type === "support" ? "แนวรับสำคัญ" : "แนวต้านสำคัญ"} $${f.zone} (${f.reasons.find((r) => r.includes("Flip"))})`;
-              triggers.push(`ราคาเข้าใกล้โซนกลับบทบาท (S/R Flip): ${touchedFlipZone}`);
               break;
             }
           }
         }
 
-        // Condition D: Closest Strong Support Zone Proximity
-        const strongSupports = supportResistance.supportZones.filter(z => z.score >= 3);
+        // Evaluate Major Support proximity
+        let touchedStrongSupport = "";
+        const strongSupports = supportResistance.supportZones.filter((z) => z.score >= 3);
         const closestSupport = strongSupports.length > 0 ? strongSupports[0] : (supportResistance.supportZones[0] || null);
         if (closestSupport) {
           const [lowStr, highStr] = closestSupport.zone.replace(/,/g, "").split("-");
@@ -117,107 +117,185 @@ async function triggerAlerts(request: Request) {
             const distancePct = ((price - supportMid) / supportMid) * 100;
             const threshold = isCrypto ? 2.0 : 2.5;
             const brokenThreshold = isCrypto ? -0.75 : -1.0;
-            // Trigger if within threshold of major support
             if (distancePct <= threshold && distancePct >= brokenThreshold) {
-              triggers.push(`ราคาเข้าใกล้แนวรับสำคัญ S1 ที่ $${closestSupport.zone} (ห่างเพียง ${distancePct >= 0 ? "+" : ""}${distancePct.toFixed(2)}%) [ความน่าเชื่อถือ: ${closestSupport.score}/10] (${timeframe} Timeframe)`);
+              touchedStrongSupport = `ราคาเข้าใกล้แนวรับสำคัญ S1 ที่ $${closestSupport.zone} (ห่างเพียง ${distancePct >= 0 ? "+" : ""}${distancePct.toFixed(2)}%) [ความน่าเชื่อถือ: ${closestSupport.score}/10] (${timeframe} Timeframe)`;
             }
           }
         }
 
-        // 4. Send alert if any trigger condition is met
-        if (triggers.length > 0) {
-          let message = "";
-          
-          if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== "your_openai_api_key") {
-            const cacheKey = `alert:${symbol}`;
-            const cachedAlert = getAiCache(cacheKey);
+        // 1. Evaluate and send for Multi-User Telegram subscribers
+        for (const sub of activeSubscribers) {
+          const subSymbols = Array.isArray(sub.symbols) && sub.symbols.length > 0 ? sub.symbols : defaultSymbols;
+          if (!subSymbols.includes(symbol)) continue;
 
-            if (cachedAlert) {
-              message = cachedAlert;
-            } else {
-              try {
-                const prompt = `
-Generate a quick, urgent trading alert in Thai for ${symbol}.
-Current Price: $${price.toLocaleString()} (${ticker.change24h >= 0 ? "+" : ""}${ticker.change24h.toFixed(2)}%)
-Triggered Events:
-${triggers.map((t) => `- ${t}`).join("\n")}
-Closest S/R Zone details: ${touchedFlipZone || "No S/R Flip nearby, regular support/resistance zones exist"}
+          const uid = sub.uid;
+          const chatId = sub.chatId;
+          const cooldownMinutes = Math.max(120, typeof sub.cooldownMinutes === "number" ? sub.cooldownMinutes : 120);
+          const cooldownMs = cooldownMinutes * 60 * 1000;
 
-Format requirements:
-- Start with: 🚨 [Rocket AI Alert: ${symbol}]
-- List the current price.
-- Clearly mention what indicators triggered the alert.
-- Give a short, actionable recommendation (Long/Short entry or watch closely).
-- Keep the entire message under 5 sentences. Absolutely no markdown other than emojis.
-`;
-                message = await generateAnalysisReport(prompt);
-                setAiCache(cacheKey, message, 300); // Cache alert message for 5 minutes
-              } catch (err: any) {
-                console.error("OpenAI failed to generate alert text:", err.message);
+          // Fetch user's alert history & state lock for this symbol
+          let stateData: any = {};
+          let stateRef: any = null;
+          if (db) {
+            stateRef = db.collection("users").doc(uid).collection("alertHistory").doc(symbol);
+            const stateDoc = await stateRef.get();
+            stateData = stateDoc.exists ? stateDoc.data() : {};
+          }
+
+          const triggeredMessages: string[] = [];
+          const newState: any = { ...stateData, updatedAt: now };
+
+          // --- RSI Trigger ---
+          if (sub.rsiEnabled !== false) {
+            if (rsi14 < 30) {
+              if (stateData.rsiLock !== "oversold" && (!stateData.lastRsiAlertTime || now - stateData.lastRsiAlertTime > cooldownMs)) {
+                triggeredMessages.push(`📊 RSI Oversold (${Math.round(rsi14)}) - สัญญาณขายมากเกินไป มีโอกาสปรับตัวหรือกลับตัวขึ้น`);
+                newState.rsiLock = "oversold";
+                newState.lastRsiAlertTime = now;
+              }
+            } else if (rsi14 > 70) {
+              if (stateData.rsiLock !== "overbought" && (!stateData.lastRsiAlertTime || now - stateData.lastRsiAlertTime > cooldownMs)) {
+                triggeredMessages.push(`📊 RSI Overbought (${Math.round(rsi14)}) - สัญญาณซื้อมากเกินไป มีโอกาสปรับฐานหรือย่อตัวลง`);
+                newState.rsiLock = "overbought";
+                newState.lastRsiAlertTime = now;
+              }
+            } else if (rsi14 >= 30 && rsi14 <= 70) {
+              // Unlock RSI lock when back to normal zone
+              newState.rsiLock = null;
+            }
+          }
+
+          // --- MACD Crossover Trigger ---
+          if (sub.macdEnabled !== false) {
+            if (macd.crossover === "bullish") {
+              if (stateData.lastMacdCrossover !== "bullish" && (!stateData.lastMacdAlertTime || now - stateData.lastMacdAlertTime > cooldownMs)) {
+                triggeredMessages.push(`🚀 MACD เกิดสัญญาณ Bullish Crossover (สัญญาณซื้อ/เปลี่ยนแนวโน้มเป็นขาขึ้น)`);
+                newState.lastMacdCrossover = "bullish";
+                newState.lastMacdAlertTime = now;
+              }
+            } else if (macd.crossover === "bearish") {
+              if (stateData.lastMacdCrossover !== "bearish" && (!stateData.lastMacdAlertTime || now - stateData.lastMacdAlertTime > cooldownMs)) {
+                triggeredMessages.push(`📉 MACD เกิดสัญญาณ Bearish Crossover (สัญญาณขาย/เปลี่ยนแนวโน้มเป็นขาลง)`);
+                newState.lastMacdCrossover = "bearish";
+                newState.lastMacdAlertTime = now;
               }
             }
           }
 
-          // Fallback message if OpenAI is disabled or failed
-          if (!message) {
-            message = `🚨 [Rocket AI Alert: ${symbol}]\n` +
-                      `ราคาปัจจุบัน: $${price.toLocaleString()} (${ticker.change24h >= 0 ? "+" : ""}${ticker.change24h.toFixed(2)}%)\n` +
-                      `พบบทสัญญาณเทคนิคคัลสำคัญในกราฟ 1H:\n` +
-                      triggers.map((t) => `- ${t}`).join("\n") +
-                      `\nคำแนะนำ: กรุณาเปิดตรวจสอบแผนเทรดบนแดชบอร์ด Rocket AI เพื่อวางกรอบจุดเข้าและตัดขาดทุนที่เหมาะสม`;
-          }
-
-          // Send to Line Notify
-          let delivered = false;
-          if (lineToken && lineUserId) {
-            try {
-              await axios.post("https://api.line.me/v2/bot/message/push", {
-                to: lineUserId,
-                messages: [{ type: "text", text: message }],
-              }, {
-                headers: {
-                  "Authorization": `Bearer ${lineToken}`,
-                  "Content-Type": "application/json",
-                },
-                timeout: 8000,
-              });
-              delivered = true;
-            } catch (err: any) {
-              console.error(`Failed to send Line alert for ${symbol}:`, err.message);
+          // --- S/R Flip Zone Trigger ---
+          if (sub.srFlipEnabled !== false) {
+            if (touchedFlipZone) {
+              if (stateData.srFlipLock !== touchedFlipZone && (!stateData.lastSrFlipAlertTime || now - stateData.lastSrFlipAlertTime > cooldownMs)) {
+                triggeredMessages.push(`🔄 ราคาเข้าใกล้โซนกลับบทบาท (S/R Flip): ${touchedFlipZone}`);
+                newState.srFlipLock = touchedFlipZone;
+                newState.lastSrFlipAlertTime = now;
+              }
+            } else {
+              newState.srFlipLock = null;
             }
           }
 
-          // Send to Telegram
-          if (tgToken && tgChatId) {
-            try {
-              const url = `https://api.telegram.org/bot${tgToken}/sendMessage`;
-              await axios.post(url, {
-                chat_id: tgChatId,
-                text: message,
-              }, { timeout: 8000 });
-              delivered = true;
-            } catch (err: any) {
-              console.error(`Failed to send Telegram alert for ${symbol}:`, err.message);
+          // --- Support Proximity Trigger ---
+          if (sub.supportEnabled !== false) {
+            if (touchedStrongSupport) {
+              if (stateData.supportLock !== touchedStrongSupport && (!stateData.lastSupportAlertTime || now - stateData.lastSupportAlertTime > cooldownMs)) {
+                triggeredMessages.push(`🛡️ ${touchedStrongSupport}`);
+                newState.supportLock = touchedStrongSupport;
+                newState.lastSupportAlertTime = now;
+              }
+            } else {
+              newState.supportLock = null;
             }
           }
 
-          if (delivered) alertsSent.push(symbol);
+          // Update state locks regardless of whether new alert fired (e.g. for unlock clearing)
+          if (db && stateRef) {
+            await stateRef.set(newState, { merge: true });
+          }
+
+          // Send Telegram message to user if trigger conditions fired
+          if (triggeredMessages.length > 0) {
+            const thaiAlertMsg =
+              `🚨 [Rocket AI Alert: ${symbol}]\n` +
+              `💰 ราคาปัจจุบัน: $${price.toLocaleString()} (${ticker.change24h >= 0 ? "+" : ""}${ticker.change24h.toFixed(2)}%)\n\n` +
+              `📌 เงื่อนไขทางเทคนิคที่ตรวจพบในรอบสแกน:\n` +
+              triggeredMessages.map((t) => `- ${t}`).join("\n") +
+              `\n\n🎯 คำแนะนำ: กรุณาเปิดตรวจสอบกราฟและแผนการเทรดบนแดชบอร์ด Rocket AI เพื่อวางกรอบจุดเข้า (Entry) และจุดตัดขาดทุน (Stop Loss) อย่างรัดกุม\n\n` +
+              `*หมายเหตุ: ข้อมูลนี้เป็นเพียงการวิเคราะห์ทางเทคนิคเบื้องต้น ไม่ใช่คำแนะนำในการลงทุนหรือชี้ชวนการซื้อขายแต่อย่างใด*`;
+
+            const sent = await sendUserTelegramMessage(uid, chatId, thaiAlertMsg, db);
+            if (sent) {
+              alertsSentCount[symbol] = (alertsSentCount[symbol] || 0) + 1;
+            }
+          }
         }
+
+        // 2. Evaluate and send for Legacy/Single-account environment variables if present
+        if (legacyTgChatId && legacyTgToken && defaultSymbols.includes(symbol)) {
+          const legacyTriggers: string[] = [];
+          if (rsi14 < 30) legacyTriggers.push(`RSI Oversold (${Math.round(rsi14)})`);
+          else if (rsi14 > 70) legacyTriggers.push(`RSI Overbought (${Math.round(rsi14)})`);
+          if (macd.crossover === "bullish") legacyTriggers.push("MACD Bullish Crossover");
+          else if (macd.crossover === "bearish") legacyTriggers.push("MACD Bearish Crossover");
+          if (touchedFlipZone) legacyTriggers.push(`S/R Flip: ${touchedFlipZone}`);
+          if (touchedStrongSupport) legacyTriggers.push(touchedStrongSupport);
+
+          if (legacyTriggers.length > 0) {
+            const msg = `🚨 [Rocket AI Alert: ${symbol}]\nราคา: $${price.toLocaleString()} (${ticker.change24h >= 0 ? "+" : ""}${ticker.change24h.toFixed(2)}%)\nเงื่อนไข:\n` +
+                        legacyTriggers.map((t) => `- ${t}`).join("\n");
+            try {
+              await axios.post(`https://api.telegram.org/bot${legacyTgToken}/sendMessage`, {
+                chat_id: legacyTgChatId,
+                text: msg,
+              }, { timeout: 8000 });
+            } catch (e: any) {
+              console.error(`Legacy Telegram alert failed for ${symbol}:`, e.message);
+            }
+          }
+        }
+
       } catch (err: any) {
-        console.error(`Error processing alert checks for ${symbol}:`, err.message);
+        console.error(`Error processing market scan for ${symbol}:`, err.message);
       }
     }
 
     return NextResponse.json({
       success: true,
-      message: `Completed alert scan. Checked: ${symbols.join(", ")}. Alerts sent for: ${alertsSent.length > 0 ? alertsSent.join(", ") : "None"}`,
-      triggeredSymbols: alertsSent,
+      message: `Completed multi-user alert scan across ${symbolsToScan.length} symbols.`,
+      scannedSymbols: symbolsToScan,
+      alertsDeliveredBySymbol: alertsSentCount,
     });
   } catch (error: any) {
     console.error("Alert trigger root error:", error.message);
-    return NextResponse.json(
-      { success: false, error: "Failed to execute alert triggers", message: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: "Failed to execute alert triggers", message: error.message }, { status: 500 });
+  }
+}
+
+async function sendUserTelegramMessage(uid: string, chatId: string, text: string, db: any): Promise<boolean> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) return false;
+  try {
+    const url = `https://api.telegram.org/bot${token}/sendMessage`;
+    await axios.post(url, { chat_id: chatId, text }, { timeout: 8000 });
+    return true;
+  } catch (err: any) {
+    const errMsg = err?.response?.data?.description || err.message;
+    console.error(`Failed to deliver Telegram alert to uid ${uid} (${chatId}):`, errMsg);
+
+    // Disable telegram for this user if bot is blocked or user deactivated
+    if (typeof errMsg === "string" && (errMsg.includes("bot was blocked") || errMsg.includes("user is deactivated") || errMsg.includes("chat not found"))) {
+      if (db) {
+        try {
+          await db.collection("users").doc(uid).collection("settings").doc("telegram").update({
+            enabled: false,
+            error: `Disabled due to Telegram delivery failure: ${errMsg}`,
+          });
+          await db.collection("activeAlertSubscriptions").doc(uid).delete().catch(() => {});
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+    return false;
   }
 }
