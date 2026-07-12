@@ -61,54 +61,89 @@ export default function MarketStats({
     volumeColor = "text-amber-400 font-bold animate-pulse";
   }
 
+  const compactNumber = new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  });
+
+  const priceFormatter = new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
   return (
     <div className="w-full space-y-6">
       {/* 24h Ticker Stats */}
-      <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500"></div>
-        <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2 mb-4">
-          <Activity size={18} className="text-indigo-400" />
-          สถิติตลาด 24 ชั่วโมง {symbol && `(${symbol})`}
-        </h3>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-slate-900 border border-slate-800/80 rounded-xl p-3.5 relative">
-            <span className="text-xs text-slate-400 block mb-1">ราคาปัจจุบัน</span>
-            <span className="text-xl font-bold text-slate-50">
-              ${marketData.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+      <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/95 p-4 shadow-xl sm:p-5 lg:p-6">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-indigo-500/0 via-indigo-400/70 to-cyan-400/0" />
+        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <h3 className="flex items-center gap-2 text-base font-bold text-slate-100 sm:text-lg">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-indigo-500/10 text-indigo-300">
+              <Activity size={17} />
+            </span>
+            <span className="leading-tight">
+              สถิติตลาด 24 ชั่วโมง
+              {symbol && <span className="ml-1 text-slate-400">({symbol})</span>}
+            </span>
+          </h3>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">
+            Live market snapshot
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 xl:grid-cols-4">
+          <div className="min-h-[118px] rounded-xl border border-slate-800/80 bg-slate-900/80 p-4">
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">ราคาปัจจุบัน</span>
+            <span className="mt-2 block break-words text-2xl font-black leading-tight text-slate-50">
+              ${priceFormatter.format(marketData.currentPrice)}
             </span>
             {marketData.prePostPrice && (
               <span className={`text-[10px] font-bold block mt-1.5 ${
                 marketData.marketState === "PRE" ? "text-amber-400" : "text-purple-400"
               }`}>
                 {marketData.marketState === "PRE" ? "Pre-Market" : "After-Hours"}: 
-                ${marketData.prePostPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })} 
+                ${priceFormatter.format(marketData.prePostPrice)} 
                 ({marketData.prePostChange && marketData.prePostChange >= 0 ? "+" : ""}
                 {marketData.prePostChange?.toFixed(2)}%)
               </span>
             )}
           </div>
 
-          <div className="bg-slate-900 border border-slate-800/80 rounded-xl p-3.5">
-            <span className="text-xs text-slate-400 block mb-1">การเปลี่ยนแปลง 24h</span>
-            <span className={`text-xl font-bold ${isPositive ? "text-emerald-400" : "text-rose-400"}`}>
+          <div className="min-h-[118px] rounded-xl border border-slate-800/80 bg-slate-900/80 p-4">
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">เปลี่ยนแปลง 24h</span>
+            <span className={`mt-2 block text-2xl font-black leading-tight ${isPositive ? "text-emerald-400" : "text-rose-400"}`}>
               {isPositive ? "+" : ""}
               {marketData.change24h.toFixed(2)}%
             </span>
-          </div>
-
-          <div className="bg-slate-900 border border-slate-800/80 rounded-xl p-3.5">
-            <span className="text-xs text-slate-400 block mb-1">สูงสุด / ต่ำสุด 24h</span>
-            <span className="text-sm font-semibold text-slate-200 block">
-              H: ${marketData.high24h.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-            </span>
-            <span className="text-sm font-semibold text-slate-400 block">
-              L: ${marketData.low24h.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            <span className="mt-2 block text-xs text-slate-500">
+              เทียบกับ 24 ชั่วโมงก่อนหน้า
             </span>
           </div>
 
-          <div className="bg-slate-900 border border-slate-800/80 rounded-xl p-3.5">
-            <span className="text-xs text-slate-400 block mb-1">Volume 24h</span>
-            <span className="text-lg font-bold text-slate-200 block truncate">
+          <div className="min-h-[118px] rounded-xl border border-slate-800/80 bg-slate-900/80 p-4">
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">High / Low 24h</span>
+            <div className="mt-3 space-y-2 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-slate-500">H</span>
+                <span className="min-w-0 break-words text-right font-bold text-slate-100">
+                  ${priceFormatter.format(marketData.high24h)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-slate-500">L</span>
+                <span className="min-w-0 break-words text-right font-bold text-slate-400">
+                  ${priceFormatter.format(marketData.low24h)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="min-h-[118px] rounded-xl border border-slate-800/80 bg-slate-900/80 p-4">
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">Volume 24h</span>
+            <span className="mt-2 block break-words text-2xl font-black leading-tight text-slate-100">
+              {compactNumber.format(marketData.volume24h)}
+            </span>
+            <span className="mt-2 block text-xs text-slate-500">
               {marketData.volume24h.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </span>
           </div>
