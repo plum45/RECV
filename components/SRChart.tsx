@@ -481,7 +481,7 @@ export default function SRChart({ klines, indicators, supportResistance, current
       </div>
 
       {/* Legend + S/R Summary Cards */}
-      <div className="relative z-10 border-t border-slate-800/60 pt-3 space-y-3">
+      <div className="relative z-10 border-t border-slate-800/60 pt-3 space-y-3 @container/sr">
         {/* Legend Pills */}
         <div className="flex flex-wrap gap-3 text-[10px] font-bold tracking-wider text-slate-400">
           <div className="flex items-center gap-1.5">
@@ -512,10 +512,10 @@ export default function SRChart({ klines, indicators, supportResistance, current
 
         {/* S/R Detail Cards Row */}
         {(supportLevels.length > 0 || resistanceLevels.length > 0) && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 @[680px]/sr:grid-cols-2 gap-3">
             {/* Support Cards */}
             <div className="space-y-2">
-              <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">
+              <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest truncate">
                 📗 แนวรับสำคัญ (Top Support)
               </p>
               {supportLevels.map((sz) => (
