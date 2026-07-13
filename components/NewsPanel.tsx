@@ -2,15 +2,17 @@
 
 import React from "react";
 import { NewsArticle } from "../types/news";
-import { Newspaper, ExternalLink, HelpCircle } from "lucide-react";
+import { Newspaper, ExternalLink, HelpCircle, AlertTriangle } from "lucide-react";
 
 interface NewsPanelProps {
   news: NewsArticle[];
   loading: boolean;
   symbol?: string;
+  error?: string | null;
+  isStale?: boolean;
 }
 
-export default function NewsPanel({ news, loading, symbol }: NewsPanelProps) {
+export default function NewsPanel({ news, loading, symbol, error, isStale }: NewsPanelProps) {
   if (loading) {
     return (
       <div className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-xl animate-pulse space-y-4">
@@ -18,6 +20,25 @@ export default function NewsPanel({ news, loading, symbol }: NewsPanelProps) {
         {[...Array(3)].map((_, i) => (
           <div key={i} className="h-20 bg-slate-800 rounded-xl"></div>
         ))}
+      </div>
+    );
+  }
+
+  // Display inline error warning inside the card if fetch fails but no cached data exists
+  if (error && news.length === 0) {
+    return (
+      <div className="bg-slate-950 border border-slate-850 rounded-2xl p-6 shadow-xl space-y-4">
+        <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+          <Newspaper size={18} className="text-indigo-400" />
+          ข่าวสารล่าสุด & ปัจจัยข่าว {symbol && `(${symbol})`}
+        </h3>
+        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-2.5 text-xs text-rose-400 font-bold">
+          <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+          <div>
+            <p>ไม่สามารถดึงข้อมูลข่าวสารได้</p>
+            <p className="font-normal text-[10px] text-slate-500 mt-1">เกิดข้อผิดพลาดในการโหลดข่าวสารจาก RSS feeds หรือ Finnhub News API</p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -70,23 +91,38 @@ export default function NewsPanel({ news, loading, symbol }: NewsPanelProps) {
     return <span className="bg-slate-950 text-slate-500 text-[9px] px-1.5 py-0.5 rounded border border-slate-900">รอประเมิน (Price-in?)</span>;
   };
 
-  // Check if it's the free/RSS or fallback notice
-  const hasNewsApiKey = process.env.NEXT_PUBLIC_HAS_NEWS_API === "true" || true;
+  const hasNewsApiKey = true;
 
   return (
-    <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+    <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4 relative overflow-hidden">
+      
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
           <Newspaper size={18} className="text-indigo-400" />
           ข่าวสารล่าสุด & ปัจจัยข่าว {symbol && `(${symbol})`}
         </h3>
-        {!hasNewsApiKey && (
-          <span className="text-[10px] text-amber-400 font-semibold bg-amber-950/40 px-2 py-0.5 rounded border border-amber-800/30 flex items-center gap-1">
-            <HelpCircle size={10} />
-            RSS Mode
-          </span>
-        )}
+        <div className="flex gap-2">
+          {isStale && (
+            <span className="px-2 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-400 text-[9px] font-bold">
+              ข่าวเก่า (Cached)
+            </span>
+          )}
+          {!hasNewsApiKey && (
+            <span className="text-[10px] text-amber-400 font-semibold bg-amber-950/40 px-2 py-0.5 rounded border border-amber-800/30 flex items-center gap-1">
+              <HelpCircle size={10} />
+              RSS Mode
+            </span>
+          )}
+        </div>
       </div>
+
+      {/* Inline warning block if news fetch failed but displaying cache */}
+      {error && isStale && (
+        <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-2 text-[10px] text-amber-400 font-semibold">
+          <AlertTriangle size={13} className="shrink-0" />
+          <span>ดึงข่าวสารล่าสุดไม่สำเร็จ กำลังแสดงข้อมูลข่าวแคชเดิม</span>
+        </div>
+      )}
 
       <div className="space-y-3.5">
         {news.map((item, idx) => {
@@ -109,7 +145,8 @@ export default function NewsPanel({ news, loading, symbol }: NewsPanelProps) {
                   href={item.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm font-semibold text-slate-100 hover:text-indigo-400 leading-snug transition-colors flex items-start gap-1 group"
+                  aria-label={`ลิงก์อ่านข่าวภายนอก: ${item.title}`}
+                  className="text-sm font-semibold text-slate-100 hover:text-indigo-400 leading-snug transition-colors flex items-start gap-1 group focus:outline-none focus-visible:underline"
                 >
                   <span className="flex-1">{item.title}</span>
                   <ExternalLink size={12} className="text-slate-500 group-hover:text-indigo-400 mt-1 shrink-0 transition-colors" />
@@ -117,7 +154,7 @@ export default function NewsPanel({ news, loading, symbol }: NewsPanelProps) {
               </div>
 
               <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-1 border-t border-slate-900/80 text-[10px] text-slate-400">
-                <span className="font-semibold text-slate-300">{item.source}</span>
+                <span className="font-semibold text-slate-350">{item.source}</span>
                 <span>•</span>
                 <span>{formattedDate}</span>
                 <span className="flex items-center gap-1 flex-wrap mt-0.5 sm:mt-0 sm:ml-auto">

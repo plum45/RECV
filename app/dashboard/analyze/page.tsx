@@ -228,6 +228,19 @@ function AnalyzePageContent() {
   const [initialLoading, setInitialLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Granular loading & error states
+  const [loadingPrice, setLoadingPrice] = useState(false);
+  const [errorPrice, setErrorPrice] = useState<string | null>(null);
+  const [isPriceStale, setIsPriceStale] = useState(false);
+
+  const [loadingNews, setLoadingNews] = useState(false);
+  const [errorNews, setErrorNews] = useState<string | null>(null);
+  const [isNewsStale, setIsNewsStale] = useState(false);
+
+  const [loadingSentiment, setLoadingSentiment] = useState(false);
+  const [errorSentiment, setErrorSentiment] = useState<string | null>(null);
+  const [isSentimentStale, setIsSentimentStale] = useState(false);
+
   // Local marquee price simulation (to avoid hitting Yahoo Finance 429 Too Many Requests rate-limiting)
   const getBaselinePrice = (sym: string): number => {
     const prices: Record<string, number> = {
@@ -264,52 +277,88 @@ function AnalyzePageContent() {
     activeRequestSymbolRef.current = tgtSymbol;
     const currentRequestedSymbol = tgtSymbol;
     
+    // Clear global error
+    setError(null);
+    setInitialLoading(true);
+
+    // Block 1: Fetch Ticker, Klines & Indicators
+    setLoadingPrice(true);
+    setErrorPrice(null);
     try {
-      setInitialLoading(true);
-      setError(null);
-
-      // Fetch Ticker
       const tickerRes = await axios.get<TickerData>(`/api/ticker?symbol=${tgtSymbol}`);
-      if (activeRequestSymbolRef.current !== currentRequestedSymbol) return;
-      setMarketData(tickerRes.data);
-
-      // Fetch Klines & calculate indicators
-      const klinesRes = await axios.get<any[]>(`/api/klines?symbol=${tgtSymbol}&timeframe=${tgtTf}&limit=450`);
-      if (activeRequestSymbolRef.current !== currentRequestedSymbol) return;
-      setKlines(klinesRes.data);
-      
-      const { calculateIndicators } = await import("../../../lib/indicators");
-      const { calculateSupportResistance } = await import("../../../lib/supportResistance");
-
-      const computedIndicators = calculateIndicators(klinesRes.data);
-      if (activeRequestSymbolRef.current !== currentRequestedSymbol) return;
-      setIndicators(computedIndicators);
-
-      const computedSR = calculateSupportResistance(
-        klinesRes.data,
-        computedIndicators,
-        tickerRes.data.currentPrice
-      );
-      if (activeRequestSymbolRef.current !== currentRequestedSymbol) return;
-      setSupportResistance(computedSR);
-
-      // Fetch news
-      const newsRes = await axios.get<NewsArticle[]>(`/api/news?symbol=${tgtSymbol}`);
-      if (activeRequestSymbolRef.current !== currentRequestedSymbol) return;
-      setNews(newsRes.data);
-
-      // Fetch sentiment
-      const sentimentRes = await axios.get<SentimentData>(`/api/sentiment?symbol=${tgtSymbol}`);
-      if (activeRequestSymbolRef.current !== currentRequestedSymbol) return;
-      setSentiment(sentimentRes.data);
-
-    } catch (err: any) {
-      console.error("Initial data load error:", err.message);
       if (activeRequestSymbolRef.current === currentRequestedSymbol) {
-        setError("ระบบกำลังดึงข้อมูลจาก Finnhub / Market API (หากพบความล่าช้า ระบบจะสลับใช้ข้อมูลสำรองอัตโนมัติ)");
+        setMarketData(tickerRes.data);
+        setIsPriceStale(false);
+      }
+
+      const klinesRes = await axios.get<any[]>(`/api/klines?symbol=${tgtSymbol}&timeframe=${tgtTf}&limit=450`);
+      if (activeRequestSymbolRef.current === currentRequestedSymbol) {
+        setKlines(klinesRes.data);
+        
+        const { calculateIndicators } = await import("../../../lib/indicators");
+        const { calculateSupportResistance } = await import("../../../lib/supportResistance");
+
+        const computedIndicators = calculateIndicators(klinesRes.data);
+        setIndicators(computedIndicators);
+
+        const computedSR = calculateSupportResistance(
+          klinesRes.data,
+          computedIndicators,
+          tickerRes.data.currentPrice
+        );
+        setSupportResistance(computedSR);
+      }
+    } catch (err: any) {
+      console.error("Price data load error:", err.message);
+      if (activeRequestSymbolRef.current === currentRequestedSymbol) {
+        setErrorPrice("ไม่สามารถดึงข้อมูลราคาล่าสุดได้");
+        setIsPriceStale(true);
       }
     } finally {
       if (activeRequestSymbolRef.current === currentRequestedSymbol) {
+        setLoadingPrice(false);
+      }
+    }
+
+    // Block 2: Fetch News
+    setLoadingNews(true);
+    setErrorNews(null);
+    try {
+      const newsRes = await axios.get<NewsArticle[]>(`/api/news?symbol=${tgtSymbol}`);
+      if (activeRequestSymbolRef.current === currentRequestedSymbol) {
+        setNews(newsRes.data);
+        setIsNewsStale(false);
+      }
+    } catch (err: any) {
+      console.error("News load error:", err.message);
+      if (activeRequestSymbolRef.current === currentRequestedSymbol) {
+        setErrorNews("ไม่สามารถดึงข้อมูลข่าวสารได้");
+        setIsNewsStale(true);
+      }
+    } finally {
+      if (activeRequestSymbolRef.current === currentRequestedSymbol) {
+        setLoadingNews(false);
+      }
+    }
+
+    // Block 3: Fetch Sentiment
+    setLoadingSentiment(true);
+    setErrorSentiment(null);
+    try {
+      const sentimentRes = await axios.get<SentimentData>(`/api/sentiment?symbol=${tgtSymbol}`);
+      if (activeRequestSymbolRef.current === currentRequestedSymbol) {
+        setSentiment(sentimentRes.data);
+        setIsSentimentStale(false);
+      }
+    } catch (err: any) {
+      console.error("Sentiment load error:", err.message);
+      if (activeRequestSymbolRef.current === currentRequestedSymbol) {
+        setErrorSentiment("ไม่สามารถดึงข้อมูล Sentiment ได้");
+        setIsSentimentStale(true);
+      }
+    } finally {
+      if (activeRequestSymbolRef.current === currentRequestedSymbol) {
+        setLoadingSentiment(false);
         setInitialLoading(false);
       }
     }
@@ -554,7 +603,7 @@ function AnalyzePageContent() {
         )}
 
         {/* สรุปก่อนตัดสินใจ (Decision Summary Panel) */}
-        {marketData && supportResistance && indicators && (
+        {symbol && (
           <SummaryPanel
             symbol={symbol}
             marketData={marketData}
@@ -562,6 +611,11 @@ function AnalyzePageContent() {
             indicators={indicators}
             isInWatchlist={isInWatchlist}
             toggleWatchlist={toggleWatchlist}
+            reportText={analysisReport}
+            loading={loading}
+            loadingPrice={loadingPrice}
+            errorPrice={errorPrice}
+            isPriceStale={isPriceStale}
           />
         )}
 
@@ -622,8 +676,20 @@ function AnalyzePageContent() {
 
                 {/* News and Sentiment Side-by-Side */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <SentimentPanel sentiment={sentiment} loading={initialLoading} symbol={symbol} />
-                  <NewsPanel news={news} loading={initialLoading} symbol={symbol} />
+                  <SentimentPanel 
+                    sentiment={sentiment} 
+                    loading={loadingSentiment} 
+                    symbol={symbol} 
+                    error={errorSentiment}
+                    isStale={isSentimentStale}
+                  />
+                  <NewsPanel 
+                    news={news} 
+                    loading={loadingNews} 
+                    symbol={symbol} 
+                    error={errorNews}
+                    isStale={isNewsStale}
+                  />
                 </div>
 
               </div>
@@ -639,7 +705,7 @@ function AnalyzePageContent() {
                   marketData={marketData}
                   indicators={indicators}
                   supportResistance={supportResistance}
-                  loading={initialLoading}
+                  loading={loadingPrice}
                   symbol={symbol}
                 />
 
