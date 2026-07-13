@@ -97,7 +97,8 @@ export default function Watchlist() {
   };
 
   const handleCardClick = (symbol: string) => {
-    router.push(`/dashboard/analyze?symbol=${symbol}`);
+    if (!symbol) return;
+    router.push(`/dashboard/analyze?symbol=${encodeURIComponent(symbol.toUpperCase())}`);
   };
 
   return (

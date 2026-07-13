@@ -55,20 +55,32 @@ function AnalyzePageContent() {
   const [riskPercent, setRiskPercent] = useState("1%");
   const [analysisMode, setAnalysisMode] = useState("Analyze Both Long & Short");
 
+  const [isSymbolInitialized, setIsSymbolInitialized] = useState(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      return !!params.get("symbol");
+    }
+    return false;
+  });
+
+  // เมื่อ urlSymbol เปลี่ยน ให้ยึดค่า URL เป็นหลักเสมอ
   useEffect(() => {
     if (urlSymbol) {
       setSymbol(urlSymbol.toUpperCase());
+      setIsSymbolInitialized(true);
     }
   }, [urlSymbol]);
 
+  // ซิงค์สเตทกลับไปยัง URL คิวรีพารามิเตอร์ (เฉพาะหลัง Initialize แล้ว)
   useEffect(() => {
+    if (!isSymbolInitialized) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("symbol")?.toUpperCase() !== symbol.toUpperCase()) {
       params.set("symbol", symbol.toUpperCase());
       const newUrl = `${window.location.pathname}?${params.toString()}`;
       window.history.replaceState(null, "", newUrl);
     }
-  }, [symbol]);
+  }, [symbol, isSymbolInitialized]);
 
   // Market & technical analytical states
   const [klines, setKlines] = useState<KlineData[] | null>(null);
@@ -119,7 +131,12 @@ function AnalyzePageContent() {
 
   // Firestore Sync Effect
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      if (!authLoading) {
+        setIsSymbolInitialized(true);
+      }
+      return;
+    }
     const loadPrefs = async () => {
       try {
         const docRef = doc(db, "users", user.uid);
@@ -127,12 +144,11 @@ function AnalyzePageContent() {
         if (docSnap.exists()) {
           const data = docSnap.data();
           const params = new URLSearchParams(window.location.search);
-          const hasUrlSymbol = params.get("symbol") || 
-                               urlSymbol || 
-                               (typeof window !== "undefined" && 
-                                (window.location.search.includes("symbol=") || window.location.href.includes("symbol=")));
+          const hasUrlSymbol = params.get("symbol") || urlSymbol;
           
-          if (data.symbol && !hasUrlSymbol) setSymbol(data.symbol);
+          if (data.symbol && !hasUrlSymbol) {
+            setSymbol(data.symbol.toUpperCase());
+          }
           if (data.timeframe) setTimeframe(data.timeframe);
           if (data.tradingStyle) setTradingStyle(data.tradingStyle);
           if (data.riskPercent) setRiskPercent(data.riskPercent);
@@ -140,10 +156,12 @@ function AnalyzePageContent() {
         }
       } catch (err) {
         console.error("Failed to load user preferences", err);
+      } finally {
+        setIsSymbolInitialized(true);
       }
     };
     loadPrefs();
-  }, [user]);
+  }, [user, authLoading, urlSymbol]);
 
   useEffect(() => {
     if (!user) return;

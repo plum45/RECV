@@ -24,11 +24,12 @@ export default function InvestPage() {
     // Basic formatting: if user types ptt, we uppercase it.
     // If they want Thai stocks they should type .BK, or we can assume it later.
     const symbol = searchQuery.trim().toUpperCase();
-    router.push(`/dashboard/analyze?symbol=${symbol}`);
+    router.push(`/dashboard/analyze?symbol=${encodeURIComponent(symbol)}`);
   };
 
   const handleCardClick = (symbol: string) => {
-    router.push(`/dashboard/analyze?symbol=${symbol}`);
+    if (!symbol) return;
+    router.push(`/dashboard/analyze?symbol=${encodeURIComponent(symbol.toUpperCase())}`);
   };
 
   return (
