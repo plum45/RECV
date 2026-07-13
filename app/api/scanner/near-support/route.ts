@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { getTicker, getKlines } from "../../../../lib/binance";
 import { calculateIndicators } from "../../../../lib/indicators";
 import { calculateSupportResistance } from "../../../../lib/supportResistance";
+import { checkRateLimit } from "../../../../lib/aiCache";
+import { verifyFirebaseIdTokenDetailed } from "../../../../lib/firebaseAdmin";
+
+export const runtime = "nodejs";
 
 // Helper to parse zone string (e.g. "92,100-92,500" or "180.50")
 function parseZoneMid(zoneStr: string): number {
@@ -84,8 +88,37 @@ async function scanSupport(symbols: string[]) {
 
 const DEFAULT_SYMBOLS = ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "NVDA", "AAPL", "TSLA", "MSFT"];
 
-export async function GET() {
+async function authorizeNearSupportRequest(request: Request) {
+  const { decoded, error: authErr } = await verifyFirebaseIdTokenDetailed(request);
+  if (!decoded?.uid) {
+    return {
+      uid: null,
+      response: NextResponse.json(
+        { error: "Unauthorized", message: authErr || "Token verification failed" },
+        { status: 401 }
+      ),
+    };
+  }
+
+  const rateCheck = checkRateLimit(`near-support:${decoded.uid}`, 30, 60 * 1000);
+  if (!rateCheck.allowed) {
+    return {
+      uid: decoded.uid,
+      response: NextResponse.json(
+        { error: "Rate limit exceeded", message: "Please wait before scanning support zones again." },
+        { status: 429 }
+      ),
+    };
+  }
+
+  return { uid: decoded.uid, response: null };
+}
+
+export async function GET(request: Request) {
   try {
+    const auth = await authorizeNearSupportRequest(request);
+    if (auth.response) return auth.response;
+
     const data = await scanSupport(DEFAULT_SYMBOLS);
     return NextResponse.json(data);
   } catch (error: any) {
@@ -99,6 +132,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const auth = await authorizeNearSupportRequest(request);
+    if (auth.response) return auth.response;
+
     const body = await request.json().catch(() => ({}));
     const symbols = body.symbols && Array.isArray(body.symbols) && body.symbols.length > 0
       ? body.symbols

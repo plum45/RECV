@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import axios from "axios";
 import { getFirebaseAdminDb } from "../../../../lib/firebaseAdmin";
 import { getTelegramBotToken } from "../../../../lib/telegramConfig";
+import { normalizeAlertSettings } from "../../../../lib/alertUtils";
 
 export const runtime = "nodejs";
 
@@ -86,21 +87,18 @@ export async function POST(request: Request) {
           srFlipEnabled: true,
           supportEnabled: true,
           cooldownMinutes: 120,
+          quietHours: { enabled: false, start: "22:00", end: "06:00" },
+          configs: {},
         };
         await alertSettingsRef.set(alertSettingsData);
       }
+      const normalizedAlertSettings = normalizeAlertSettings(alertSettingsData);
 
       // Sync active subscription for Cron multi-user scanning
       await db.collection("activeAlertSubscriptions").doc(uid).set({
         uid,
         chatId,
-        enabled: Boolean(alertSettingsData.enabled),
-        symbols: Array.isArray(alertSettingsData.symbols) ? alertSettingsData.symbols : ["BTC-USD", "ETH-USD", "SOL-USD"],
-        rsiEnabled: alertSettingsData.rsiEnabled !== undefined ? Boolean(alertSettingsData.rsiEnabled) : true,
-        macdEnabled: alertSettingsData.macdEnabled !== undefined ? Boolean(alertSettingsData.macdEnabled) : true,
-        srFlipEnabled: alertSettingsData.srFlipEnabled !== undefined ? Boolean(alertSettingsData.srFlipEnabled) : true,
-        supportEnabled: alertSettingsData.supportEnabled !== undefined ? Boolean(alertSettingsData.supportEnabled) : true,
-        cooldownMinutes: typeof alertSettingsData.cooldownMinutes === "number" ? alertSettingsData.cooldownMinutes : 120,
+        ...normalizedAlertSettings,
         updatedAt: now,
       }, { merge: true });
 

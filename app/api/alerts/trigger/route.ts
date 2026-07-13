@@ -5,6 +5,7 @@ import { calculateIndicators } from "../../../../lib/indicators";
 import { calculateSupportResistance } from "../../../../lib/supportResistance";
 import { getFirebaseAdminDb } from "../../../../lib/firebaseAdmin";
 import { getTelegramBotToken } from "../../../../lib/telegramConfig";
+import { calculateAlertOutcome, isWithinQuietHours, resolveSymbolAlertConfig } from "../../../../lib/alertUtils";
 
 export const runtime = "nodejs";
 
@@ -137,29 +138,19 @@ async function triggerAlerts(request: Request) {
           const chatId = sub.chatId;
 
           // Check Quiet Hours (GMT+7 timezone)
-          if (sub.quietHours && sub.quietHours.enabled) {
-            const nowThai = new Date(Date.now() + 7 * 60 * 60 * 1000);
-            const currentHour = nowThai.getUTCHours();
-            const currentMin = nowThai.getUTCMinutes();
-            const currentTimeStr = `${String(currentHour).padStart(2, "0")}:${String(currentMin).padStart(2, "0")}`;
-            const { start, end } = sub.quietHours;
-            
-            const isQuiet = start < end 
-              ? (currentTimeStr >= start && currentTimeStr <= end)
-              : (currentTimeStr >= start || currentTimeStr <= end);
-              
-            if (isQuiet) {
-              console.log(`Skipping alert delivery for uid ${uid} due to Quiet Hours: ${currentTimeStr} is between ${start} and ${end}`);
-              continue;
-            }
+          if (isWithinQuietHours(sub.quietHours, new Date(now))) {
+            console.log(`Skipping alert delivery for uid ${uid} due to Quiet Hours.`);
+            continue;
           }
 
           // Per-symbol configs override
-          const config = sub.configs?.[symbol] || {};
-          const isRsiEnabled = config.rsiEnabled !== undefined ? config.rsiEnabled : (sub.rsiEnabled !== false);
-          const isMacdEnabled = config.macdEnabled !== undefined ? config.macdEnabled : (sub.macdEnabled !== false);
-          const isSrFlipEnabled = config.srFlipEnabled !== undefined ? config.srFlipEnabled : (sub.srFlipEnabled !== false);
-          const isSupportEnabled = config.supportEnabled !== undefined ? config.supportEnabled : (sub.supportEnabled !== false);
+          const symbolConfig = resolveSymbolAlertConfig({
+            rsiEnabled: sub.rsiEnabled !== false,
+            macdEnabled: sub.macdEnabled !== false,
+            srFlipEnabled: sub.srFlipEnabled !== false,
+            supportEnabled: sub.supportEnabled !== false,
+            configs: sub.configs || {},
+          }, symbol);
 
           const cooldownMinutes = Math.max(15, typeof sub.cooldownMinutes === "number" ? sub.cooldownMinutes : 120);
           const cooldownMs = cooldownMinutes * 60 * 1000;
@@ -177,7 +168,7 @@ async function triggerAlerts(request: Request) {
           const newState: any = { ...stateData, updatedAt: now };
 
           // --- RSI Trigger ---
-          if (isRsiEnabled) {
+          if (symbolConfig.rsiEnabled) {
             if (rsi14 < 30) {
               if (stateData.rsiLock !== "oversold" && (!stateData.lastRsiAlertTime || now - stateData.lastRsiAlertTime > cooldownMs)) {
                 triggeredMessages.push(`📊 RSI Oversold (${Math.round(rsi14)}) - สัญญาณขายมากเกินไป มีโอกาสปรับตัวหรือกลับตัวขึ้น`);
@@ -197,7 +188,7 @@ async function triggerAlerts(request: Request) {
           }
 
           // --- MACD Crossover Trigger ---
-          if (isMacdEnabled) {
+          if (symbolConfig.macdEnabled) {
             if (macd.crossover === "bullish") {
               if (stateData.lastMacdCrossover !== "bullish" && (!stateData.lastMacdAlertTime || now - stateData.lastMacdAlertTime > cooldownMs)) {
                 triggeredMessages.push(`🚀 MACD เกิดสัญญาณ Bullish Crossover (สัญญาณซื้อ/เปลี่ยนแนวโน้มเป็นขาขึ้น)`);
@@ -214,7 +205,7 @@ async function triggerAlerts(request: Request) {
           }
 
           // --- S/R Flip Zone Trigger ---
-          if (isSrFlipEnabled) {
+          if (symbolConfig.srFlipEnabled) {
             if (touchedFlipZone) {
               if (stateData.srFlipLock !== touchedFlipZone && (!stateData.lastSrFlipAlertTime || now - stateData.lastSrFlipAlertTime > cooldownMs)) {
                 triggeredMessages.push(`🔄 ราคาเข้าใกล้โซนกลับบทบาท (S/R Flip): ${touchedFlipZone}`);
@@ -227,7 +218,7 @@ async function triggerAlerts(request: Request) {
           }
 
           // --- Support Proximity Trigger ---
-          if (isSupportEnabled) {
+          if (symbolConfig.supportEnabled) {
             if (touchedStrongSupport) {
               if (stateData.supportLock !== touchedStrongSupport && (!stateData.lastSupportAlertTime || now - stateData.lastSupportAlertTime > cooldownMs)) {
                 triggeredMessages.push(`🛡️ ${touchedStrongSupport}`);
@@ -353,6 +344,14 @@ async function triggerAlerts(request: Request) {
                 updates.status = "Completed";
               } else if (elapsed >= oneHour && elapsed < twentyFourHours) {
                 updates.status = "Pending";
+              }
+
+              if (updates.outcome1h) {
+                updates.outcome1h = calculateAlertOutcome(log.priceAtTrigger, currentPrice, 0.5);
+              }
+
+              if (updates.outcome24h) {
+                updates.outcome24h = calculateAlertOutcome(log.priceAtTrigger, currentPrice, 1.5);
               }
 
               if (Object.keys(updates).length > 0) {

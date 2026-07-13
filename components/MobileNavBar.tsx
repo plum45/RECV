@@ -11,11 +11,12 @@ export default function MobileNavBar({ setActiveTab }: MobileNavBarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [currentHash, setCurrentHash] = useState("");
+  const [currentHash, setCurrentHash] = useState(() =>
+    typeof window !== "undefined" ? window.location.hash : ""
+  );
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setCurrentHash(window.location.hash);
       const handleHashChange = () => setCurrentHash(window.location.hash);
       window.addEventListener("hashchange", handleHashChange);
       return () => window.removeEventListener("hashchange", handleHashChange);

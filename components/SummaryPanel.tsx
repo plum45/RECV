@@ -146,12 +146,10 @@ export default function SummaryPanel({
 
   // 6. Action handlers
   const handleScrollToPlan = (planType: "long" | "short") => {
-    // Scroll smoothly to the Analysis Panel section
-    const el = document.getElementById("trading-analysis-panel");
+    const targetId = planType === "long" ? "long-trading-setup" : "short-trading-setup";
+    const el = document.getElementById(targetId) || document.getElementById("trading-analysis-panel");
     if (el) {
-      el.scrollIntoView({ behavior: "smooth" });
-      // If we can trigger tab change in parent (would be ideal)
-      // Since it scrolls to analysis panel, that's already very good
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   };
 

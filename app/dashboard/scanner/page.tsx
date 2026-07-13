@@ -115,6 +115,12 @@ export default function ScannerPage() {
   const fetchNearSupport = async () => {
     setLoadingSupport(true);
     try {
+      const token = await getSafeIdToken();
+      if (!token) {
+        setNearSupportData([]);
+        return;
+      }
+
       let symbolsToScan = ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "NVDA", "AAPL", "TSLA", "MSFT"];
       if (typeof window !== "undefined") {
         const savedWatchlist = localStorage.getItem("rocket_watchlist");
@@ -127,6 +133,8 @@ export default function ScannerPage() {
       }
       const response = await axios.post("/api/scanner/near-support", {
         symbols: symbolsToScan
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
       });
       setNearSupportData(response.data);
     } catch (err) {
@@ -280,6 +288,7 @@ export default function ScannerPage() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchTelegramStatus();
   }, [user]);
 
