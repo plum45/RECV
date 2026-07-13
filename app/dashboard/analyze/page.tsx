@@ -35,6 +35,7 @@ function AnalyzePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlSymbol = searchParams.get("symbol");
+  const abortControllerRef = useRef<AbortController | null>(null);
   const activeRequestSymbolRef = useRef("");
 
   const getSafeIdToken = async (forceRefresh = false): Promise<string | null> => {
@@ -60,13 +61,13 @@ function AnalyzePageContent() {
   // Chart View State: Toggle between live TV widget and Recharts S/R bands overlay
   const [chartView, setChartView] = useState<"tradingview" | "sr_zones">("tradingview");
 
-  // Selected configuration states - Default to NVDA for Stock Market Focus
+  // Selected configuration states - Do not default to NVDA until URL/Firestore initialization has finished
   const [symbol, setSymbol] = useState(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      return params.get("symbol")?.toUpperCase() || "NVDA";
+      return params.get("symbol")?.toUpperCase() || "";
     }
-    return "NVDA";
+    return "";
   });
   const [timeframe, setTimeframe] = useState("1H");
   const [tradingStyle, setTradingStyle] = useState("Day Trade");
@@ -89,9 +90,9 @@ function AnalyzePageContent() {
     }
   }, [urlSymbol]);
 
-  // ซิงค์สเตทกลับไปยัง URL คิวรีพารามิเตอร์ (เฉพาะหลัง Initialize แล้ว)
+  // ซิงค์สเตทกลับไปยัง URL คิวรีพารามิเตอร์ (เฉพาะหลัง Initialize แล้วและ symbol ไม่เป็นค่าว่าง)
   useEffect(() => {
-    if (!isSymbolInitialized) return;
+    if (!isSymbolInitialized || !symbol) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("symbol")?.toUpperCase() !== symbol.toUpperCase()) {
       params.set("symbol", symbol.toUpperCase());
@@ -149,40 +150,53 @@ function AnalyzePageContent() {
 
   // Firestore Sync Effect
   useEffect(() => {
-    if (!user) {
-      if (!authLoading) {
+    if (authLoading) return;
+
+    const loadPrefsAndInit = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const hasUrlSymbol = params.get("symbol") || urlSymbol;
+
+      // 1. URL is primary source of truth
+      if (hasUrlSymbol) {
+        setSymbol(hasUrlSymbol.toUpperCase());
         setIsSymbolInitialized(true);
+        return;
       }
-      return;
-    }
-    const loadPrefs = async () => {
-      try {
-        const docRef = doc(db, "users", user.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          const params = new URLSearchParams(window.location.search);
-          const hasUrlSymbol = params.get("symbol") || urlSymbol;
-          
-          if (data.symbol && !hasUrlSymbol) {
-            setSymbol(data.symbol.toUpperCase());
+
+      // 2. If no URL symbol, fall back to Firestore
+      if (user) {
+        try {
+          const docRef = doc(db, "users", user.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.symbol) {
+              setSymbol(data.symbol.toUpperCase());
+            } else {
+              setSymbol("NVDA"); // 3. Tertiary fallback
+            }
+            if (data.timeframe) setTimeframe(data.timeframe);
+            if (data.tradingStyle) setTradingStyle(data.tradingStyle);
+            if (data.riskPercent) setRiskPercent(data.riskPercent);
+            if (data.analysisMode) setAnalysisMode(data.analysisMode);
+          } else {
+            setSymbol("NVDA"); // 3. Tertiary fallback
           }
-          if (data.timeframe) setTimeframe(data.timeframe);
-          if (data.tradingStyle) setTradingStyle(data.tradingStyle);
-          if (data.riskPercent) setRiskPercent(data.riskPercent);
-          if (data.analysisMode) setAnalysisMode(data.analysisMode);
+        } catch (err) {
+          console.error("Failed to load user preferences", err);
+          setSymbol("NVDA"); // 3. Tertiary fallback
         }
-      } catch (err) {
-        console.error("Failed to load user preferences", err);
-      } finally {
-        setIsSymbolInitialized(true);
+      } else {
+        setSymbol("NVDA"); // 3. Tertiary fallback
       }
+      setIsSymbolInitialized(true);
     };
-    loadPrefs();
+
+    loadPrefsAndInit();
   }, [user, authLoading, urlSymbol]);
 
   useEffect(() => {
-    if (!user || !isSymbolInitialized) return;
+    if (!user || !isSymbolInitialized || !symbol) return;
     const savePrefs = async () => {
       try {
         await setDoc(doc(db, "users", user.uid), {
@@ -274,6 +288,18 @@ function AnalyzePageContent() {
 
   // 1. Fetch live market quantitative data without running OpenAI analysis
   const fetchMarketDataOnly = async (tgtSymbol = symbol, tgtTf = timeframe) => {
+    if (!tgtSymbol) return;
+
+    // Cancel previous request if any
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Create new AbortController
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    const signal = controller.signal;
+
     activeRequestSymbolRef.current = tgtSymbol;
     const currentRequestedSymbol = tgtSymbol;
     
@@ -285,13 +311,13 @@ function AnalyzePageContent() {
     setLoadingPrice(true);
     setErrorPrice(null);
     try {
-      const tickerRes = await axios.get<TickerData>(`/api/ticker?symbol=${tgtSymbol}`);
+      const tickerRes = await axios.get<TickerData>(`/api/ticker?symbol=${encodeURIComponent(tgtSymbol)}`, { signal });
       if (activeRequestSymbolRef.current === currentRequestedSymbol) {
         setMarketData(tickerRes.data);
         setIsPriceStale(false);
       }
 
-      const klinesRes = await axios.get<any[]>(`/api/klines?symbol=${tgtSymbol}&timeframe=${tgtTf}&limit=450`);
+      const klinesRes = await axios.get<any[]>(`/api/klines?symbol=${encodeURIComponent(tgtSymbol)}&timeframe=${tgtTf}&limit=450`, { signal });
       if (activeRequestSymbolRef.current === currentRequestedSymbol) {
         setKlines(klinesRes.data);
         
@@ -309,6 +335,10 @@ function AnalyzePageContent() {
         setSupportResistance(computedSR);
       }
     } catch (err: any) {
+      if (axios.isCancel(err)) {
+        console.log("Price fetch cancelled for symbol:", tgtSymbol);
+        return;
+      }
       console.error("Price data load error:", err.message);
       if (activeRequestSymbolRef.current === currentRequestedSymbol) {
         setErrorPrice("ไม่สามารถดึงข้อมูลราคาล่าสุดได้");
@@ -324,12 +354,16 @@ function AnalyzePageContent() {
     setLoadingNews(true);
     setErrorNews(null);
     try {
-      const newsRes = await axios.get<NewsArticle[]>(`/api/news?symbol=${tgtSymbol}`);
+      const newsRes = await axios.get<NewsArticle[]>(`/api/news?symbol=${encodeURIComponent(tgtSymbol)}`, { signal });
       if (activeRequestSymbolRef.current === currentRequestedSymbol) {
         setNews(newsRes.data);
         setIsNewsStale(false);
       }
     } catch (err: any) {
+      if (axios.isCancel(err)) {
+        console.log("News fetch cancelled for symbol:", tgtSymbol);
+        return;
+      }
       console.error("News load error:", err.message);
       if (activeRequestSymbolRef.current === currentRequestedSymbol) {
         setErrorNews("ไม่สามารถดึงข้อมูลข่าวสารได้");
@@ -345,12 +379,16 @@ function AnalyzePageContent() {
     setLoadingSentiment(true);
     setErrorSentiment(null);
     try {
-      const sentimentRes = await axios.get<SentimentData>(`/api/sentiment?symbol=${tgtSymbol}`);
+      const sentimentRes = await axios.get<SentimentData>(`/api/sentiment?symbol=${encodeURIComponent(tgtSymbol)}`, { signal });
       if (activeRequestSymbolRef.current === currentRequestedSymbol) {
         setSentiment(sentimentRes.data);
         setIsSentimentStale(false);
       }
     } catch (err: any) {
+      if (axios.isCancel(err)) {
+        console.log("Sentiment fetch cancelled for symbol:", tgtSymbol);
+        return;
+      }
       console.error("Sentiment load error:", err.message);
       if (activeRequestSymbolRef.current === currentRequestedSymbol) {
         setErrorSentiment("ไม่สามารถดึงข้อมูล Sentiment ได้");
@@ -365,8 +403,15 @@ function AnalyzePageContent() {
   };
 
   useEffect(() => {
+    if (!isSymbolInitialized || !symbol) return;
     fetchMarketDataOnly(symbol, timeframe);
-  }, [symbol, timeframe]);
+
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [symbol, timeframe, isSymbolInitialized]);
 
   // 2. Trigger Full AI Analysis Orchestrator (calls /api/analyze)
   const handleAnalyze = async () => {
