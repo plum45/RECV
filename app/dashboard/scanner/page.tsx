@@ -56,12 +56,17 @@ interface ScanData {
 export default function ScannerPage() {
   const { user, getIdToken } = useAuth();
 
-  const getSafeIdToken = async (): Promise<string | null> => {
+  const getSafeIdToken = async (forceRefresh = false): Promise<string | null> => {
     if (typeof getIdToken === "function") {
-      return await getIdToken();
+      try {
+        const t = await getIdToken(forceRefresh);
+        if (t) return t;
+      } catch (e) {}
     }
     if (user && typeof (user as any).getIdToken === "function") {
-      return await (user as any).getIdToken();
+      try {
+        return await (user as any).getIdToken(forceRefresh);
+      } catch (e) {}
     }
     return null;
   };
@@ -286,15 +291,29 @@ export default function ScannerPage() {
     setTestingTg(true);
     setAlertStatus(null);
     try {
-      const token = await getSafeIdToken();
+      let token = await getSafeIdToken();
       if (!token) return;
-      const res = await axios.post("/api/telegram/test", {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.data.success) {
-        setAlertStatus({ type: "success", text: "ส่งข้อความทดสอบเข้า Telegram ของคุณสำเร็จ!" });
-      } else {
-        throw new Error(res.data.message || "Failed");
+      try {
+        const res = await axios.post("/api/telegram/test", {}, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.data.success) {
+          setAlertStatus({ type: "success", text: "ส่งข้อความทดสอบเข้า Telegram ของคุณสำเร็จ!" });
+        } else {
+          throw new Error(res.data.message || "Failed");
+        }
+      } catch (postErr: any) {
+        if (postErr.response?.status === 401) {
+          token = await getSafeIdToken(true);
+          const retryRes = await axios.post("/api/telegram/test", {}, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (retryRes.data.success) {
+            setAlertStatus({ type: "success", text: "ส่งข้อความทดสอบเข้า Telegram ของคุณสำเร็จ!" });
+            return;
+          }
+        }
+        throw postErr;
       }
     } catch (err: any) {
       setAlertStatus({ type: "error", text: `ทดสอบ Telegram ล้มเหลว: ${err.response?.data?.message || err.message}` });
@@ -310,22 +329,36 @@ export default function ScannerPage() {
     }
     try {
       setConnectingTelegram(true);
-      const token = await getSafeIdToken();
+      let token = await getSafeIdToken(true);
       if (!token) {
         alert("ไม่สามารถรับยืนยันตัวตนได้ กรุณาเข้าสู่ระบบใหม่อีกครั้ง");
         return;
       }
-      const res = await axios.post<{ success: boolean; startUrl: string; botUsername: string; message?: string }>(
-        "/api/telegram/token",
-        {},
-        {
-          headers: { Authorization: `Bearer ${token}` },
+      try {
+        const res = await axios.post<{ success: boolean; startUrl: string; botUsername: string; message?: string }>(
+          "/api/telegram/token",
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (res.data.success && res.data.startUrl) {
+          window.open(res.data.startUrl, "_blank");
+        } else {
+          alert(res.data.message || "ไม่สามารถสร้างลิงก์เชื่อมต่อ Telegram ได้");
         }
-      );
-      if (res.data.success && res.data.startUrl) {
-        window.open(res.data.startUrl, "_blank");
-      } else {
-        alert(res.data.message || "ไม่สามารถสร้างลิงก์เชื่อมต่อ Telegram ได้");
+      } catch (postErr: any) {
+        if (postErr.response?.status === 401) {
+          token = await getSafeIdToken(true);
+          const retryRes = await axios.post<{ success: boolean; startUrl: string; botUsername: string; message?: string }>(
+            "/api/telegram/token",
+            {},
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          if (retryRes.data.success && retryRes.data.startUrl) {
+            window.open(retryRes.data.startUrl, "_blank");
+            return;
+          }
+        }
+        throw postErr;
       }
     } catch (err: any) {
       console.error("Connect telegram error:", err);

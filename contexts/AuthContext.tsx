@@ -9,7 +9,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   logout: () => Promise<void>;
-  getIdToken: () => Promise<string | null>;
+  getIdToken: (forceRefresh?: boolean) => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -74,10 +74,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const getIdToken = async (): Promise<string | null> => {
-    if (!user) return null;
+  const getIdToken = async (forceRefresh = false): Promise<string | null> => {
+    const targetUser = user || auth?.currentUser;
+    if (!targetUser) return null;
     try {
-      return await user.getIdToken();
+      return await targetUser.getIdToken(forceRefresh);
     } catch (error) {
       console.error("Get ID token error", error);
       return null;
