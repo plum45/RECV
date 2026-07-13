@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Home, Star, LayoutGrid, SlidersHorizontal, Briefcase, Bell } from "lucide-react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { Home, Star, LayoutGrid, SlidersHorizontal, Briefcase } from "lucide-react";
+import { useRouter, usePathname } from "next/navigation";
 
 interface MobileNavBarProps {
   activeTab?: string;
@@ -12,7 +12,7 @@ interface MobileNavBarProps {
 export default function MobileNavBar({ setActiveTab }: MobileNavBarProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
+
   const [currentHash, setCurrentHash] = useState(() =>
     typeof window !== "undefined" ? window.location.hash : ""
   );
@@ -28,27 +28,26 @@ export default function MobileNavBar({ setActiveTab }: MobileNavBarProps) {
   const navItems = [
     { id: "home", label: "หน้าแรก", icon: Home, path: "/dashboard", ariaLabel: "ไปที่หน้าแรก" },
     { id: "watchlist", label: "หุ้นโปรด", icon: Star, path: "/dashboard#watchlist", ariaLabel: "ไปที่รายการหุ้นโปรด" },
-    { id: "invest", label: "ค้นหาหุ้น", icon: LayoutGrid, isCenter: true, path: "/dashboard/invest", ariaLabel: "ไปที่หน้าค้นหาหุ้น" },
-    { id: "tools", label: "เครื่องมือ", icon: SlidersHorizontal, path: "/dashboard/scanner", ariaLabel: "ไปที่หน้าสแกนสัญญาณ" },
-    { id: "portfolio", label: "พอร์ต", icon: Briefcase, path: "/dashboard/analyze?tab=portfolio", ariaLabel: "ไปที่หน้าพอร์ตจำลอง" },
+    { id: "invest", label: "วิเคราะห์", icon: LayoutGrid, isCenter: true, path: "/dashboard/analyze", ariaLabel: "ไปที่หน้าวิเคราะห์หุ้น" },
+    { id: "tools", label: "Scanner", icon: SlidersHorizontal, path: "/dashboard/scanner", ariaLabel: "ไปที่หน้าสแกนสัญญาณ" },
+    { id: "portfolio", label: "พอร์ต", icon: Briefcase, path: "/dashboard/portfolio", ariaLabel: "ไปที่หน้าพอร์ตจำลอง" },
   ];
 
   const getIsActive = (item: typeof navItems[0]) => {
-    const tabParam = searchParams.get("tab");
     if (item.id === "portfolio") {
-      return pathname === "/dashboard/analyze" && tabParam === "portfolio";
+      return pathname === "/dashboard/portfolio";
     }
     if (item.id === "tools") {
       return pathname === "/dashboard/scanner";
     }
     if (item.id === "invest") {
-      return pathname === "/dashboard/invest";
+      return pathname === "/dashboard/analyze";
     }
     if (item.id === "watchlist") {
       return pathname === "/dashboard" && currentHash === "#watchlist";
     }
     if (item.id === "home") {
-      return pathname === "/dashboard" && currentHash !== "#watchlist" && !tabParam;
+      return pathname === "/dashboard" && currentHash !== "#watchlist";
     }
     return false;
   };

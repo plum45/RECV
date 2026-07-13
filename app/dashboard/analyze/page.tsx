@@ -600,9 +600,23 @@ function AnalyzePageContent() {
             <input
               type="text"
               value={symbol}
-              onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+              onChange={(e) => {
+                const val = e.target.value.toUpperCase();
+                setSymbol(val);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const val = (e.target as HTMLInputElement).value.toUpperCase();
+                  if (val) {
+                    setSymbol(val);
+                    setAnalyzedSymbol(val);
+                    setIsSymbolInitialized(true);
+                    fetchMarketDataOnly(val, timeframe);
+                  }
+                }
+              }}
               placeholder="AAPL, TSLA..."
-              className="bg-slate-900/80 border border-slate-800 text-slate-100 text-xs rounded-xl focus:ring-2 focus:ring-slate-400 focus:border-slate-500 block w-full sm:w-28 pl-8 pr-9 py-2 font-mono tracking-wider shadow-inner transition-all"
+              className="bg-slate-900/80 border border-slate-800 text-slate-100 text-xs rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 block w-full sm:w-32 pl-8 pr-9 py-2 font-mono tracking-wider shadow-inner transition-all"
             />
             <button
               onClick={toggleWatchlist}
@@ -659,7 +673,7 @@ function AnalyzePageContent() {
       </header>
 
       {/* ── MAIN CONTENT ─────────────────────────────────────────── */}
-      <main className="flex-1 p-1.5 sm:p-4 md:p-6 max-w-[1800px] w-full mx-auto relative z-10 space-y-8 pb-12">
+      <main className="flex-1 p-1.5 sm:p-4 md:p-6 max-w-[1800px] w-full mx-auto relative z-10 space-y-8 pb-28 sm:pb-16 lg:pb-12">
 
         {/* Error Banner */}
         {error && (
@@ -803,44 +817,88 @@ function AnalyzePageContent() {
             </div>
 
             {showAdvancedCalculator && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-950/40 p-4 rounded-2xl border border-slate-800/40">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-950/60 p-4 rounded-2xl border border-indigo-900/30 shadow-inner">
+                {/* Live position size preview */}
+                <div className="col-span-2 md:col-span-4 flex items-center gap-2 text-[10px] text-indigo-300 font-semibold bg-indigo-950/30 border border-indigo-800/30 rounded-xl px-3 py-2">
+                  <Sliders size={10} />
+                  <span>ผลลัพธ์การคำนวณไม้จะรวมอยู่ในรายงาน AI โดยอัตโนมัติเมื่อกด ANALYZE</span>
+                </div>
+
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] text-slate-400 font-bold uppercase">Account Size ($)</label>
+                  <label className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">💰 Account Size ($)</label>
                   <input
                     type="number"
+                    min={100}
+                    max={10000000}
                     value={accountSize}
-                    onChange={(e) => setAccountSize(Number(e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs font-semibold rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500"
+                    onChange={(e) => setAccountSize(Math.max(100, Number(e.target.value)))}
+                    className="w-full bg-slate-950 border border-slate-800 hover:border-slate-600 text-slate-200 text-xs font-mono font-semibold rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
                   />
+                  <p className="text-[9px] text-slate-600">ขนาดบัญชีรวม</p>
                 </div>
+
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] text-slate-400 font-bold uppercase">Leverage (x)</label>
+                  <label className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">⚡ Leverage (x)</label>
                   <input
                     type="number"
+                    min={1}
+                    max={100}
+                    step={1}
                     value={leverage}
-                    onChange={(e) => setLeverage(Number(e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs font-semibold rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500"
+                    onChange={(e) => setLeverage(Math.max(1, Number(e.target.value)))}
+                    className="w-full bg-slate-950 border border-slate-800 hover:border-slate-600 text-slate-200 text-xs font-mono font-semibold rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
                   />
+                  <p className="text-[9px] text-slate-600">1x = ไม่ใช้ Leverage</p>
                 </div>
+
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] text-slate-400 font-bold uppercase">Fee (%)</label>
+                  <label className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">📊 Fee (%)</label>
                   <input
                     type="number"
-                    step="0.01"
+                    min={0}
+                    max={5}
+                    step={0.01}
                     value={feePercent}
-                    onChange={(e) => setFeePercent(Number(e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs font-semibold rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500"
+                    onChange={(e) => setFeePercent(Math.max(0, Number(e.target.value)))}
+                    className="w-full bg-slate-950 border border-slate-800 hover:border-slate-600 text-slate-200 text-xs font-mono font-semibold rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
                   />
+                  <p className="text-[9px] text-slate-600">ค่าธรรมเนียมต่อไม้</p>
                 </div>
+
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] text-slate-400 font-bold uppercase">Slippage (%)</label>
+                  <label className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">🎯 Slippage (%)</label>
                   <input
                     type="number"
-                    step="0.01"
+                    min={0}
+                    max={5}
+                    step={0.01}
                     value={slippagePercent}
-                    onChange={(e) => setSlippagePercent(Number(e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs font-semibold rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500"
+                    onChange={(e) => setSlippagePercent(Math.max(0, Number(e.target.value)))}
+                    className="w-full bg-slate-950 border border-slate-800 hover:border-slate-600 text-slate-200 text-xs font-mono font-semibold rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
                   />
+                  <p className="text-[9px] text-slate-600">Slippage ต่อไม้</p>
+                </div>
+
+                {/* Inline calculator result preview */}
+                <div className="col-span-2 md:col-span-4 grid grid-cols-3 gap-2 pt-1">
+                  {[{
+                    label: "ทุนเสี่ยงต่อไม้",
+                    value: `$${((accountSize * (parseFloat(riskPercent.replace("%","")) || 1)) / 100).toFixed(2)}`,
+                    color: "text-amber-400"
+                  }, {
+                    label: "ต้นทุนรวม (Levered)",
+                    value: `$${(accountSize * leverage).toLocaleString()}`,
+                    color: "text-indigo-400"
+                  }, {
+                    label: "ค่าต้นทุนรวมต่อรอบ",
+                    value: `${(feePercent * 2 + slippagePercent * 2).toFixed(3)}%`,
+                    color: "text-cyan-400"
+                  }].map(stat => (
+                    <div key={stat.label} className="bg-slate-900/60 border border-slate-800/50 rounded-xl px-3 py-2 text-center">
+                      <p className="text-[9px] text-slate-500 font-semibold uppercase tracking-wide mb-1">{stat.label}</p>
+                      <p className={`text-sm font-black font-mono ${stat.color}`}>{stat.value}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
