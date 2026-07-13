@@ -365,6 +365,109 @@ async function triggerAlerts(request: Request) {
       }
     }
 
+    // ── PROCESS TRADING PLANS ──────────────────────────────────────────────
+    if (db) {
+      try {
+        const usersSnap = await db.collection("users").get();
+        for (const userDoc of usersSnap.docs) {
+          const userId = userDoc.id;
+          const plansSnap = await db.collection("users").doc(userId).collection("trading_plans")
+            .where("status", "in", ["Active", "Hit Entry", "TP1 Hit", "TP2 Hit"])
+            .get();
+
+          if (plansSnap.empty) continue;
+
+          // Get Telegram settings for user
+          const tgDoc = await db.collection("users").doc(userId).collection("settings").doc("telegram").get();
+          const tgData = tgDoc.exists ? tgDoc.data() : null;
+          const chatId = tgData?.chatId;
+          const tgEnabled = tgData?.enabled;
+
+          for (const planDoc of plansSnap.docs) {
+            const plan = planDoc.data();
+            const planId = planDoc.id;
+            const symbol = plan.symbol;
+            
+            // Get current price (we can reuse symbolPrices or fetch)
+            let currentPrice = symbolPrices[symbol];
+            if (!currentPrice) {
+              try {
+                const ticker = await getTicker(symbol);
+                currentPrice = ticker.currentPrice;
+                symbolPrices[symbol] = currentPrice;
+              } catch (_) {
+                continue;
+              }
+            }
+
+            let newStatus = plan.status;
+            let triggerMsg = "";
+
+            if (plan.direction === "long") {
+              if (plan.status === "Active" && currentPrice >= plan.entryLow && currentPrice <= plan.entryHigh) {
+                newStatus = "Hit Entry";
+                triggerMsg = `🎯 แผนการเทรด ${symbol} ได้เข้าสู่โซนราคาซื้อขาย (Entry Zone: $${plan.entryLow} - $${plan.entryHigh}) แล้วที่ราคา $${currentPrice}`;
+              } else if (currentPrice <= plan.stopLoss) {
+                newStatus = "Stopped Out";
+                triggerMsg = `🛑 แผนการเทรด ${symbol} แตะจุดตัดขาดทุน (Stop Loss) ที่ $${plan.stopLoss} (ราคาปัจจุบัน: $${currentPrice})`;
+              } else if (plan.status === "Hit Entry" && currentPrice >= plan.takeProfit1) {
+                newStatus = "TP1 Hit";
+                triggerMsg = `💰 แผนการเทรด ${symbol} แตะเป้าหมายกำไรระยะสั้น (TP1) ที่ $${plan.takeProfit1} สำเร็จ!`;
+              } else if (plan.status === "TP1 Hit" && currentPrice >= plan.takeProfit2) {
+                newStatus = "TP2 Hit";
+                triggerMsg = `💰 แผนการเทรด ${symbol} แตะเป้าหมายกำไรหลัก (TP2) ที่ $${plan.takeProfit2} สำเร็จ!`;
+              } else if (plan.status === "TP2 Hit" && currentPrice >= plan.takeProfit3) {
+                newStatus = "Expired";
+                triggerMsg = `🏁 แผนการเทรด ${symbol} แตะเป้าหมายกำไรสูงสุด (TP3) ที่ $${plan.takeProfit3} แล้ว ปิดรอบแผนสมบูรณ์!`;
+              }
+            } else if (plan.direction === "short") {
+              if (plan.status === "Active" && currentPrice >= plan.entryLow && currentPrice <= plan.entryHigh) {
+                newStatus = "Hit Entry";
+                triggerMsg = `🎯 แผนการเทรด ${symbol} (SHORT) ได้เข้าสู่โซนราคาซื้อขาย (Entry Zone: $${plan.entryLow} - $${plan.entryHigh}) แล้วที่ราคา $${currentPrice}`;
+              } else if (currentPrice >= plan.stopLoss) {
+                newStatus = "Stopped Out";
+                triggerMsg = `🛑 แผนการเทรด ${symbol} (SHORT) แตะจุดตัดขาดทุน (Stop Loss) ที่ $${plan.stopLoss} (ราคาปัจจุบัน: $${currentPrice})`;
+              } else if (plan.status === "Hit Entry" && currentPrice <= plan.takeProfit1) {
+                newStatus = "TP1 Hit";
+                triggerMsg = `💰 แผนการเทรด ${symbol} (SHORT) แตะเป้าหมายกำไรระยะสั้น (TP1) ที่ $${plan.takeProfit1} สำเร็จ!`;
+              } else if (plan.status === "TP1 Hit" && currentPrice <= plan.takeProfit2) {
+                newStatus = "TP2 Hit";
+                triggerMsg = `💰 แผนการเทรด ${symbol} (SHORT) แตะเป้าหมายกำไรหลัก (TP2) ที่ $${plan.takeProfit2} สำเร็จ!`;
+              } else if (plan.status === "TP2 Hit" && currentPrice <= plan.takeProfit3) {
+                newStatus = "Expired";
+                triggerMsg = `🏁 แผนการเทรด ${symbol} (SHORT) แตะเป้าหมายกำไรสูงสุด (TP3) ที่ $${plan.takeProfit3} แล้ว ปิดรอบแผนสมบูรณ์!`;
+              }
+            }
+
+            if (newStatus !== plan.status) {
+              await db.collection("users").doc(userId).collection("trading_plans").doc(planId).update({
+                status: newStatus,
+                updatedAt: new Date().toISOString()
+              });
+
+              // Send Telegram Notification
+              if (chatId && tgEnabled) {
+                const token = getTelegramBotToken();
+                if (token) {
+                  try {
+                    await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
+                      chat_id: chatId,
+                      text: `🔔 *[Trading Plan Alert]*\n\n${triggerMsg}`,
+                      parse_mode: "Markdown"
+                    });
+                  } catch (tgErr) {
+                    console.error("Failed to send plan update to Telegram:", tgErr);
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (err: any) {
+        console.error("Failed to scan and trigger trading plans:", err.message);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: `Completed multi-user alert scan across ${symbolsToScan.length} symbols.`,

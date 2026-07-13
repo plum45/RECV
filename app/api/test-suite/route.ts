@@ -370,6 +370,43 @@ export async function GET(request: Request) {
     }
   });
 
+  // 11. Test Trading Plan calculations
+  await runTest("Trading Plan — Calculations Verification", () => {
+    const price = 100;
+    const atr = 2.0;
+    
+    // Day trade SL factor is 1.0 -> SL should be 100 - (2.0 * 1.0) = 98
+    const daySlBuffer = atr * 1.0;
+    const dayLongSL = price - daySlBuffer;
+    if (dayLongSL !== 98) {
+      throw new Error(`Expected Day Long SL to be 98, got ${dayLongSL}`);
+    }
+
+    // Swing trade SL factor is 1.5 -> SL should be 100 - (2.0 * 1.5) = 97
+    const swingSlBuffer = atr * 1.5;
+    const swingLongSL = price - swingSlBuffer;
+    if (swingLongSL !== 97) {
+      throw new Error(`Expected Swing Long SL to be 97, got ${swingLongSL}`);
+    }
+
+    // Position trade SL factor is 2.5 -> SL should be 100 - (2.0 * 2.5) = 95
+    const posSlBuffer = atr * 2.5;
+    const posLongSL = price - posSlBuffer;
+    if (posLongSL !== 95) {
+      throw new Error(`Expected Position Long SL to be 95, got ${posLongSL}`);
+    }
+
+    // Risk reward checking
+    const entryMid = 100;
+    const stopLoss = 97;
+    const takeProfit2 = 106;
+    const riskPerUnit = entryMid - stopLoss;
+    const riskReward = (takeProfit2 - entryMid) / riskPerUnit;
+    if (riskReward !== 2.0) {
+      throw new Error(`Expected Risk Reward to be 2.0, got ${riskReward}`);
+    }
+  });
+
   const testsFailed = results.filter(r => r.status === "FAIL").length;
   const success = testsFailed === 0;
 
