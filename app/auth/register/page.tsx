@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { createUserWithEmailAndPassword, setPersistence, browserLocalPersistence } from "firebase/auth";
 import { auth, getAuthErrorMessage } from "../../../lib/firebase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -26,6 +26,7 @@ export default function RegisterPage() {
       if (!auth) {
         throw new Error("ยังไม่ได้ตั้งค่า Firebase ในไฟล์ .env.local");
       }
+      await setPersistence(auth, browserLocalPersistence);
       await createUserWithEmailAndPassword(auth, email, password);
       // Wait a moment for firestore trigger to create doc, or create explicitly
       router.push("/dashboard");

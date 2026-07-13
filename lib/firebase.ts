@@ -18,6 +18,12 @@ const app = typeof window !== "undefined" && firebaseConfig.apiKey && getApps().
 const auth = app ? getAuth(app) : null as any;
 const db = app ? getFirestore(app) : null as any;
 
+if (typeof window !== "undefined" && auth) {
+  import("firebase/auth").then(({ setPersistence, browserLocalPersistence }) => {
+    setPersistence(auth, browserLocalPersistence).catch(() => {});
+  });
+}
+
 export function getAuthErrorMessage(error: any): string {
   const code = error?.code || "";
   switch (code) {

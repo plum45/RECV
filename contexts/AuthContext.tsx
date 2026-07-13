@@ -2,7 +2,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { User, onAuthStateChanged, signOut } from "firebase/auth";
+import { User, onAuthStateChanged, onIdTokenChanged, setPersistence, browserLocalPersistence, signOut } from "firebase/auth";
 import { auth } from "../lib/firebase";
 
 interface AuthContextType {
@@ -31,12 +31,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    // Ensure persistence is set to local storage across all tabs and devices
+    setPersistence(auth, browserLocalPersistence).catch(() => {});
+
+    let initialCheckDone = false;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      setLoading(false);
+      if (!initialCheckDone) {
+        if (!currentUser) {
+          // Give IndexedDB / localStorage a brief grace period to restore multi-device session on slow mobile browsers before marking loading false
+          setTimeout(() => {
+            setUser(auth.currentUser);
+            setLoading(false);
+            initialCheckDone = true;
+          }, 450);
+        } else {
+          setLoading(false);
+          initialCheckDone = true;
+        }
+      }
     });
 
-    return () => unsubscribe();
+    const unsubscribeToken = onIdTokenChanged(auth, (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
+      }
+    });
+
+    return () => {
+      unsubscribeAuth();
+      unsubscribeToken();
+    };
   }, []);
 
   const logout = async () => {
