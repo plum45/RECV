@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Home, Search, BarChart2, Briefcase, Menu, X, Rocket, Zap, Sun, Moon, Bell } from "lucide-react";
+import { Home, Search, BarChart2, Briefcase, Menu, X, Rocket, Zap, Sun, Moon, Bell, ShieldAlert } from "lucide-react";
 import { useTheme } from "next-themes";
 import MobileNavBar from "../../components/MobileNavBar";
 import { useAuth } from "../../contexts/AuthContext";
@@ -34,6 +34,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     { name: "วิเคราะห์ (Analyze)", path: "/dashboard/analyze", icon: BarChart2 },
     { name: "สแกนสัญญาณ (Scanner)", path: "/dashboard/scanner", icon: Zap },
     { name: "พอร์ต (Portfolio)", path: "/dashboard/analyze?tab=portfolio", icon: Briefcase },
+    { name: "คำนวณความเสี่ยง (Risk)", path: "/dashboard/risk", icon: ShieldAlert },
     { name: "แจ้งเตือน (Alerts)", path: "/dashboard/alerts", icon: Bell },
   ];
 
@@ -54,10 +55,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           <Rocket size={18} className="text-slate-200" /> iVES
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={toggleTheme} className="p-2 text-slate-400 hover:text-white transition-colors cursor-pointer">
+          <button onClick={toggleTheme} className="p-2 text-slate-400 hover:text-white transition-colors cursor-pointer" aria-label="สลับโหมดการแสดงผล">
             {theme === "dark" ? <Sun size={20} className="text-amber-400" /> : <Moon size={20} className="text-slate-300" />}
           </button>
-          <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-slate-400 hover:text-white cursor-pointer">
+          <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-slate-400 hover:text-white cursor-pointer" aria-label="เปิดเมนูทางเลือก">
             <Menu size={24} />
           </button>
         </div>
@@ -81,7 +82,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             <Rocket size={24} className="text-slate-200" />
             iVES
           </Link>
-          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden text-slate-400 hover:text-white cursor-pointer">
+          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden text-slate-400 hover:text-white cursor-pointer" aria-label="ปิดเมนูทางเลือก">
             <X size={20} />
           </button>
         </div>
@@ -139,7 +140,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         <div className="lg:hidden h-14 shrink-0" /> {/* Mobile header spacer */}
         
         {/* Child Pages are rendered here */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden relative h-full">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden relative h-full pb-24 lg:pb-6">
           {children}
         </main>
         

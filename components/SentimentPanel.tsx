@@ -2,21 +2,42 @@
 
 import React from "react";
 import { SentimentData } from "../types/analysis";
-import { Smile, DollarSign, BarChart2, TrendingUp } from "lucide-react";
+import { Smile, DollarSign, BarChart2, TrendingUp, AlertTriangle } from "lucide-react";
 
 interface SentimentPanelProps {
   sentiment: SentimentData | null;
   loading: boolean;
   symbol?: string;
+  error?: string | null;
+  isStale?: boolean;
 }
 
-export default function SentimentPanel({ sentiment, loading, symbol }: SentimentPanelProps) {
+export default function SentimentPanel({ sentiment, loading, symbol, error, isStale }: SentimentPanelProps) {
   if (loading) {
     return (
       <div className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-xl animate-pulse space-y-4">
         <div className="h-6 bg-slate-800 rounded w-1/3"></div>
         <div className="h-24 bg-slate-800 rounded-xl"></div>
         <div className="h-20 bg-slate-800 rounded-xl"></div>
+      </div>
+    );
+  }
+
+  // Display inline error warning inside the card if fetch fails but no cached/previous data exists
+  if (error && !sentiment) {
+    return (
+      <div className="w-full bg-slate-950 border border-slate-850 rounded-2xl p-6 shadow-xl space-y-4">
+        <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+          <Smile size={18} className="text-amber-400" />
+          จิตวิทยาตลาด (Market Sentiment)
+        </h3>
+        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-2.5 text-xs text-rose-400 font-bold">
+          <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+          <div>
+            <p>ไม่สามารถดึงข้อมูล Sentiment ได้</p>
+            <p className="font-normal text-[10px] text-slate-500 mt-1">เกิดข้อผิดพลาดในการเชื่อมต่อเครือข่าย หรือเซิร์ฟเวอร์ปลายทางขัดข้อง</p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -59,11 +80,27 @@ export default function SentimentPanel({ sentiment, loading, symbol }: Sentiment
   };
 
   return (
-    <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
-      <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-        <Smile size={18} className="text-amber-400" />
-        จิตวิทยาตลาด (Market Sentiment) {symbol && `(${symbol})`}
-      </h3>
+    <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6 relative overflow-hidden">
+      
+      <div className="flex items-center justify-between gap-4">
+        <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+          <Smile size={18} className="text-amber-400" />
+          จิตวิทยาตลาด (Market Sentiment) {symbol && `(${symbol})`}
+        </h3>
+        {isStale && (
+          <span className="px-2 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-400 text-[9px] font-bold">
+            ข้อมูลเก่า (Cached)
+          </span>
+        )}
+      </div>
+
+      {/* Inline warning bar if fetch failed but display cached data */}
+      {error && isStale && (
+        <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-2 text-[10px] text-amber-400 font-semibold">
+          <AlertTriangle size={13} className="shrink-0" />
+          <span>ดึงข้อมูลล่าสุดไม่สำเร็จ กำลังแสดงข้อมูลแคชก่อนหน้า</span>
+        </div>
+      )}
 
       {/* Overall Sentiment Badge */}
       <div className={`border rounded-xl p-4 flex flex-col items-center justify-center text-center transition-all ${sentimentStyles.bg}`}>
@@ -95,7 +132,7 @@ export default function SentimentPanel({ sentiment, loading, symbol }: Sentiment
             <span>Long / Short Account Ratio</span>
             <span>รายชั่วโมง</span>
           </div>
-          <div className="text-xl font-bold text-slate-100 flex items-center gap-1.5">
+          <div className="text-xl font-bold text-slate-100 flex items-center gap-1.5 font-mono">
             <TrendingUp size={16} className="text-purple-400" />
             {sentiment.longShortRatio !== null ? sentiment.longShortRatio.toFixed(3) : "N/A"}
           </div>
@@ -107,7 +144,7 @@ export default function SentimentPanel({ sentiment, loading, symbol }: Sentiment
         {/* Funding Rate */}
         <div className="bg-slate-900 border border-slate-800/80 rounded-xl p-4 space-y-1">
           <span className="text-xs text-slate-400 block">Funding Rate</span>
-          <div className="text-lg font-bold text-slate-100 flex items-center gap-1">
+          <div className="text-lg font-bold text-slate-100 flex items-center gap-1 font-mono">
             <DollarSign size={16} className="text-emerald-400" />
             {sentiment.fundingRate !== null 
               ? `${(sentiment.fundingRate * 100).toFixed(4)}%` 
@@ -121,7 +158,7 @@ export default function SentimentPanel({ sentiment, loading, symbol }: Sentiment
         {/* Open Interest */}
         <div className="bg-slate-900 border border-slate-800/80 rounded-xl p-4 space-y-1">
           <span className="text-xs text-slate-400 block">Open Interest (สัญญาคงค้าง)</span>
-          <div className="text-lg font-bold text-slate-100 flex items-center gap-1 truncate">
+          <div className="text-lg font-bold text-slate-100 flex items-center gap-1 truncate font-mono">
             <BarChart2 size={16} className="text-indigo-400 shrink-0" />
             {sentiment.openInterest !== null 
               ? sentiment.openInterest.toLocaleString(undefined, { maximumFractionDigits: 0 }) 
