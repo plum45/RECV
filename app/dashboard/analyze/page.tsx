@@ -15,6 +15,7 @@ import AnalysisPanel from "../../../components/AnalysisPanel";
 import LoadingState from "../../../components/LoadingState";
 
 import SRChart from "../../../components/SRChart";
+import SummaryPanel from "../../../components/SummaryPanel";
 import { TickerData, IndicatorData, SupportResistanceData, KlineData } from "../../../types/market";
 import { NewsArticle } from "../../../types/news";
 import { SentimentData } from "../../../types/analysis";
@@ -552,6 +553,18 @@ function AnalyzePageContent() {
           </div>
         )}
 
+        {/* สรุปก่อนตัดสินใจ (Decision Summary Panel) */}
+        {marketData && supportResistance && indicators && (
+          <SummaryPanel
+            symbol={symbol}
+            marketData={marketData}
+            supportResistance={supportResistance}
+            indicators={indicators}
+            isInWatchlist={isInWatchlist}
+            toggleWatchlist={toggleWatchlist}
+          />
+        )}
+
           <>
 
             {/* Dashboard Grid Workspace */}
@@ -634,7 +647,7 @@ function AnalyzePageContent() {
             </div>
 
             {/* BOTTOM FULL WIDTH SECTION: Quantitative analysis Report Panel */}
-            <div className="w-full pt-2">
+            <div id="trading-analysis-panel" className="w-full pt-2">
               <div className="border-t border-slate-900/80 pt-6">
                 <AnalysisPanel reportText={analysisReport} loading={loading} />
               </div>

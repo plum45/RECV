@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Home, Star, LayoutGrid, SlidersHorizontal, Briefcase } from "lucide-react";
+import { Home, Star, LayoutGrid, SlidersHorizontal, Briefcase, Bell } from "lucide-react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 
 interface MobileNavBarProps {
@@ -24,7 +24,7 @@ export default function MobileNavBar({ setActiveTab }: MobileNavBarProps) {
 
   const navItems = [
     { id: "home", label: "หน้าแรก", icon: Home, path: "/dashboard" },
-    { id: "favorites", label: "หุ้นโปรด", icon: Star, path: "/dashboard#watchlist" },
+    { id: "alerts", label: "แจ้งเตือน", icon: Bell, path: "/dashboard/alerts" },
     { id: "invest", label: "ค้นหาหุ้น", icon: LayoutGrid, isCenter: true, path: "/dashboard/invest" },
     { id: "tools", label: "เครื่องมือ", icon: SlidersHorizontal, path: "/dashboard/scanner" },
     { id: "portfolio", label: "พอร์ต", icon: Briefcase, path: "/dashboard/analyze?tab=portfolio" },
@@ -41,8 +41,8 @@ export default function MobileNavBar({ setActiveTab }: MobileNavBarProps) {
     if (item.id === "invest") {
       return pathname === "/dashboard/invest";
     }
-    if (item.id === "favorites") {
-      return pathname === "/dashboard" && currentHash === "#watchlist" && !tabParam;
+    if (item.id === "alerts") {
+      return pathname === "/dashboard/alerts";
     }
     if (item.id === "home") {
       return pathname === "/dashboard" && currentHash !== "#watchlist" && !tabParam;
@@ -53,21 +53,6 @@ export default function MobileNavBar({ setActiveTab }: MobileNavBarProps) {
   const handleNav = (item: typeof navItems[0]) => {
     if (setActiveTab) {
       setActiveTab(item.id);
-    }
-    if (item.id === "favorites") {
-      setCurrentHash("#watchlist");
-      if (pathname === "/dashboard") {
-        window.location.hash = "watchlist";
-        const el = document.getElementById("watchlist");
-        if (el) {
-          el.scrollIntoView({ behavior: "smooth" });
-        } else {
-          router.push("/dashboard#watchlist");
-        }
-      } else {
-        router.push("/dashboard#watchlist");
-      }
-      return;
     }
     if (item.id === "home" && pathname === "/dashboard") {
       setCurrentHash("");

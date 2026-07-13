@@ -73,12 +73,14 @@ async function triggerAlerts(request: Request) {
 
     const symbolsToScan = Array.from(symbolSet);
     const alertsSentCount: Record<string, number> = {};
+    const symbolPrices: Record<string, number> = {};
     const now = Date.now();
 
     // Loop exactly ONCE per symbol
     for (const symbol of symbolsToScan) {
       try {
         const ticker = await getTicker(symbol);
+        symbolPrices[symbol] = ticker.currentPrice;
         const isCrypto = symbol.toUpperCase().endsWith("-USD");
         const timeframe = isCrypto ? "4H" : "1D";
         const klines = await getKlines(symbol, timeframe, 450);
@@ -133,7 +135,33 @@ async function triggerAlerts(request: Request) {
 
           const uid = sub.uid;
           const chatId = sub.chatId;
-          const cooldownMinutes = Math.max(120, typeof sub.cooldownMinutes === "number" ? sub.cooldownMinutes : 120);
+
+          // Check Quiet Hours (GMT+7 timezone)
+          if (sub.quietHours && sub.quietHours.enabled) {
+            const nowThai = new Date(Date.now() + 7 * 60 * 60 * 1000);
+            const currentHour = nowThai.getUTCHours();
+            const currentMin = nowThai.getUTCMinutes();
+            const currentTimeStr = `${String(currentHour).padStart(2, "0")}:${String(currentMin).padStart(2, "0")}`;
+            const { start, end } = sub.quietHours;
+            
+            const isQuiet = start < end 
+              ? (currentTimeStr >= start && currentTimeStr <= end)
+              : (currentTimeStr >= start || currentTimeStr <= end);
+              
+            if (isQuiet) {
+              console.log(`Skipping alert delivery for uid ${uid} due to Quiet Hours: ${currentTimeStr} is between ${start} and ${end}`);
+              continue;
+            }
+          }
+
+          // Per-symbol configs override
+          const config = sub.configs?.[symbol] || {};
+          const isRsiEnabled = config.rsiEnabled !== undefined ? config.rsiEnabled : (sub.rsiEnabled !== false);
+          const isMacdEnabled = config.macdEnabled !== undefined ? config.macdEnabled : (sub.macdEnabled !== false);
+          const isSrFlipEnabled = config.srFlipEnabled !== undefined ? config.srFlipEnabled : (sub.srFlipEnabled !== false);
+          const isSupportEnabled = config.supportEnabled !== undefined ? config.supportEnabled : (sub.supportEnabled !== false);
+
+          const cooldownMinutes = Math.max(15, typeof sub.cooldownMinutes === "number" ? sub.cooldownMinutes : 120);
           const cooldownMs = cooldownMinutes * 60 * 1000;
 
           // Fetch user's alert history & state lock for this symbol
@@ -149,7 +177,7 @@ async function triggerAlerts(request: Request) {
           const newState: any = { ...stateData, updatedAt: now };
 
           // --- RSI Trigger ---
-          if (sub.rsiEnabled !== false) {
+          if (isRsiEnabled) {
             if (rsi14 < 30) {
               if (stateData.rsiLock !== "oversold" && (!stateData.lastRsiAlertTime || now - stateData.lastRsiAlertTime > cooldownMs)) {
                 triggeredMessages.push(`📊 RSI Oversold (${Math.round(rsi14)}) - สัญญาณขายมากเกินไป มีโอกาสปรับตัวหรือกลับตัวขึ้น`);
@@ -169,7 +197,7 @@ async function triggerAlerts(request: Request) {
           }
 
           // --- MACD Crossover Trigger ---
-          if (sub.macdEnabled !== false) {
+          if (isMacdEnabled) {
             if (macd.crossover === "bullish") {
               if (stateData.lastMacdCrossover !== "bullish" && (!stateData.lastMacdAlertTime || now - stateData.lastMacdAlertTime > cooldownMs)) {
                 triggeredMessages.push(`🚀 MACD เกิดสัญญาณ Bullish Crossover (สัญญาณซื้อ/เปลี่ยนแนวโน้มเป็นขาขึ้น)`);
@@ -186,7 +214,7 @@ async function triggerAlerts(request: Request) {
           }
 
           // --- S/R Flip Zone Trigger ---
-          if (sub.srFlipEnabled !== false) {
+          if (isSrFlipEnabled) {
             if (touchedFlipZone) {
               if (stateData.srFlipLock !== touchedFlipZone && (!stateData.lastSrFlipAlertTime || now - stateData.lastSrFlipAlertTime > cooldownMs)) {
                 triggeredMessages.push(`🔄 ราคาเข้าใกล้โซนกลับบทบาท (S/R Flip): ${touchedFlipZone}`);
@@ -199,7 +227,7 @@ async function triggerAlerts(request: Request) {
           }
 
           // --- Support Proximity Trigger ---
-          if (sub.supportEnabled !== false) {
+          if (isSupportEnabled) {
             if (touchedStrongSupport) {
               if (stateData.supportLock !== touchedStrongSupport && (!stateData.lastSupportAlertTime || now - stateData.lastSupportAlertTime > cooldownMs)) {
                 triggeredMessages.push(`🛡️ ${touchedStrongSupport}`);
@@ -229,6 +257,21 @@ async function triggerAlerts(request: Request) {
             const sent = await sendUserTelegramMessage(uid, chatId, thaiAlertMsg, db);
             if (sent) {
               alertsSentCount[symbol] = (alertsSentCount[symbol] || 0) + 1;
+              if (db) {
+                try {
+                  await db.collection("users").doc(uid).collection("alertHistoryLogs").add({
+                    symbol,
+                    priceAtTrigger: price,
+                    triggeredMessages,
+                    sentAt: now,
+                    outcome1h: null,
+                    outcome24h: null,
+                    status: "Pending"
+                  });
+                } catch (e: any) {
+                  console.error(`Failed to write alertHistoryLog for uid ${uid}:`, e.message);
+                }
+              }
             }
           }
         }
@@ -259,6 +302,67 @@ async function triggerAlerts(request: Request) {
 
       } catch (err: any) {
         console.error(`Error processing market scan for ${symbol}:`, err.message);
+      }
+    }
+
+    // 3. Update pending outcomes after scanning is done
+    if (db) {
+      const oneHour = 60 * 60 * 1000;
+      const twentyFourHours = 24 * 60 * 60 * 1000;
+
+      for (const sub of activeSubscribers) {
+        try {
+          const logsSnap = await db.collection("users").doc(sub.uid).collection("alertHistoryLogs")
+            .where("status", "==", "Pending")
+            .get();
+
+          for (const doc of logsSnap.docs) {
+            const log = doc.data();
+            const docRef = doc.ref;
+            const elapsed = now - log.sentAt;
+            const updates: any = {};
+
+            let currentPrice = symbolPrices[log.symbol];
+            if (!currentPrice) {
+              try {
+                const tk = await getTicker(log.symbol);
+                currentPrice = tk.currentPrice;
+                symbolPrices[log.symbol] = currentPrice;
+              } catch (e) {
+                // ignore
+              }
+            }
+
+            if (currentPrice) {
+              const pctChange = ((currentPrice - log.priceAtTrigger) / log.priceAtTrigger) * 100;
+
+              if (!log.outcome1h && elapsed >= oneHour) {
+                updates.outcome1h = {
+                  price: currentPrice,
+                  changePercent: pctChange,
+                  result: pctChange >= 0.5 ? "Bullish 📈" : pctChange <= -0.5 ? "Bearish 📉" : "Neutral ➡️"
+                };
+              }
+
+              if (!log.outcome24h && elapsed >= twentyFourHours) {
+                updates.outcome24h = {
+                  price: currentPrice,
+                  changePercent: pctChange,
+                  result: pctChange >= 1.5 ? "Bullish 📈" : pctChange <= -1.5 ? "Bearish 📉" : "Neutral ➡️"
+                };
+                updates.status = "Completed";
+              } else if (elapsed >= oneHour && elapsed < twentyFourHours) {
+                updates.status = "Pending";
+              }
+
+              if (Object.keys(updates).length > 0) {
+                await docRef.update(updates);
+              }
+            }
+          }
+        } catch (e: any) {
+          console.error(`Failed to update alert logs for user ${sub.uid}:`, e.message);
+        }
       }
     }
 

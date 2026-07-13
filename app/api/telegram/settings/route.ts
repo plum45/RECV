@@ -20,21 +20,25 @@ export async function GET(request: Request) {
     const alertSettingsDoc = await db.collection("users").doc(uid).collection("settings").doc("alertSettings").get();
 
     const telegramData = telegramDoc.exists ? telegramDoc.data() : { enabled: false, chatId: null };
-    const alertSettingsData = alertSettingsDoc.exists ? alertSettingsDoc.data() : {
+    const alertSettingsData = alertSettingsDoc.exists ? alertSettingsDoc.data() || {} : {};
+    
+    const finalAlertSettings = {
       enabled: true,
       symbols: ["BTC-USD", "ETH-USD", "SOL-USD"],
       rsiEnabled: true,
       macdEnabled: true,
-      bbEnabled: true,
-      volEnabled: true,
-      interval: "15m",
-      customAlerts: [],
+      srFlipEnabled: true,
+      supportEnabled: true,
+      cooldownMinutes: 120,
+      quietHours: { enabled: false, start: "22:00", end: "06:00" },
+      configs: {},
+      ...alertSettingsData,
     };
 
     return NextResponse.json({
       success: true,
       telegram: telegramData,
-      alertSettings: alertSettingsData,
+      alertSettings: finalAlertSettings,
     });
   } catch (error: any) {
     console.error("Get settings error:", error.message);
@@ -107,6 +111,8 @@ export async function POST(request: Request) {
         srFlipEnabled: alertSettings.srFlipEnabled !== undefined ? Boolean(alertSettings.srFlipEnabled) : true,
         supportEnabled: alertSettings.supportEnabled !== undefined ? Boolean(alertSettings.supportEnabled) : true,
         cooldownMinutes: typeof alertSettings.cooldownMinutes === "number" && alertSettings.cooldownMinutes >= 15 ? alertSettings.cooldownMinutes : 120,
+        quietHours: alertSettings.quietHours || { enabled: false, start: "22:00", end: "06:00" },
+        configs: alertSettings.configs || {},
         updatedAt: Date.now(),
       };
       await db.collection("users").doc(uid).collection("settings").doc("alertSettings").set(updatedAlertData, { merge: true });
