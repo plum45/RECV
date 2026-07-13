@@ -78,7 +78,7 @@ export async function POST(request: Request) {
     }
 
     const indicators = calculateIndicators(klines);
-    const supportResistance = calculateSupportResistance(klines, indicators, marketData.currentPrice);
+    const supportResistance = calculateSupportResistance(klines, indicators, marketData.currentPrice, timeframe);
     const news = await fetchNews(symbol);
     const sentiment = await fetchSentiment(symbol);
 

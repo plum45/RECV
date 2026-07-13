@@ -258,7 +258,9 @@ export async function getKlines(
     if (slicedKlines.length > 0) return slicedKlines;
     throw new Error(`No valid klines returned from Yahoo Finance for ${cleanSymbol}`);
   } catch (error: any) {
-    // 3. Guaranteed High-Fidelity Fallback: Never throw in production or dev to ensure 24/7 chart/scanner continuity
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("ไม่สามารถดึงข้อมูลตลาดล่าสุดได้ (All API fetches failed for historical charts)");
+    }
     console.warn(`All API chart fetches failed for ${cleanSymbol}; using simulated realistic market data:`, error.message);
     return getMockKlines(cleanSymbol, interval, limit);
   }
@@ -326,7 +328,9 @@ export async function getTicker(symbol: string): Promise<TickerData> {
       prePostChange: undefined,
     };
   } catch (error: any) {
-    // 3. Guaranteed High-Fidelity Fallback: Never crash on quote fetch
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("ไม่สามารถดึงข้อมูลตลาดล่าสุดได้ (All API fetches failed for ticker quotes)");
+    }
     console.warn(`All API quote fetches failed for ${cleanSymbol}; using simulated realistic market data:`, error.message);
     return getMockTicker(cleanSymbol);
   }

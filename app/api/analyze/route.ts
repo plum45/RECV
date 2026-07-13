@@ -26,6 +26,11 @@ const analyzeInputSchema = z.object({
     }))
     .default("swing"),
   risk: z.string().default("1%"),
+  accountSize: z.number().optional(),
+  riskPercent: z.number().optional(),
+  leverage: z.number().optional(),
+  feePercent: z.number().optional(),
+  slippagePercent: z.number().optional(),
 });
 
 const styleMeta = {
@@ -93,7 +98,8 @@ export async function POST(request: Request) {
     const supportResistance = calculateSupportResistance(
       klines,
       indicators,
-      marketData.currentPrice
+      marketData.currentPrice,
+      timeframe
     );
 
     // 5. Gather news
@@ -141,6 +147,11 @@ export async function POST(request: Request) {
             news,
             sentiment,
             klines,
+            accountSize: parsedInput.accountSize,
+            riskPercent: parsedInput.riskPercent,
+            leverage: parsedInput.leverage,
+            feePercent: parsedInput.feePercent,
+            slippagePercent: parsedInput.slippagePercent,
           });
           analysisSource = "Local Quant Engine (Fallback)";
         }
@@ -157,6 +168,11 @@ export async function POST(request: Request) {
         news,
         sentiment,
         klines,
+        accountSize: parsedInput.accountSize,
+        riskPercent: parsedInput.riskPercent,
+        leverage: parsedInput.leverage,
+        feePercent: parsedInput.feePercent,
+        slippagePercent: parsedInput.slippagePercent,
       });
     }
 

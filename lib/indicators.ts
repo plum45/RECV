@@ -3,13 +3,15 @@ import { KlineData, IndicatorData } from "../types/market";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
-function sma(arr: number[], period: number): number[] {
-  const result: number[] = [];
-  for (let i = period - 1; i < arr.length; i++) {
-    const slice = arr.slice(i - period + 1, i + 1);
-    result.push(slice.reduce((a, b) => a + b, 0) / period);
-  }
-  return result;
+function safeDiv(num: number, den: number, fallback = 0): number {
+  if (!den || isNaN(den) || !isFinite(den)) return fallback;
+  const res = num / den;
+  return isNaN(res) || !isFinite(res) ? fallback : res;
+}
+
+function safeNum(val: any, fallback = 0): number {
+  if (val === null || val === undefined || isNaN(val) || !isFinite(val)) return fallback;
+  return Number(val);
 }
 
 // ── Main Export ─────────────────────────────────────────────────────────────
@@ -22,11 +24,21 @@ export function calculateIndicators(klines: KlineData[]): IndicatorData {
     );
   }
 
-  const closes  = klines.map((k) => k.close);
-  const highs   = klines.map((k) => k.high);
-  const lows    = klines.map((k) => k.low);
-  const volumes = klines.map((k) => k.volume);
-  const opens   = klines.map((k) => k.open);
+  // Data Validation checks
+  for (let i = 0; i < klines.length; i++) {
+    const k = klines[i];
+    if (k.open < 0 || k.high < 0 || k.low < 0 || k.close < 0 || k.volume < 0) {
+      throw new Error(`Data Validation Error: Negative values detected in candle OHLC or volume.`);
+    }
+    if (k.low > k.high || k.low > k.open || k.low > k.close || k.high < k.open || k.high < k.close) {
+      throw new Error(`Data Validation Error: Invalid candle bounds. High must be >= Low/Open/Close.`);
+    }
+  }
+
+  const closes  = klines.map((k) => safeNum(k.close));
+  const highs   = klines.map((k) => safeNum(k.high));
+  const lows    = klines.map((k) => safeNum(k.low));
+  const volumes = klines.map((k) => safeNum(k.volume));
   const len     = klines.length;
 
   // ── 1. EMAs ───────────────────────────────────────────────────────────
@@ -38,17 +50,17 @@ export function calculateIndicators(klines: KlineData[]): IndicatorData {
   const ema50Arr  = EMA.calculate({ period: ema50P, values: closes });
   const ema200Arr = len >= 200 ? EMA.calculate({ period: ema200P, values: closes }) : [];
 
-  const ema20  = ema20Arr[ema20Arr.length - 1]   || 0;
-  const ema50  = ema50Arr[ema50Arr.length - 1]   || 0;
-  const ema200 = ema200Arr.length > 0 ? ema200Arr[ema200Arr.length - 1] : 0;
+  const ema20  = safeNum(ema20Arr[ema20Arr.length - 1]);
+  const ema50  = safeNum(ema50Arr[ema50Arr.length - 1]);
+  const ema200 = ema200Arr.length > 0 ? safeNum(ema200Arr[ema200Arr.length - 1]) : 0;
 
   // ── 2. RSI ───────────────────────────────────────────────────────────
   const rsiP    = Math.min(14, len - 2);
   const rsiArr  = RSI.calculate({ period: rsiP, values: closes });
-  const rsi14   = rsiArr[rsiArr.length - 1] || 50;
+  const rsi14   = safeNum(rsiArr[rsiArr.length - 1], 50);
 
   // ── 3. MACD + crossover detection ─────────────────────────────────────
-  let macdData: { macdLine: number; signalLine: number; histogram: number; crossover: "bullish" | "bearish" | "none" } = { macdLine: 0, signalLine: 0, histogram: 0, crossover: "none" };
+  let macdData = { macdLine: 0, signalLine: 0, histogram: 0, crossover: "none" as "bullish" | "bearish" | "none", crossoverBarsAgo: -1 };
   if (len >= 35) {
     const macdArr = MACD.calculate({
       values: closes,
@@ -58,49 +70,117 @@ export function calculateIndicators(klines: KlineData[]): IndicatorData {
       SimpleMAOscillator: false,
       SimpleMASignal: false,
     });
-    const cur = macdArr[macdArr.length - 1];
-    const prev = macdArr[macdArr.length - 2];
-    let crossover: "bullish" | "bearish" | "none" = "none" as "bullish" | "bearish" | "none";
-    if (cur && prev) {
-      const curHist  = cur.histogram  || 0;
-      const prevHist = prev.histogram || 0;
-      if (prevHist < 0 && curHist >= 0) crossover = "bullish" as const;
-      else if (prevHist > 0 && curHist <= 0) crossover = "bearish" as const;
+    
+    let crossover: "bullish" | "bearish" | "none" = "none";
+    let crossoverBarsAgo = -1;
+    for (let i = macdArr.length - 1; i >= 1; i--) {
+      const cur = macdArr[i];
+      const prev = macdArr[i - 1];
+      if (cur && prev) {
+        const curHist  = safeNum(cur.histogram);
+        const prevHist = safeNum(prev.histogram);
+        if (prevHist < 0 && curHist >= 0) {
+          crossover = "bullish";
+          crossoverBarsAgo = macdArr.length - 1 - i;
+          break;
+        } else if (prevHist > 0 && curHist <= 0) {
+          crossover = "bearish";
+          crossoverBarsAgo = macdArr.length - 1 - i;
+          break;
+        }
+      }
     }
+    
+    const cur = macdArr[macdArr.length - 1];
     macdData = {
-      macdLine:   cur?.MACD      || 0,
-      signalLine: cur?.signal    || 0,
-      histogram:  cur?.histogram || 0,
+      macdLine:   safeNum(cur?.MACD),
+      signalLine: safeNum(cur?.signal),
+      histogram:  safeNum(cur?.histogram),
       crossover,
+      crossoverBarsAgo,
     };
   }
 
   // ── 4. ATR ───────────────────────────────────────────────────────────
   const atrP   = Math.min(14, len - 2);
   const atrArr = ATR.calculate({ period: atrP, high: highs, low: lows, close: closes });
-  const atr14  = atrArr[atrArr.length - 1] || 0;
+  const atr14  = safeNum(atrArr[atrArr.length - 1], 0);
 
-  // ── 5. Pivot Points ──────────────────────────────────────────────────
-  const prev = klines[len - 2];
-  const P  = (prev.high + prev.low + prev.close) / 3;
-  const R1 = 2 * P - prev.low;
-  const S1 = 2 * P - prev.high;
-  const R2 = P + (prev.high - prev.low);
-  const S2 = P - (prev.high - prev.low);
-  const R3 = prev.high + 2 * (P - prev.low);
-  const S3 = prev.low  - 2 * (prev.high - P);
+  // ── 5. Pivot Points (Previous Candle, Day, Week) ─────────────────────
+  const prevCandle = klines[len - 2];
+  const P  = (prevCandle.high + prevCandle.low + prevCandle.close) / 3;
+  const R1 = 2 * P - prevCandle.low;
+  const S1 = 2 * P - prevCandle.high;
+  const R2 = P + (prevCandle.high - prevCandle.low);
+  const S2 = P - (prevCandle.high - prevCandle.low);
+  const R3 = prevCandle.high + 2 * (P - prevCandle.low);
+  const S3 = prevCandle.low  - 2 * (prevCandle.high - P);
   const pivot = { p: P, r1: R1, s1: S1, r2: R2, s2: S2, r3: R3, s3: S3 };
+
+  // Calculate previous day aggregates
+  const dayBuckets: Record<number, KlineData[]> = {};
+  klines.forEach(k => {
+    const day = Math.floor(k.openTime / (24 * 60 * 60 * 1000));
+    if (!dayBuckets[day]) dayBuckets[day] = [];
+    dayBuckets[day].push(k);
+  });
+  const sortedDays = Object.keys(dayBuckets).map(Number).sort((a,b)=>a-b);
+  let dayPivot = { p: P, r1: R1, s1: S1, r2: R2, s2: S2 };
+  if (sortedDays.length >= 2) {
+    const prevDayKey = sortedDays[sortedDays.length - 2];
+    const prevDayGroup = dayBuckets[prevDayKey];
+    const dh = Math.max(...prevDayGroup.map(g => g.high));
+    const dl = Math.min(...prevDayGroup.map(g => g.low));
+    const dc = prevDayGroup[prevDayGroup.length - 1].close;
+    const dp = (dh + dl + dc) / 3;
+    dayPivot = {
+      p: dp,
+      r1: 2 * dp - dl,
+      s1: 2 * dp - dh,
+      r2: dp + (dh - dl),
+      s2: dp - (dh - dl),
+    };
+  }
+
+  // Calculate previous week aggregates
+  const weekBuckets: Record<number, KlineData[]> = {};
+  klines.forEach(k => {
+    const week = Math.floor(k.openTime / 604800000);
+    if (!weekBuckets[week]) weekBuckets[week] = [];
+    weekBuckets[week].push(k);
+  });
+  const sortedWeeks = Object.keys(weekBuckets).map(Number).sort((a,b)=>a-b);
+  let weekPivot = { p: P, r1: R1, s1: S1, r2: R2, s2: S2 };
+  if (sortedWeeks.length >= 2) {
+    const prevWeekKey = sortedWeeks[sortedWeeks.length - 2];
+    const prevWeekGroup = weekBuckets[prevWeekKey];
+    const wh = Math.max(...prevWeekGroup.map(g => g.high));
+    const wl = Math.min(...prevWeekGroup.map(g => g.low));
+    const wc = prevWeekGroup[prevWeekGroup.length - 1].close;
+    const wp = (wh + wl + wc) / 3;
+    weekPivot = {
+      p: wp,
+      r1: 2 * wp - wl,
+      s1: 2 * wp - wh,
+      r2: wp + (wh - wl),
+      s2: wp - (wh - wl),
+    };
+  }
+
+  const pivotDetails = {
+    candlePivot: { p: P, r1: R1, s1: S1, r2: R2, s2: S2 },
+    dayPivot,
+    weekPivot,
+  };
 
   // ── 6. Volume + OBV ──────────────────────────────────────────────────
   const volW  = Math.min(20, len - 2);
   const lastVols = volumes.slice(len - volW - 1, len - 1);
-  const avgVolume20 = lastVols.reduce((s, v) => s + v, 0) / lastVols.length;
-  const currentVolume = klines[len - 1].volume;
-  const volumeRatio   = avgVolume20 > 0 ? currentVolume / avgVolume20 : 1;
+  const avgVolume20 = safeNum(lastVols.reduce((s, v) => s + v, 0) / Math.max(1, lastVols.length));
+  const currentVolume = safeNum(klines[len - 1].volume);
+  const volumeRatio   = safeDiv(currentVolume, avgVolume20, 1);
   const isVolumeSpike = volumeRatio >= 1.8;
 
-  // OBV: build a cumulative series, then compare recent vs prior slope.
-  // Comparing signed volume buckets directly is incorrect when both are negative.
   let obv = 0;
   const obvSeries = [0];
   const obvWindow = Math.min(20, len);
@@ -123,14 +203,13 @@ export function calculateIndicators(klines: KlineData[]): IndicatorData {
   const bbP = Math.min(20, len - 1);
   const bbArr = BollingerBands.calculate({ period: bbP, stdDev: 2, values: closes });
   const bb = bbArr[bbArr.length - 1];
-  const bbUpper     = bb?.upper  || closes[len - 1] * 1.02;
-  const bbMiddle    = bb?.middle || closes[len - 1];
-  const bbLower     = bb?.lower  || closes[len - 1] * 0.98;
-  const bandwidth   = bbMiddle > 0 ? (bbUpper - bbLower) / bbMiddle : 0;
-  const percentB    = bbUpper !== bbLower ? (closes[len - 1] - bbLower) / (bbUpper - bbLower) : 0.5;
+  const bbUpper     = safeNum(bb?.upper, closes[len - 1] * 1.02);
+  const bbMiddle    = safeNum(bb?.middle, closes[len - 1]);
+  const bbLower     = safeNum(bb?.lower, closes[len - 1] * 0.98);
+  const bandwidth   = safeDiv(bbUpper - bbLower, bbMiddle, 0);
+  const percentB    = safeDiv(closes[len - 1] - bbLower, bbUpper - bbLower, 0.5);
 
-  // Squeeze: bandwidth < 20-period avg bandwidth
-  const bwHistory   = bbArr.map((b) => b ? (b.upper - b.lower) / b.middle : 0);
+  const bwHistory   = bbArr.map((b) => b ? safeDiv(b.upper - b.lower, b.middle, 0) : 0);
   const avgBw       = bwHistory.length > 0 ? bwHistory.reduce((a, b) => a + b, 0) / bwHistory.length : bandwidth;
   const bbSqueeze   = bandwidth < avgBw * 0.8;
 
@@ -138,20 +217,20 @@ export function calculateIndicators(klines: KlineData[]): IndicatorData {
 
   // ── 8. ADX (14) ────────────────────────────────────────────────────
   const adxP = Math.min(14, len - 2);
-  let adxData: { adx: number; plusDI: number; minusDI: number; trending: boolean; direction: "up" | "down" | "neutral" } = { adx: 0, plusDI: 0, minusDI: 0, trending: false, direction: "neutral" };
+  let adxData = { adx: 0, plusDI: 0, minusDI: 0, trending: false, direction: "neutral" as "up" | "down" | "neutral" };
   if (len >= adxP * 2) {
     const adxArr = ADX.calculate({ period: adxP, high: highs, low: lows, close: closes });
     const adxLast = adxArr[adxArr.length - 1];
     if (adxLast) {
-      const adxVal = adxLast.adx || 0;
-      const pdi    = adxLast.pdi || 0;
-      const mdi    = adxLast.mdi || 0;
+      const adxVal = safeNum(adxLast.adx);
+      const pdi    = safeNum(adxLast.pdi);
+      const mdi    = safeNum(adxLast.mdi);
       adxData = {
         adx: adxVal,
         plusDI: pdi,
         minusDI: mdi,
         trending: adxVal > 25,
-        direction: (pdi > mdi ? "up" : mdi > pdi ? "down" : "neutral") as "up" | "down" | "neutral",
+        direction: (pdi > mdi ? "up" : mdi > mdi ? "down" : "neutral"),
       };
     }
   }
@@ -169,16 +248,17 @@ export function calculateIndicators(klines: KlineData[]): IndicatorData {
     const stochLast = stochArr[stochArr.length - 1];
     if (stochLast) {
       stochRSI = {
-        k: stochLast.k || 50,
-        d: stochLast.d || 50,
-        overbought: (stochLast.k || 0) > 80,
-        oversold:   (stochLast.k || 0) < 20,
+        k: safeNum(stochLast.k, 50),
+        d: safeNum(stochLast.d, 50),
+        overbought: safeNum(stochLast.k) > 80,
+        oversold:   safeNum(stochLast.k) < 20,
       };
     }
   }
 
-  // ── 10. Fibonacci Retracement (swing over last 60 candles) ───────────
-  const fibWindow = klines.slice(Math.max(0, len - 60));
+  // ── 10. Fibonacci Retracement (lookback: 60 candles) ─────────────────
+  const lookbackBars = Math.min(60, len);
+  const fibWindow = klines.slice(len - lookbackBars);
   const swingHigh = Math.max(...fibWindow.map((k) => k.high));
   const swingLow  = Math.min(...fibWindow.map((k) => k.low));
   const fibRange  = swingHigh - swingLow;
@@ -195,8 +275,12 @@ export function calculateIndicators(klines: KlineData[]): IndicatorData {
     ext127: swingHigh + fibRange * 0.272,
     ext161: swingHigh + fibRange * 0.618,
   };
+  const fibonacciDetails = {
+    lookbackBars,
+    periodName: `Last ${lookbackBars} Bars`,
+  };
 
-  // ── 11. VWAP (intraday — last 50 candles) ────────────────────────────
+  // ── 11. VWAP (Intraday vs. Rolling VWAP) ────────────────────────────
   const vwapSlice = klines.slice(Math.max(0, len - 50));
   let cumTPV = 0, cumVol = 0;
   for (const k of vwapSlice) {
@@ -204,14 +288,18 @@ export function calculateIndicators(klines: KlineData[]): IndicatorData {
     cumTPV += tp * k.volume;
     cumVol += k.volume;
   }
-  const vwap = cumVol > 0 ? cumTPV / cumVol : closes[len - 1];
+  const vwap = safeDiv(cumTPV, cumVol, closes[len - 1]);
+  const vwapDetails = {
+    type: "intraday" as const,
+    value: vwap,
+    length: vwapSlice.length,
+  };
 
   // ── 12. Market Structure (HH/HL/LH/LL + Break of Structure) ──────────
-  // Detect swing points over last 30 candles with window 3
   const strWindow = klines.slice(Math.max(0, len - 40));
   const W = 3;
-  const swingHighs: number[] = [];
-  const swingLows:  number[] = [];
+  const structHighs: number[] = [];
+  const structLows:  number[] = [];
 
   for (let i = W; i < strWindow.length - W; i++) {
     let isHigh = true, isLow = true;
@@ -221,14 +309,14 @@ export function calculateIndicators(klines: KlineData[]): IndicatorData {
         if (strWindow[j].low  <= strWindow[i].low)  isLow  = false;
       }
     }
-    if (isHigh) swingHighs.push(strWindow[i].high);
-    if (isLow)  swingLows.push(strWindow[i].low);
+    if (isHigh) structHighs.push(strWindow[i].high);
+    if (isLow)  structLows.push(strWindow[i].low);
   }
 
-  const lastSwingHigh = swingHighs[swingHighs.length - 1] || highs[len - 1];
-  const lastSwingLow  = swingLows[swingLows.length  - 1]  || lows[len - 1];
-  const prevSwingHigh = swingHighs[swingHighs.length - 2] || lastSwingHigh;
-  const prevSwingLow  = swingLows[swingLows.length  - 2]  || lastSwingLow;
+  const lastSwingHigh = structHighs[structHighs.length - 1] || highs[len - 1];
+  const lastSwingLow  = structLows[structLows.length  - 1]  || lows[len - 1];
+  const prevSwingHigh = structHighs[structHighs.length - 2] || lastSwingHigh;
+  const prevSwingLow  = structLows[structLows.length  - 2]  || lastSwingLow;
 
   const higherHighs = lastSwingHigh > prevSwingHigh;
   const higherLows  = lastSwingLow  > prevSwingLow;
@@ -239,7 +327,6 @@ export function calculateIndicators(klines: KlineData[]): IndicatorData {
     higherHighs && higherLows ? "uptrend" :
     lowerHighs  && lowerLows  ? "downtrend" : "sideways";
 
-  // Break of Structure: price breaks last swing high (bullish BOS) or last swing low (bearish BOS)
   const curPrice = closes[len - 1];
   let breakOfStructure: "bullish_bos" | "bearish_bos" | "none" = "none";
   if (curPrice > prevSwingHigh && prevSwingHigh > 0) breakOfStructure = "bullish_bos";
@@ -258,12 +345,15 @@ export function calculateIndicators(klines: KlineData[]): IndicatorData {
     macd: macdData,
     atr14,
     pivot,
+    pivotDetails,
     volumeAnalysis,
     bollingerBands,
     adx: adxData,
     stochasticRSI: stochRSI,
     fibonacci,
+    fibonacciDetails,
     vwap,
+    vwapDetails,
     marketStructure,
   };
 }

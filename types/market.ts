@@ -30,6 +30,7 @@ export interface IndicatorData {
     signalLine: number;
     histogram: number;
     crossover: "bullish" | "bearish" | "none"; // fresh crossover signal
+    crossoverBarsAgo: number;
   };
   atr14: number;
   pivot: {
@@ -40,6 +41,11 @@ export interface IndicatorData {
     s2: number;
     r3: number;
     s3: number;
+  };
+  pivotDetails: {
+    candlePivot: { p: number; r1: number; s1: number; r2: number; s2: number };
+    dayPivot: { p: number; r1: number; s1: number; r2: number; s2: number };
+    weekPivot: { p: number; r1: number; s1: number; r2: number; s2: number };
   };
   volumeAnalysis: {
     avgVolume20: number;
@@ -83,7 +89,16 @@ export interface IndicatorData {
     ext127: number; // 127.2% extension
     ext161: number; // 161.8% extension
   };
+  fibonacciDetails: {
+    lookbackBars: number;
+    periodName: string;
+  };
   vwap: number; // Volume Weighted Average Price (intraday)
+  vwapDetails: {
+    type: "intraday" | "rolling";
+    value: number;
+    length: number;
+  };
   marketStructure: {
     type: "uptrend" | "downtrend" | "sideways";
     higherHighs: boolean;
@@ -123,6 +138,8 @@ export interface SupportResistanceZone {
   failedReactions?: number;
   lastTouchAge?: number | null;
   components?: ZoneComponents;
+  ageString?: string;
+  distancePercent?: number;
 }
 
 export interface SupportResistanceData {

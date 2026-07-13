@@ -29,6 +29,7 @@ interface GroupScoreResult {
   failedReactions: number;
   lastTouchAge: number | null;
   components: ZoneComponents;
+  ageString: string;
   _mid: number;
   _minVal: number;
   _maxVal: number;
@@ -40,7 +41,8 @@ function calculateGroupScore(
   indicators: IndicatorData,
   currentPrice: number,
   threshold: number,
-  avgVolume: number
+  avgVolume: number,
+  timeframe = "1H"
 ): GroupScoreResult {
   const reasons: string[] = [];
   let baseScore = 0;
@@ -88,29 +90,48 @@ function calculateGroupScore(
   const minVal = Math.min(...nearby.map((o) => o.price));
   const maxVal = Math.max(...nearby.map((o) => o.price));
 
-  // 1. Freshness & Age penalty calculation
+  // 1. Freshness & Age penalty calculation using mean age of all candidates
   const ages = nearby
     .map((c) => c.age)
     .filter((age): age is number => age !== undefined);
-  const minAge = ages.length > 0 ? Math.min(...ages) : 400;
+  const avgAgeBars = ages.length > 0 ? ages.reduce((a, b) => a + b, 0) / ages.length : 400;
+
+  // Real time estimation based on timeframe
+  let barDurationMinutes = 60;
+  const tf = timeframe.toLowerCase();
+  if (tf === "5m") barDurationMinutes = 5;
+  else if (tf === "15m") barDurationMinutes = 15;
+  else if (tf === "4h") barDurationMinutes = 240;
+  else if (tf === "1d") barDurationMinutes = 1440;
+  else if (tf === "1w") barDurationMinutes = 10080;
+
+  const avgAgeMinutes = avgAgeBars * barDurationMinutes;
+  let ageString = "";
+  if (avgAgeMinutes < 60) {
+    ageString = `${Math.round(avgAgeMinutes)} นาที`;
+  } else if (avgAgeMinutes < 1440) {
+    ageString = `${Math.round(avgAgeMinutes / 60)} ชั่วโมง`;
+  } else {
+    ageString = `${Math.round(avgAgeMinutes / 1440)} วัน`;
+  }
 
   let freshness: ZoneFreshness = "historical";
-  if (minAge <= 80) {
+  if (avgAgeBars <= 80) {
     freshness = "fresh";
     freshnessScore = 1.0;
-    reasons.push("โซนสดใหม่ (Fresh level ≤ 80 แท่งล่าสุด)");
-  } else if (minAge <= 200) {
+    reasons.push(`โซนสดใหม่ (เฉลี่ย ${ageString} ที่ผ่านมา)`);
+  } else if (avgAgeBars <= 200) {
     freshness = "recent";
     freshnessScore = 0.0;
-    reasons.push("โซนระยะกลาง (Recent level 81-200 แท่ง)");
-  } else if (minAge <= 350) {
+    reasons.push(`โซนระยะกลาง (เฉลี่ย ${ageString})`);
+  } else if (avgAgeBars <= 350) {
     freshness = "aged";
     freshnessScore = -1.0;
-    reasons.push("โซนเก่า (Aged level 201-350 แท่ง)");
+    reasons.push(`โซนเก่า (เฉลี่ย ${ageString})`);
   } else {
     freshness = "historical";
     freshnessScore = -2.0;
-    reasons.push("โซนประวัติศาสตร์ (Historical level > 350 แท่ง)");
+    reasons.push(`โซนประวัติศาสตร์ (เฉลี่ย ${ageString})`);
   }
 
   // 2. Confluence Checks (EMA & Pivot Points & Structural variety)
@@ -138,7 +159,7 @@ function calculateGroupScore(
   if (Math.abs(p.s3 - mid) <= threshold) { pivots.push("Pivot S3"); confluenceScore += 1.0; }
 
   if (swingHighs + swingLows > 0 && (fvgs > 0 || obs > 0)) {
-    confluenceScore += 1.0; // Multi-concept confluence bonus
+    confluenceScore += 1.0;
   }
 
   if (swingHighs > 0) reasons.push(`ทดสอบ Swing High ${swingHighs} จุด`);
@@ -188,22 +209,39 @@ function calculateGroupScore(
     }
   }
 
-  if (touches > 0) {
-    reactionScore += Math.min(2.0, successfulReactions * 0.5);
-    reactionScore -= Math.min(2.5, failedReactions * 0.8);
-    reasons.push(`ประวัติการแตะ ${touches} ครั้ง (เด้งกลับ ${successfulReactions} ครั้ง, หลุด/ทะลุ ${failedReactions} ครั้ง)`);
+  // 4. Status Determination & S/R Flip detection
+  // S/R Flip must verify: Breach -> Close confirm -> Retest -> Swap
+  let isFlipped = false;
+  let firstBreachIdx = -1;
+  let retestCount = 0;
+  for (let i = Math.max(1, searchStartIndex); i < klines.length; i++) {
+    const bar = klines[i];
+    if (firstBreachIdx === -1) {
+      if (zoneType === "support" && bar.close < mid) {
+        firstBreachIdx = i;
+      } else if (zoneType === "resistance" && bar.close > mid) {
+        firstBreachIdx = i;
+      }
+    } else {
+      const touchesAgain = bar.low <= touchUpper && bar.high >= touchLower;
+      if (touchesAgain) {
+        if (zoneType === "support" && bar.close < mid * 1.002) {
+          retestCount++;
+        } else if (zoneType === "resistance" && bar.close > mid * 0.998) {
+          retestCount++;
+        }
+      }
+    }
+  }
+  if (firstBreachIdx !== -1 && retestCount >= 1) {
+    isFlipped = true;
   }
 
-  // 4. Status Determination & S/R Flip detection
   let status: ZoneStatus = "active";
-  if (zoneType === "support" && swingHighs > swingLows && swingHighs > 0) {
+  if (isFlipped) {
     status = "flipped";
-    flipScore += 1.0;
-    reasons.push("แนวต้านเก่าเปลี่ยนเป็นแนวรับ (S/R Flip Support)");
-  } else if (zoneType === "resistance" && swingLows > swingHighs && swingLows > 0) {
-    status = "flipped";
-    flipScore += 1.0;
-    reasons.push("แนวรับเก่าเปลี่ยนเป็นแนวต้าน (S/R Flip Resistance)");
+    flipScore += 2.0;
+    reasons.push(`แนวกลับสลับขั้วสำเร็จ (S/R Flip Confirmed: Retest ${retestCount} ครั้ง)`);
   } else if (failedReactions > 0 && lastTouchAge !== null && lastTouchAge <= 25) {
     status = "broken";
     reasons.push("เพิ่งถูกทะลุผ่านในระยะหลัง (Broken Level)");
@@ -212,6 +250,13 @@ function calculateGroupScore(
     reasons.push("ถูกทดสอบบ่อยครั้งจนแรงเด้งลดลง (Weakened Level)");
   } else if (touches > 0) {
     status = "tested";
+  }
+
+  if (touches > 0) {
+    reactionScore += Math.min(2.0, successfulReactions * 0.5);
+    reactionScore -= Math.min(2.5, failedReactions * 0.8);
+    const winRate = Math.round((successfulReactions / touches) * 100);
+    reasons.push(`สถิติทดสอบ: แตะ ${touches} ครั้ง, เด้งสำเร็จ ${successfulReactions} ครั้ง, อัตราความสำเร็จ ${winRate}%`);
   }
 
   // 5. Final Score & Strength Classification
@@ -250,6 +295,7 @@ function calculateGroupScore(
     failedReactions,
     lastTouchAge,
     components,
+    ageString,
     _mid: mid,
     _minVal: minVal,
     _maxVal: maxVal,
@@ -259,7 +305,8 @@ function calculateGroupScore(
 export function calculateSupportResistance(
   klines: KlineData[],
   indicators: IndicatorData,
-  currentPrice: number
+  currentPrice: number,
+  timeframe = "1H"
 ): SupportResistanceData {
   if (!klines || klines.length < 20) {
     throw new Error("ข้อมูลแท่งเทียนไม่เพียงพอสำหรับการคำนวณแนวรับแนวต้าน (ต้องการอย่างน้อย 20 แท่ง)");
@@ -268,7 +315,6 @@ export function calculateSupportResistance(
   const len = klines.length;
   const candidates: CandidatePoint[] = [];
 
-  // Find Min and Max prices in the lookback
   let minPrice = Infinity;
   let maxPrice = -Infinity;
   const historyLookback = Math.max(0, len - 450);
@@ -279,13 +325,12 @@ export function calculateSupportResistance(
 
   const avgVolume = klines.reduce((sum, k) => sum + k.volume, 0) / len;
 
-  // 1. Detect Swing Highs and Swing Lows (W = 12 for high-impact swing levels)
+  // 1. Detect Swing Highs and Swing Lows (W = 12)
   const W = 12;
   for (let i = Math.max(W, historyLookback); i < len - W; i++) {
     const currentHigh = klines[i].high;
     const currentLow = klines[i].low;
 
-    // Check Swing High
     let isSwingHigh = true;
     for (let j = i - W; j <= i + W; j++) {
       if (j !== i && klines[j].high > currentHigh) {
@@ -304,7 +349,6 @@ export function calculateSupportResistance(
       });
     }
 
-    // Check Swing Low
     let isSwingLow = true;
     for (let j = i - W; j <= i + W; j++) {
       if (j !== i && klines[j].low < currentLow) {
@@ -330,7 +374,6 @@ export function calculateSupportResistance(
     const c2 = klines[i - 1];
     const c3 = klines[i];
 
-    // Bullish FVG
     if (c1.high < c3.low && c2.close > c2.open) {
       const fvgMid = (c1.high + c3.low) / 2;
       candidates.push({
@@ -351,7 +394,6 @@ export function calculateSupportResistance(
       }
     }
 
-    // Bearish FVG
     if (c1.low > c3.high && c2.close < c2.open) {
       const fvgMid = (c1.low + c3.high) / 2;
       candidates.push({
@@ -391,7 +433,7 @@ export function calculateSupportResistance(
     });
   }
 
-  // 4. Neighborhood density assessment (Adaptive threshold via ATR or percentage)
+  // 4. Neighborhood density assessment
   const atrThreshold = indicators.atr14 > 0
     ? Math.min(currentPrice * 0.015, Math.max(currentPrice * 0.006, indicators.atr14 * 0.75))
     : currentPrice * 0.010;
@@ -399,7 +441,7 @@ export function calculateSupportResistance(
 
   const rawZones = candidates.map((c) => {
     const nearby = candidates.filter((other) => Math.abs(other.price - c.price) <= threshold);
-    const groupRes = calculateGroupScore(nearby, klines, indicators, currentPrice, threshold, avgVolume);
+    const groupRes = calculateGroupScore(nearby, klines, indicators, currentPrice, threshold, avgVolume, timeframe);
 
     let lower = groupRes._minVal;
     let upper = groupRes._maxVal;
@@ -417,6 +459,8 @@ export function calculateSupportResistance(
       zoneStr = `${lower.toFixed(2)}-${upper.toFixed(2)}`;
     }
 
+    const distancePercent = (Math.abs(groupRes._mid - currentPrice) / currentPrice) * 100;
+
     const zoneObj: SupportResistanceZone & { _mid: number } = {
       zone: zoneStr,
       type,
@@ -430,13 +474,15 @@ export function calculateSupportResistance(
       failedReactions: groupRes.failedReactions,
       lastTouchAge: groupRes.lastTouchAge,
       components: groupRes.components,
+      ageString: groupRes.ageString,
+      distancePercent: Number(distancePercent.toFixed(2)),
       _mid: groupRes._mid,
     };
 
     return zoneObj;
   });
 
-  // 5. Non-Maximum Suppression (NMS) to eliminate overlapping zones
+  // 5. Non-Maximum Suppression (NMS)
   const minSeparation = currentPrice * 0.018;
   const selectedZones: typeof rawZones = [];
   const sortedRawZones = [...rawZones].sort((a, b) => b.score - a.score);
@@ -450,24 +496,14 @@ export function calculateSupportResistance(
     }
   }
 
-  // 6. Immediate price guard filter (exclude levels within 0.6% of current price unless being tested)
-  const immediateZoneGuard = currentPrice * 0.006;
+  // 6. Proximity filter: Filter out zones that are closer than 0.5% to the current price
   const filteredZones = selectedZones.filter((z) => {
-    const absDist = Math.abs(z._mid - currentPrice);
-    if (absDist < immediateZoneGuard) {
-      // Keep only if it's high significance or currently being actively tested right now
-      if (z.score >= 7 && (z.status === "tested" || z.status === "active")) {
-        return true;
-      }
-      return false;
-    }
-    return true;
+    return z.distancePercent !== undefined && z.distancePercent >= 0.5;
   });
 
   const supportZonesRaw = filteredZones.filter((z) => z.type === "support");
   const resistanceZonesRaw = filteredZones.filter((z) => z.type === "resistance");
 
-  // Select top 3 support zones considering score, freshness, and distance
   const topSupports = supportZonesRaw
     .sort((a, b) => {
       const aBonus = (a.freshness === "fresh" ? 1.5 : 0) + (a.status === "active" ? 1 : 0);
@@ -480,7 +516,6 @@ export function calculateSupportResistance(
     .sort((a, b) => b._mid - a._mid)
     .map(({ _mid, ...rest }) => rest);
 
-  // Select top 3 resistance zones considering score, freshness, and distance
   const topResistances = resistanceZonesRaw
     .sort((a, b) => {
       const aBonus = (a.freshness === "fresh" ? 1.5 : 0) + (a.status === "active" ? 1 : 0);
@@ -492,13 +527,6 @@ export function calculateSupportResistance(
   const resistanceZones: SupportResistanceZone[] = topResistances
     .sort((a, b) => a._mid - b._mid)
     .map(({ _mid, ...rest }) => rest);
-
-  // Debug log for test runs if process.env.DEBUG_SR is set or during script verification
-  if (typeof process !== "undefined" && process.env.DEBUG_SR) {
-    console.log("DEBUG selectedZones:", selectedZones.map(z => ({ zone: z.zone, type: z.type, mid: z._mid, score: z.score, freshness: z.freshness })));
-    console.log("DEBUG filteredZones:", filteredZones.map(z => ({ zone: z.zone, type: z.type, mid: z._mid, score: z.score })));
-    console.log("DEBUG supportZonesRaw count:", supportZonesRaw.length, "supportZones count:", supportZones.length);
-  }
 
   return {
     supportZones,

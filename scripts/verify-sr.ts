@@ -7,9 +7,14 @@ function createMockIndicators(overrides?: Partial<IndicatorData>): IndicatorData
     ema50: 0,
     ema200: 0,
     rsi14: 50,
-    macd: { macdLine: 0, signalLine: 0, histogram: 0, crossover: "none" },
+    macd: { macdLine: 0, signalLine: 0, histogram: 0, crossover: "none", crossoverBarsAgo: -1 },
     atr14: 1.5,
     pivot: { p: 0, r1: 0, s1: 0, r2: 0, s2: 0, r3: 0, s3: 0 },
+    pivotDetails: {
+      candlePivot: { p: 0, r1: 0, s1: 0, r2: 0, s2: 0 },
+      dayPivot: { p: 0, r1: 0, s1: 0, r2: 0, s2: 0 },
+      weekPivot: { p: 0, r1: 0, s1: 0, r2: 0, s2: 0 },
+    },
     volumeAnalysis: {
       avgVolume20: 1000,
       isVolumeSpike: false,
@@ -22,7 +27,9 @@ function createMockIndicators(overrides?: Partial<IndicatorData>): IndicatorData
     adx: { adx: 20, plusDI: 15, minusDI: 15, trending: false, direction: "neutral" },
     stochasticRSI: { k: 50, d: 50, overbought: false, oversold: false },
     fibonacci: { swing_high: 120, swing_low: 80, r0: 120, r236: 110, r382: 105, r500: 100, r618: 95, r786: 90, r100: 80, ext127: 130, ext161: 140 },
+    fibonacciDetails: { lookbackBars: 60, periodName: "Last 60 Bars" },
     vwap: 100,
+    vwapDetails: { type: "intraday", value: 100, length: 50 },
     marketStructure: {
       type: "sideways",
       higherHighs: false,
