@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../../../contexts/AuthContext";
+import { auth } from "../../../lib/firebase";
 
 interface TimeframeResult {
   timeframe: string;
@@ -323,73 +324,85 @@ export default function ScannerPage() {
   };
 
   const handleConnectTelegramBot = async () => {
-    const currentUser = auth?.currentUser || user;
-    if (!currentUser) {
-      alert("กรุณาเข้าสู่ระบบใหม่");
+    if (!user) {
+      alert("กรุณาเข้าสู่ระบบก่อนเชื่อมต่อ Telegram");
       return;
     }
+
+    // Pre-open a blank window synchronously (MUST happen in click handler before any await)
+    // This prevents browser popup blockers from blocking the Telegram link
+    const popup = window.open("about:blank", "_blank");
+
     try {
       setConnectingTelegram(true);
-      let token: string | null = null;
-      try {
-        if (auth?.currentUser) {
-          token = await auth.currentUser.getIdToken(true);
-        } else {
-          token = await currentUser.getIdToken(true);
-        }
-      } catch (tokenErr) {
-        console.error("getIdToken error:", tokenErr);
+
+      // Get ID token using the working getSafeIdToken (which uses getIdToken from AuthContext)
+      let token = await getSafeIdToken(true);
+      if (!token) {
+        // Retry once with auth.currentUser directly
+        try {
+          if (auth?.currentUser) {
+            token = await auth.currentUser.getIdToken(true);
+          }
+        } catch (_e) {}
       }
+
       if (!token || typeof token !== "string" || token.length === 0) {
-        alert("กรุณาเข้าสู่ระบบใหม่");
+        if (popup) popup.close();
+        alert("ไม่สามารถรับ Token ยืนยันตัวตนได้ กรุณาออกจากระบบแล้วเข้าสู่ระบบใหม่");
         return;
       }
-      try {
-        const res = await axios.post<{ success: boolean; startUrl?: string; botUsername?: string; token?: string; message?: string; error?: string }>(
+
+      const makeRequest = async (idToken: string) => {
+        return axios.post<{ success: boolean; startUrl?: string; botUsername?: string; token?: string; message?: string; error?: string }>(
           "/api/telegram/token",
           {},
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers: { Authorization: `Bearer ${idToken}` } }
         );
-        if (res.data.success && (res.data.startUrl || (res.data.botUsername && res.data.token))) {
-          const targetUrl = res.data.startUrl || `https://t.me/${res.data.botUsername}?start=${res.data.token}`;
+      };
+
+      let res;
+      try {
+        res = await makeRequest(token);
+      } catch (postErr: any) {
+        // If 401, refresh token and retry once
+        if (postErr.response?.status === 401) {
+          token = await getSafeIdToken(true);
+          if (!token && auth?.currentUser) {
+            try { token = await auth.currentUser.getIdToken(true); } catch (_e) {}
+          }
+          if (token) {
+            res = await makeRequest(token);
+          } else {
+            if (popup) popup.close();
+            alert("Token หมดอายุ กรุณาออกจากระบบแล้วเข้าสู่ระบบใหม่");
+            return;
+          }
+        } else {
+          if (popup) popup.close();
+          const errMsg = postErr.response?.data?.error || postErr.response?.data?.message || postErr.message;
+          alert("เกิดข้อผิดพลาด: " + errMsg);
+          return;
+        }
+      }
+
+      if (res?.data?.success) {
+        const targetUrl = res.data.startUrl || (res.data.botUsername && res.data.token ? `https://t.me/${res.data.botUsername}?start=${res.data.token}` : null);
+        if (targetUrl && popup) {
+          popup.location.href = targetUrl;
+        } else if (targetUrl) {
+          // Fallback if popup was blocked despite pre-opening
           window.open(targetUrl, "_blank");
         } else {
+          if (popup) popup.close();
           alert(res.data.error || res.data.message || "ไม่สามารถสร้างลิงก์เชื่อมต่อ Telegram ได้");
         }
-      } catch (postErr: any) {
-        // If token expired or 401, refresh and retry exactly 1 time
-        if (postErr.response?.status === 401) {
-          try {
-            if (auth?.currentUser) {
-              token = await auth.currentUser.getIdToken(true);
-            } else {
-              token = await currentUser.getIdToken(true);
-            }
-          } catch (retryTokenErr) {
-            token = null;
-          }
-          if (!token || typeof token !== "string" || token.length === 0) {
-            alert("กรุณาเข้าสู่ระบบใหม่");
-            return;
-          }
-          const retryRes = await axios.post<{ success: boolean; startUrl?: string; botUsername?: string; token?: string; message?: string; error?: string }>(
-            "/api/telegram/token",
-            {},
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
-          if (retryRes.data.success && (retryRes.data.startUrl || (retryRes.data.botUsername && retryRes.data.token))) {
-            const targetUrl = retryRes.data.startUrl || `https://t.me/${retryRes.data.botUsername}?start=${retryRes.data.token}`;
-            window.open(targetUrl, "_blank");
-            return;
-          } else {
-            alert(retryRes.data.error || retryRes.data.message || "ไม่สามารถสร้างลิงก์เชื่อมต่อ Telegram ได้");
-            return;
-          }
-        }
-        const errMsg = postErr.response?.data?.error || postErr.response?.data?.message || postErr.message;
-        alert("เกิดข้อผิดพลาดในการสร้างลิงก์เชื่อมต่อ: " + errMsg);
+      } else {
+        if (popup) popup.close();
+        alert(res?.data?.error || res?.data?.message || "ไม่สามารถสร้างลิงก์เชื่อมต่อ Telegram ได้");
       }
     } catch (err: any) {
+      if (popup) popup.close();
       console.error("Connect telegram error:", err);
       alert("เกิดข้อผิดพลาดในการสร้างลิงก์เชื่อมต่อ: " + (err.response?.data?.error || err.response?.data?.message || err.message));
     } finally {
