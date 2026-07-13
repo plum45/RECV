@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, initializeAuth, indexedDBLocalPersistence, browserLocalPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -15,14 +15,23 @@ const app = typeof window !== "undefined" && firebaseConfig.apiKey && getApps().
   ? initializeApp(firebaseConfig) 
   : getApps().length > 0 ? getApps()[0] : null;
 
-const auth = app ? getAuth(app) : null as any;
-const db = app ? getFirestore(app) : null as any;
-
-if (typeof window !== "undefined" && auth) {
-  import("firebase/auth").then(({ setPersistence, browserLocalPersistence }) => {
-    setPersistence(auth, browserLocalPersistence).catch(() => {});
-  });
+let authInstance: any = null;
+if (app) {
+  if (typeof window !== "undefined") {
+    try {
+      authInstance = initializeAuth(app, {
+        persistence: [indexedDBLocalPersistence, browserLocalPersistence]
+      });
+    } catch (e) {
+      authInstance = getAuth(app);
+    }
+  } else {
+    authInstance = getAuth(app);
+  }
 }
+
+const auth = authInstance;
+const db = app ? getFirestore(app) : null as any;
 
 export function getAuthErrorMessage(error: any): string {
   const code = error?.code || "";

@@ -316,7 +316,7 @@ export default function ScannerPage() {
         throw postErr;
       }
     } catch (err: any) {
-      setAlertStatus({ type: "error", text: `ทดสอบ Telegram ล้มเหลว: ${err.response?.data?.message || err.message}` });
+      setAlertStatus({ type: "error", text: `ทดสอบ Telegram ล้มเหลว: ${err.response?.data?.error || err.response?.data?.message || err.message}` });
     } finally {
       setTestingTg(false);
     }
@@ -335,7 +335,7 @@ export default function ScannerPage() {
         return;
       }
       try {
-        const res = await axios.post<{ success: boolean; startUrl: string; botUsername: string; message?: string }>(
+        const res = await axios.post<{ success: boolean; startUrl: string; botUsername: string; message?: string; error?: string }>(
           "/api/telegram/token",
           {},
           { headers: { Authorization: `Bearer ${token}` } }
@@ -343,12 +343,12 @@ export default function ScannerPage() {
         if (res.data.success && res.data.startUrl) {
           window.open(res.data.startUrl, "_blank");
         } else {
-          alert(res.data.message || "ไม่สามารถสร้างลิงก์เชื่อมต่อ Telegram ได้");
+          alert(res.data.error || res.data.message || "ไม่สามารถสร้างลิงก์เชื่อมต่อ Telegram ได้");
         }
       } catch (postErr: any) {
         if (postErr.response?.status === 401) {
           token = await getSafeIdToken(true);
-          const retryRes = await axios.post<{ success: boolean; startUrl: string; botUsername: string; message?: string }>(
+          const retryRes = await axios.post<{ success: boolean; startUrl: string; botUsername: string; message?: string; error?: string }>(
             "/api/telegram/token",
             {},
             { headers: { Authorization: `Bearer ${token}` } }
@@ -362,7 +362,7 @@ export default function ScannerPage() {
       }
     } catch (err: any) {
       console.error("Connect telegram error:", err);
-      alert("เกิดข้อผิดพลาดในการสร้างลิงก์เชื่อมต่อ: " + (err.response?.data?.message || err.message));
+      alert("เกิดข้อผิดพลาดในการสร้างลิงก์เชื่อมต่อ: " + (err.response?.data?.error || err.response?.data?.message || err.message));
     } finally {
       setConnectingTelegram(false);
     }

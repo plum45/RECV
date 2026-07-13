@@ -30,25 +30,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
-    
-    // Ensure persistence is set to local storage across all tabs and devices
-    setPersistence(auth, browserLocalPersistence).catch(() => {});
 
     let initialCheckDone = false;
 
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      if (!initialCheckDone) {
-        if (!currentUser) {
+      if (currentUser) {
+        setUser(currentUser);
+        setLoading(false);
+        initialCheckDone = true;
+      } else {
+        if (!initialCheckDone) {
           // Give IndexedDB / localStorage a brief grace period to restore multi-device session on slow mobile browsers before marking loading false
           setTimeout(() => {
             setUser(auth.currentUser);
             setLoading(false);
             initialCheckDone = true;
-          }, 450);
+          }, 600);
         } else {
-          setLoading(false);
-          initialCheckDone = true;
+          // If already checked before and now null, verify if offline before dropping user state
+          if (typeof navigator !== "undefined" && !navigator.onLine) {
+            return;
+          }
+          setUser(null);
         }
       }
     });
@@ -80,8 +83,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       return await targetUser.getIdToken(forceRefresh);
     } catch (error) {
-      console.error("Get ID token error", error);
-      return null;
+      console.warn("First ID token attempt failed, retrying without force refresh...", error);
+      try {
+        await new Promise(r => setTimeout(r, 600));
+        return await targetUser.getIdToken(false);
+      } catch (retryError) {
+        console.error("Get ID token retry error:", retryError);
+        return null;
+      }
     }
   };
 
