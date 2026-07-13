@@ -55,6 +55,17 @@ interface ScanData {
 
 export default function ScannerPage() {
   const { user, getIdToken } = useAuth();
+
+  const getSafeIdToken = async (): Promise<string | null> => {
+    if (typeof getIdToken === "function") {
+      return await getIdToken();
+    }
+    if (user && typeof (user as any).getIdToken === "function") {
+      return await (user as any).getIdToken();
+    }
+    return null;
+  };
+
   const [symbol, setSymbol] = useState("BTC-USD");
   const [searchInput, setSearchInput] = useState("");
   const [scanData, setScanData] = useState<ScanData | null>(null);
@@ -224,7 +235,8 @@ export default function ScannerPage() {
     }
     setLoadingTelegramSettings(true);
     try {
-      const token = await getIdToken();
+      const token = await getSafeIdToken();
+      if (!token) return;
       const res = await axios.get("/api/telegram/settings", {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -274,7 +286,8 @@ export default function ScannerPage() {
     setTestingTg(true);
     setAlertStatus(null);
     try {
-      const token = await getIdToken();
+      const token = await getSafeIdToken();
+      if (!token) return;
       const res = await axios.post("/api/telegram/test", {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -297,7 +310,11 @@ export default function ScannerPage() {
     }
     try {
       setConnectingTelegram(true);
-      const token = await getIdToken();
+      const token = await getSafeIdToken();
+      if (!token) {
+        alert("ไม่สามารถรับยืนยันตัวตนได้ กรุณาเข้าสู่ระบบใหม่อีกครั้ง");
+        return;
+      }
       const res = await axios.post<{ success: boolean; startUrl: string; botUsername: string; message?: string }>(
         "/api/telegram/token",
         {},
@@ -322,7 +339,8 @@ export default function ScannerPage() {
     if (!user) return;
     if (!window.confirm("ต้องการตัดการเชื่อมต่อ Telegram หรือไม่? คุณจะไม่ได้รับแจ้งเตือนอัตโนมัติจนกว่าจะเชื่อมต่อใหม่")) return;
     try {
-      const token = await getIdToken();
+      const token = await getSafeIdToken();
+      if (!token) return;
       const res = await axios.post("/api/telegram/settings", {
         action: "disconnect"
       }, {
@@ -341,7 +359,8 @@ export default function ScannerPage() {
     if (!user || !telegramAlertSettings) return;
     setSavingAlertConfig(true);
     try {
-      const token = await getIdToken();
+      const token = await getSafeIdToken();
+      if (!token) return;
       const res = await axios.post("/api/telegram/settings", {
         action: "update_alerts",
         alertSettings: telegramAlertSettings
