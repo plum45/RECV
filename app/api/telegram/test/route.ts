@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import axios from "axios";
-import { verifyFirebaseIdToken, getFirebaseAdminDb } from "../../../../lib/firebaseAdmin";
+import { verifyFirebaseIdTokenDetailed, getFirebaseAdminDb } from "../../../../lib/firebaseAdmin";
 import { getTelegramBotToken } from "../../../../lib/telegramConfig";
 
 export async function POST(request: Request) {
   try {
-    const decoded = await verifyFirebaseIdToken(request);
+    const { decoded, error: authErr } = await verifyFirebaseIdTokenDetailed(request);
     if (!decoded || !decoded.uid) {
-      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ success: false, message: `Unauthorized (${authErr || "Invalid token"})` }, { status: 401 });
     }
 
     const uid = decoded.uid;

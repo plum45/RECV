@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { verifyFirebaseIdToken, getFirebaseAdminDb } from "../../../../lib/firebaseAdmin";
+import { verifyFirebaseIdTokenDetailed, getFirebaseAdminDb } from "../../../../lib/firebaseAdmin";
 
 export async function GET(request: Request) {
   try {
-    const decoded = await verifyFirebaseIdToken(request);
+    const { decoded, error: authErr } = await verifyFirebaseIdTokenDetailed(request);
     if (!decoded || !decoded.uid) {
-      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ success: false, message: `Unauthorized (${authErr || "Invalid token"})` }, { status: 401 });
     }
 
     const uid = decoded.uid;
@@ -23,9 +23,10 @@ export async function GET(request: Request) {
       symbols: ["BTC-USD", "ETH-USD", "SOL-USD"],
       rsiEnabled: true,
       macdEnabled: true,
-      srFlipEnabled: true,
-      supportEnabled: true,
-      cooldownMinutes: 120,
+      bbEnabled: true,
+      volEnabled: true,
+      interval: "15m",
+      customAlerts: [],
     };
 
     return NextResponse.json({
@@ -34,16 +35,16 @@ export async function GET(request: Request) {
       alertSettings: alertSettingsData,
     });
   } catch (error: any) {
-    console.error("Get telegram settings error:", error.message);
-    return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+    console.error("Get settings error:", error.message);
+    return NextResponse.json({ success: false, message: "Internal server error" }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const decoded = await verifyFirebaseIdToken(request);
+    const { decoded, error: authErr } = await verifyFirebaseIdTokenDetailed(request);
     if (!decoded || !decoded.uid) {
-      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ success: false, message: `Unauthorized (${authErr || "Invalid token"})` }, { status: 401 });
     }
 
     const uid = decoded.uid;
