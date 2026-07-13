@@ -1,5 +1,5 @@
 export function getTelegramBotToken(): string {
-  return process.env.TELEGRAM_BOT_TOKEN || "8726308416:AAFRMPLn3oxeckuos_LvLqYdFnjZiKylecI";
+  return process.env.TELEGRAM_BOT_TOKEN || "";
 }
 
 export function getTelegramBotUsername(): string {
