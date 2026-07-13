@@ -1,3 +1,5 @@
+export type MarketState = "PRE" | "REGULAR" | "POST" | "CLOSED" | "UNKNOWN";
+
 export interface TickerData {
   symbol: string;
   currentPrice: number;
@@ -5,9 +7,25 @@ export interface TickerData {
   low24h: number;
   volume24h: number;
   change24h: number;
-  marketState?: string;
-  prePostPrice?: number;
-  prePostChange?: number;
+  
+  // Extended pricing structure
+  regularPrice: number | null;
+  regularChange: number | null;
+  regularChangePercent: number | null;
+  
+  preMarketPrice: number | null;
+  preMarketChange: number | null;
+  preMarketChangePercent: number | null;
+  
+  postMarketPrice: number | null;
+  postMarketChange: number | null;
+  postMarketChangePercent: number | null;
+  
+  previousClose: number | null;
+  marketState: MarketState;
+  priceSource: string;
+  priceTimestamp: string;
+  isDelayed: boolean;
 }
 
 export interface KlineData {

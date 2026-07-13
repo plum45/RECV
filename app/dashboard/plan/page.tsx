@@ -22,6 +22,7 @@ import {
   Sliders
 } from "lucide-react";
 import LoadingState from "../../../components/LoadingState";
+import CalendarRiskBadge from "../../../components/CalendarRiskBadge";
 import { db } from "../../../lib/firebase";
 import { collection, query, orderBy, getDocs, addDoc, deleteDoc, doc, updateDoc } from "firebase/firestore";
 
@@ -535,6 +536,7 @@ Risk/Reward Ratio: 1:${plan.riskReward || 0}
                                 {plan.tradingStyle}
                               </span>
                             </h4>
+                            <CalendarRiskBadge symbol={plan.symbol} />
                           </div>
 
                           <div className="flex gap-1.5">

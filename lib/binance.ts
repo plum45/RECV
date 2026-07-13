@@ -1,5 +1,5 @@
 import axios from "axios";
-import { TickerData, KlineData } from "../types/market";
+import { TickerData, KlineData, MarketState } from "../types/market";
 
 export function normalizeSymbol(symbol: string): string {
   if (!symbol || typeof symbol !== "string") return "NVDA";
@@ -63,16 +63,28 @@ function getMockTicker(symbol: string): TickerData {
   const cleanSymbol = symbol.toUpperCase().trim();
   const baseline = getBaselinePrice(cleanSymbol);
   const isStock = !cleanSymbol.endsWith("-USD");
+  const previousClose = baseline * 0.99;
   return {
     symbol: cleanSymbol,
     currentPrice: baseline,
     high24h: baseline * 1.025,
     low24h: baseline * 0.978,
-    volume24h: 35000000 + Math.floor(Math.random() * 20000000),
+    volume24h: 35000000,
     change24h: 1.45,
+    regularPrice: baseline,
+    regularChange: baseline - previousClose,
+    regularChangePercent: ((baseline - previousClose) / previousClose) * 100,
+    preMarketPrice: isStock ? baseline * 1.008 : null,
+    preMarketChange: isStock ? baseline * 1.008 - previousClose : null,
+    preMarketChangePercent: isStock ? ((baseline * 1.008 - previousClose) / previousClose) * 100 : null,
+    postMarketPrice: isStock ? baseline * 1.015 : null,
+    postMarketChange: isStock ? baseline * 1.015 - previousClose : null,
+    postMarketChangePercent: isStock ? ((baseline * 1.015 - previousClose) / previousClose) * 100 : null,
+    previousClose: previousClose,
     marketState: isStock ? "POST" : "REGULAR",
-    prePostPrice: isStock ? baseline * 1.008 : undefined,
-    prePostChange: isStock ? 0.8 : undefined,
+    priceSource: "Mock Provider",
+    priceTimestamp: new Date().toISOString(),
+    isDelayed: false,
   };
 }
 
@@ -282,7 +294,7 @@ export async function getTicker(symbol: string): Promise<TickerData> {
         const currentPrice = data.c;
         const prevClose = data.pc > 0 ? data.pc : currentPrice;
         const change24h = data.dp ?? ((currentPrice - prevClose) / prevClose) * 100;
-
+        
         return {
           symbol: cleanSymbol,
           currentPrice: currentPrice,
@@ -290,7 +302,24 @@ export async function getTicker(symbol: string): Promise<TickerData> {
           low24h: data.l || currentPrice * 0.98,
           volume24h: 5000000,
           change24h: change24h,
-          marketState: cleanSymbol.includes("-USD") ? "REGULAR" : "POST",
+          
+          regularPrice: currentPrice,
+          regularChange: currentPrice - prevClose,
+          regularChangePercent: change24h,
+          
+          preMarketPrice: null,
+          preMarketChange: null,
+          preMarketChangePercent: null,
+          
+          postMarketPrice: null,
+          postMarketChange: null,
+          postMarketChangePercent: null,
+          
+          previousClose: prevClose,
+          marketState: cleanSymbol.includes("-USD") ? "REGULAR" : "REGULAR",
+          priceSource: "Finnhub API",
+          priceTimestamp: new Date().toISOString(),
+          isDelayed: false,
         };
       }
     } catch (err: any) {
@@ -311,10 +340,32 @@ export async function getTicker(symbol: string): Promise<TickerData> {
     const closeArray = quote?.close || [];
     const lastValidClose = closeArray.filter((c: any) => c !== null).pop();
 
-    const currentPrice = meta.regularMarketPrice || lastValidClose || 0;
-    const prevClose = meta.chartPreviousClose || meta.previousClose || currentPrice;
-    const change24h = prevClose > 0 ? ((currentPrice - prevClose) / prevClose) * 100 : 0;
-    const marketState = meta.currentMarketState || "REGULAR";
+    const previousClose = meta.chartPreviousClose || meta.previousClose || lastValidClose || 0;
+    const regularPrice = meta.regularMarketPrice || lastValidClose || 0;
+    const regularChange = regularPrice - previousClose;
+    const regularChangePercent = previousClose > 0 ? (regularChange / previousClose) * 100 : 0;
+    
+    // Parse marketState cleanly to match target states
+    let marketState: MarketState = "UNKNOWN";
+    const rawState = (meta.currentMarketState || "").toUpperCase();
+    if (rawState.includes("PRE")) marketState = "PRE";
+    else if (rawState.includes("REGULAR") || rawState.includes("LIVE") || rawState.includes("OPEN")) marketState = "REGULAR";
+    else if (rawState.includes("POST")) marketState = "POST";
+    else if (rawState.includes("CLOSED")) marketState = "CLOSED";
+    
+    // Extract Pre / Post market values
+    const preMarketPrice = meta.preMarketPrice || null;
+    const preMarketChange = preMarketPrice && previousClose ? preMarketPrice - previousClose : null;
+    const preMarketChangePercent = preMarketChange && previousClose ? (preMarketChange / previousClose) * 100 : null;
+
+    const postMarketPrice = meta.postMarketPrice || null;
+    const postMarketChange = postMarketPrice && previousClose ? postMarketPrice - previousClose : null;
+    const postMarketChangePercent = postMarketChange && previousClose ? (postMarketChange / previousClose) * 100 : null;
+
+    // Determine currentPrice based on resolved state
+    let currentPrice = regularPrice;
+    if (marketState === "PRE" && preMarketPrice !== null) currentPrice = preMarketPrice;
+    else if (marketState === "POST" && postMarketPrice !== null) currentPrice = postMarketPrice;
 
     return {
       symbol: cleanSymbol,
@@ -322,10 +373,25 @@ export async function getTicker(symbol: string): Promise<TickerData> {
       high24h: meta.regularMarketDayHigh || currentPrice,
       low24h: meta.regularMarketDayLow || currentPrice,
       volume24h: meta.regularMarketVolume || 0,
-      change24h: change24h,
+      change24h: regularChangePercent,
+      
+      regularPrice,
+      regularChange,
+      regularChangePercent,
+      
+      preMarketPrice,
+      preMarketChange,
+      preMarketChangePercent,
+      
+      postMarketPrice,
+      postMarketChange,
+      postMarketChangePercent,
+      
+      previousClose,
       marketState,
-      prePostPrice: meta.preMarketPrice || meta.postMarketPrice || undefined,
-      prePostChange: undefined,
+      priceSource: "Yahoo Finance",
+      priceTimestamp: new Date().toISOString(),
+      isDelayed: meta.dataGranularity === "1d",
     };
   } catch (error: any) {
     if (process.env.NODE_ENV === "production") {

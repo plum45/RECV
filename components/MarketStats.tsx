@@ -2,7 +2,8 @@
 
 import React from "react";
 import { TickerData, IndicatorData, SupportResistanceData } from "../types/market";
-import { Activity, Flame, ShieldAlert, Compass } from "lucide-react";
+import { Activity, Flame, ShieldAlert, Compass, Sun, Moon, Sunrise } from "lucide-react";
+import { getDisplayPrice } from "../lib/priceUtils";
 
 interface MarketStatsProps {
   marketData: TickerData | null;
@@ -41,7 +42,9 @@ export default function MarketStats({
     );
   }
 
-  const isPositive = marketData.change24h >= 0;
+  // Resolve display price using session-aware logic
+  const displayPrice = getDisplayPrice(marketData);
+  const isPositive = displayPrice.changePercent >= 0;
   const rsiVal = indicators.rsi14;
   let rsiLabel = "Neutral";
   let rsiColor = "text-slate-300";
@@ -71,6 +74,20 @@ export default function MarketStats({
     maximumFractionDigits: 2,
   });
 
+  // Session badge config
+  const sessionBadge = (() => {
+    const ms = marketData.marketState ?? "UNKNOWN";
+    if (ms === "PRE")
+      return { label: "Pre-Market", icon: Sunrise, cls: "text-amber-400 bg-amber-500/10 border-amber-500/25" };
+    if (ms === "POST")
+      return { label: "After-Hours", icon: Moon, cls: "text-purple-400 bg-purple-500/10 border-purple-500/25" };
+    if (ms === "REGULAR")
+      return { label: "Regular", icon: Sun, cls: "text-emerald-400 bg-emerald-500/10 border-emerald-500/25" };
+    if (ms === "CLOSED")
+      return { label: "ตลาดปิด", icon: Moon, cls: "text-slate-400 bg-slate-700/40 border-slate-600/30" };
+    return { label: "Regular", icon: Sun, cls: "text-slate-400 bg-slate-700/40 border-slate-600/30" };
+  })();
+
   return (
     <div className="w-full space-y-6 @container/stats">
       {/* 24h Ticker Stats */}
@@ -86,41 +103,57 @@ export default function MarketStats({
               {symbol && <span className="ml-1 text-slate-400">({symbol})</span>}
             </span>
           </h3>
-          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">
-            Live market snapshot
+          {/* Session Badge */}
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold ${sessionBadge.cls}`}>
+            <sessionBadge.icon size={10} />
+            {sessionBadge.label}
           </span>
         </div>
 
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 @[680px]/stats:grid-cols-4">
           <div className="min-w-0 min-h-[118px] rounded-xl border border-slate-800/80 bg-slate-900/80 p-4 flex flex-col justify-between">
             <div>
-              <span className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">ราคาปัจจุบัน</span>
-              <span className="mt-1.5 block text-xl sm:text-2xl font-black leading-tight text-slate-50 truncate min-w-0" title={`$${priceFormatter.format(marketData.currentPrice)}`}>
-                ${priceFormatter.format(marketData.currentPrice)}
+              <span className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                ราคา ({displayPrice.sessionName})
+              </span>
+              <span
+                className="mt-1.5 block text-xl sm:text-2xl font-black leading-tight text-slate-50 truncate min-w-0"
+                title={`$${priceFormatter.format(displayPrice.price)}`}
+              >
+                ${priceFormatter.format(displayPrice.price)}
               </span>
             </div>
-            {marketData.prePostPrice && (
-              <span className={`text-[10px] font-bold block mt-2 truncate min-w-0 ${
-                marketData.marketState === "PRE" ? "text-amber-400" : "text-purple-400"
-              }`}>
-                {marketData.marketState === "PRE" ? "Pre" : "AH"}: 
-                ${priceFormatter.format(marketData.prePostPrice)}
-                ({marketData.prePostChange && marketData.prePostChange >= 0 ? "+" : ""}
-                {marketData.prePostChange?.toFixed(2)}%)
+            {/* Show alt session prices when not in REGULAR */}
+            {marketData.marketState === "PRE" && marketData.preMarketPrice && (
+              <span className="text-[10px] font-bold block mt-2 truncate min-w-0 text-amber-400">
+                Pre: ${priceFormatter.format(marketData.preMarketPrice)}
+                {" "}({marketData.preMarketChangePercent != null
+                  ? (marketData.preMarketChangePercent >= 0 ? "+" : "") +
+                    marketData.preMarketChangePercent.toFixed(2) + "%"
+                  : ""})
+              </span>
+            )}
+            {marketData.marketState === "POST" && marketData.postMarketPrice && (
+              <span className="text-[10px] font-bold block mt-2 truncate min-w-0 text-purple-400">
+                AH: ${priceFormatter.format(marketData.postMarketPrice)}
+                {" "}({marketData.postMarketChangePercent != null
+                  ? (marketData.postMarketChangePercent >= 0 ? "+" : "") +
+                    marketData.postMarketChangePercent.toFixed(2) + "%"
+                  : ""})
               </span>
             )}
           </div>
 
           <div className="min-w-0 min-h-[118px] rounded-xl border border-slate-800/80 bg-slate-900/80 p-4 flex flex-col justify-between">
             <div>
-              <span className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">เปลี่ยนแปลง 24h</span>
+              <span className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">เปลี่ยนแปลง</span>
               <span className={`mt-1.5 block text-xl sm:text-2xl font-black leading-tight truncate min-w-0 ${isPositive ? "text-emerald-400" : "text-rose-400"}`}>
                 {isPositive ? "+" : ""}
-                {marketData.change24h.toFixed(2)}%
+                {displayPrice.changePercent.toFixed(2)}%
               </span>
             </div>
             <span className="mt-2 block text-xs text-slate-500 truncate min-w-0">
-              เทียบกับ 24 ชั่วโมงก่อนหน้า
+              vs Previous Close
             </span>
           </div>
 

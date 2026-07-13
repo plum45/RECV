@@ -232,7 +232,7 @@ export async function GET(request: Request) {
         low24h: 98,
         volume24h: 5000000,
         change24h: 2.5,
-      },
+      } as any,
       indicators: {
         ema20: 98,
         ema50: 95,
@@ -289,7 +289,7 @@ export async function GET(request: Request) {
         low24h: 98,
         volume24h: 5000000,
         change24h: 2.5,
-      },
+      } as any,
       indicators: {
         ema20: 98,
         ema50: 95,
@@ -346,7 +346,7 @@ export async function GET(request: Request) {
         low24h: 98,
         volume24h: 5000000,
         change24h: 2.5,
-      },
+      } as any,
       indicators: {
         ema20: 98,
         ema50: 95,

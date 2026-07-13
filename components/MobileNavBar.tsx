@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Home, Star, LayoutGrid, SlidersHorizontal, Briefcase } from "lucide-react";
+import { Home, Star, LayoutGrid, Calendar, Briefcase } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 
 interface MobileNavBarProps {
@@ -29,26 +29,16 @@ export default function MobileNavBar({ setActiveTab }: MobileNavBarProps) {
     { id: "home", label: "หน้าแรก", icon: Home, path: "/dashboard", ariaLabel: "ไปที่หน้าแรก" },
     { id: "watchlist", label: "หุ้นโปรด", icon: Star, path: "/dashboard#watchlist", ariaLabel: "ไปที่รายการหุ้นโปรด" },
     { id: "invest", label: "วิเคราะห์", icon: LayoutGrid, isCenter: true, path: "/dashboard/analyze", ariaLabel: "ไปที่หน้าวิเคราะห์หุ้น" },
-    { id: "tools", label: "Scanner", icon: SlidersHorizontal, path: "/dashboard/scanner", ariaLabel: "ไปที่หน้าสแกนสัญญาณ" },
+    { id: "calendar", label: "ปฏิทิน", icon: Calendar, path: "/dashboard/calendar", ariaLabel: "ไปที่ปฏิทินข่าว" },
     { id: "portfolio", label: "พอร์ต", icon: Briefcase, path: "/dashboard/portfolio", ariaLabel: "ไปที่หน้าพอร์ตจำลอง" },
   ];
 
   const getIsActive = (item: typeof navItems[0]) => {
-    if (item.id === "portfolio") {
-      return pathname === "/dashboard/portfolio";
-    }
-    if (item.id === "tools") {
-      return pathname === "/dashboard/scanner";
-    }
-    if (item.id === "invest") {
-      return pathname === "/dashboard/analyze";
-    }
-    if (item.id === "watchlist") {
-      return pathname === "/dashboard" && currentHash === "#watchlist";
-    }
-    if (item.id === "home") {
-      return pathname === "/dashboard" && currentHash !== "#watchlist";
-    }
+    if (item.id === "portfolio") return pathname === "/dashboard/portfolio";
+    if (item.id === "calendar") return pathname.startsWith("/dashboard/calendar");
+    if (item.id === "invest") return pathname === "/dashboard/analyze";
+    if (item.id === "watchlist") return pathname === "/dashboard" && currentHash === "#watchlist";
+    if (item.id === "home") return pathname === "/dashboard" && currentHash !== "#watchlist";
     return false;
   };
 
