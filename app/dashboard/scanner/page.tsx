@@ -28,6 +28,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../../../contexts/AuthContext";
 import { auth } from "../../../lib/firebase";
+import { useRouter } from "next/navigation";
 
 interface TimeframeResult {
   timeframe: string;
@@ -55,7 +56,15 @@ interface ScanData {
 }
 
 export default function ScannerPage() {
-  const { user, getIdToken } = useAuth();
+  const { user, loading: authLoading, getIdToken } = useAuth();
+  const router = useRouter();
+
+  // Auth Protection
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/auth/login");
+    }
+  }, [user, authLoading, router]);
 
   const getSafeIdToken = async (forceRefresh = false): Promise<string | null> => {
     if (typeof getIdToken === "function") {
@@ -184,11 +193,45 @@ export default function ScannerPage() {
     setLoading(true);
     setErrorMsg(null);
     try {
-      const response = await axios.post("/api/scanner", { symbol: targetSymbol });
+      let token = await getSafeIdToken();
+      if (!token) {
+        try {
+          if (auth?.currentUser) {
+            token = await auth.currentUser.getIdToken(true);
+          }
+        } catch (_e) {}
+      }
+
+      const makeRequest = async (idToken: string | null) => {
+        return axios.post("/api/scanner", { symbol: targetSymbol }, {
+          headers: idToken ? { Authorization: `Bearer ${idToken}` } : {}
+        });
+      };
+
+      let response;
+      try {
+        response = await makeRequest(token);
+      } catch (err: any) {
+        if (err.response?.status === 401) {
+          token = await getSafeIdToken(true);
+          if (!token && auth?.currentUser) {
+            try { token = await auth.currentUser.getIdToken(true); } catch (_e) {}
+          }
+          if (token) {
+            response = await makeRequest(token);
+          } else {
+            setErrorMsg("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่อีกครั้ง");
+            return;
+          }
+        } else {
+          throw err;
+        }
+      }
+
       setScanData(response.data);
     } catch (err: any) {
       console.error(err);
-      setErrorMsg("ไม่สามารถดึงข้อมูลสแกนเนอร์ได้ กรุณาตรวจสอบสัญลักษณ์หรือลองใหม่อีกครั้ง");
+      setErrorMsg(err.response?.data?.message || err.response?.data?.error || "ไม่สามารถดึงข้อมูลสแกนเนอร์ได้ กรุณาตรวจสอบสัญลักษณ์หรือลองใหม่อีกครั้ง");
     } finally {
       setLoading(false);
     }
@@ -209,28 +252,7 @@ export default function ScannerPage() {
 
   // Test Alerts helpers
   const testLineAlert = async () => {
-    if (!lineToken.trim() || !lineTargetId.trim()) {
-      setAlertStatus({ type: "error", text: "กรุณากรอก LINE Channel Access Token และ User ID" });
-      return;
-    }
-    setTestingLine(true);
-    setAlertStatus(null);
-    try {
-      const res = await axios.post("/api/alerts/test", {
-        type: "line",
-        token: lineToken,
-        targetId: lineTargetId,
-      });
-      if (res.data.success) {
-        setAlertStatus({ type: "success", text: "ส่งข้อความทดสอบเข้า Line สำเร็จ!" });
-      } else {
-        throw new Error(res.data.error || "Failed");
-      }
-    } catch (err: any) {
-      setAlertStatus({ type: "error", text: `ทดสอบ Line ล้มเหลว: ${err.message}` });
-    } finally {
-      setTestingLine(false);
-    }
+    setAlertStatus({ type: "error", text: "ระบบปิดทดสอบ Line ชั่วคราวเนื่องจากนโยบายความปลอดภัยของระบบ" });
   };
 
   const fetchTelegramStatus = async () => {
@@ -263,29 +285,7 @@ export default function ScannerPage() {
 
   const testTelegramAlert = async () => {
     if (!user) {
-      // Fallback if testing without login using local tgToken/tgChatId
-      if (!tgToken.trim() || !tgChatId.trim()) {
-        setAlertStatus({ type: "error", text: "กรุณาเข้าสู่ระบบ หรือระบุ Bot Token และ Chat ID" });
-        return;
-      }
-      setTestingTg(true);
-      setAlertStatus(null);
-      try {
-        const res = await axios.post("/api/alerts/test", {
-          type: "telegram",
-          token: tgToken,
-          chatId: tgChatId,
-        });
-        if (res.data.success) {
-          setAlertStatus({ type: "success", text: "ส่งข้อความทดสอบเข้า Telegram สำเร็จ!" });
-        } else {
-          throw new Error(res.data.error || "Failed");
-        }
-      } catch (err: any) {
-        setAlertStatus({ type: "error", text: `ทดสอบ Telegram ล้มเหลว: ${err.message}` });
-      } finally {
-        setTestingTg(false);
-      }
+      setAlertStatus({ type: "error", text: "กรุณาเข้าสู่ระบบใหม่" });
       return;
     }
 

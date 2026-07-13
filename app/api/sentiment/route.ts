@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { fetchSentiment } from "../../../lib/sentiment";
+import { normalizeSymbol } from "../../../lib/binance";
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const symbol = searchParams.get("symbol") || "BTCUSDT";
+    const rawSymbol = searchParams.get("symbol") || "BTC-USD";
+    const symbol = normalizeSymbol(rawSymbol);
 
     const sentimentData = await fetchSentiment(symbol);
     return NextResponse.json(sentimentData);

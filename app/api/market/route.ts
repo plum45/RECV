@@ -41,7 +41,12 @@ export async function GET() {
             change: quote.regularMarketChange || 0,
             changePercent: quote.regularMarketChangePercent || 0,
           };
-        } catch (e) {
+        } catch (e: any) {
+          console.error(`Failed to fetch index ${idx.symbol}:`, e.message || e);
+          if (process.env.NODE_ENV === "production") {
+            throw new Error(`Failed to fetch real-world quote for ${idx.symbol} in production`);
+          }
+          
           // Fallback if APIs fail (e.g. on Render without Finnhub key)
           const basePrices: Record<string, number> = {
             "^GSPC": 5450.00,

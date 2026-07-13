@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import YahooFinance from "yahoo-finance2";
+import { normalizeSymbol } from "../../../lib/binance";
 const yahooFinance = new YahooFinance();
 
 export async function POST(request: Request) {
@@ -13,7 +14,7 @@ export async function POST(request: Request) {
 
     const results = await Promise.all(
       symbols.map(async (symbol) => {
-        const upperSymbol = symbol.toUpperCase();
+        const upperSymbol = normalizeSymbol(symbol);
         try {
           if (finnhubKey) {
             // Use Finnhub API if key is provided
@@ -40,8 +41,11 @@ export async function POST(request: Request) {
             change: quote.regularMarketChange || 0,
             changePercent: quote.regularMarketChangePercent || 0,
           };
-        } catch (e) {
-          console.error(`Failed to fetch quote for ${symbol}, using mock data:`, e);
+        } catch (e: any) {
+          console.error(`Failed to fetch quote for ${symbol}:`, e.message || e);
+          if (process.env.NODE_ENV === "production") {
+            throw new Error(`Failed to fetch real-world quote for ${symbol} in production`);
+          }
           
           // Fallback if APIs fail (e.g. on Render without Finnhub key)
           const basePrices: Record<string, number> = {

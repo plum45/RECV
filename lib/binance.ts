@@ -1,6 +1,23 @@
 import axios from "axios";
 import { TickerData, KlineData } from "../types/market";
 
+export function normalizeSymbol(symbol: string): string {
+  if (!symbol || typeof symbol !== "string") return "NVDA";
+  let clean = symbol.toUpperCase().trim();
+
+  // Support Thai stock suffix mapping or clean up double dots
+  clean = clean.replace(/\.+/g, ".");
+
+  // Check if it's a known crypto ticker and normalize to BASE-USD
+  // e.g. BTCUSDT -> BTC-USD, btc-usd -> BTC-USD, BTC -> BTC-USD
+  const cryptoMatch = clean.match(/^(BTC|ETH|SOL|BNB|ADA|XRP|DOT|DOGE|LTC|LINK)(USDT|-USD|USD)?$/);
+  if (cryptoMatch) {
+    return `${cryptoMatch[1]}-USD`;
+  }
+
+  return clean;
+}
+
 // Windows Chrome User-Agent to match standard browser requests
 const YF_HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",

@@ -1,6 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital,wght@0,400;1,400&family=Barlow:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
-@import url('https://db.onlinewebfonts.com/c/04e6981992c0e2e7642af2074ebe3901?family=Helvetica+Now+Display+Bold');
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -8,13 +5,13 @@
 :root {
   --background: #020617;
   --foreground: #f1f5f9;
-  --font-serif: 'Instrument Serif', serif;
-  --font-sans: 'Barlow', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-serif: Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   
   /* IVES specific variables */
-  --font-heading: 'Helvetica Now Display Bold', sans-serif;
-  --font-body: 'Inter', sans-serif;
+  --font-heading: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-body: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --color-text: #192837;
   --color-accent: #7342E2;
   --color-login-bg: #F2F2EE;

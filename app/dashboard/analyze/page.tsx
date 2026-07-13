@@ -20,7 +20,7 @@ import { NewsArticle } from "../../../types/news";
 import { SentimentData } from "../../../types/analysis";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useRouter, useSearchParams } from "next/navigation";
-import { db } from "../../../lib/firebase";
+import { db, auth } from "../../../lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 
 interface MarqueeTicker {
@@ -30,11 +30,28 @@ interface MarqueeTicker {
 }
 
 function AnalyzePageContent() {
-  const { user, loading: authLoading, logout } = useAuth();
+  const { user, loading: authLoading, logout, getIdToken } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlSymbol = searchParams.get("symbol");
   const activeRequestSymbolRef = useRef("");
+
+  const getSafeIdToken = async (forceRefresh = false): Promise<string | null> => {
+    if (typeof getIdToken === "function") {
+      try {
+        const t = await getIdToken(forceRefresh);
+        if (typeof t === "string" && t.length > 0) return t;
+      } catch (e) {}
+    }
+    const currentUser = auth?.currentUser || user;
+    if (currentUser && typeof currentUser.getIdToken === "function") {
+      try {
+        const t = await currentUser.getIdToken(forceRefresh);
+        if (typeof t === "string" && t.length > 0) return t;
+      } catch (e) {}
+    }
+    return null;
+  };
 
   // Navigation Tab State
   const [activeTab, setActiveTab] = useState<"dashboard" | "portfolio">("dashboard");
@@ -164,7 +181,7 @@ function AnalyzePageContent() {
   }, [user, authLoading, urlSymbol]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !isSymbolInitialized) return;
     const savePrefs = async () => {
       try {
         await setDoc(doc(db, "users", user.uid), {
@@ -177,7 +194,7 @@ function AnalyzePageContent() {
     // Debounce saving slightly
     const timer = setTimeout(savePrefs, 1000);
     return () => clearTimeout(timer);
-  }, [symbol, timeframe, tradingStyle, riskPercent, analysisMode, user]);
+  }, [symbol, timeframe, tradingStyle, riskPercent, analysisMode, user, isSymbolInitialized]);
 
   // Auth Protection
   useEffect(() => {
@@ -303,17 +320,62 @@ function AnalyzePageContent() {
 
   // 2. Trigger Full AI Analysis Orchestrator (calls /api/analyze)
   const handleAnalyze = async () => {
+    const currentUser = auth?.currentUser || user;
+    if (!currentUser) {
+      alert("กรุณาเข้าสู่ระบบใหม่เพื่อใช้งานการวิเคราะห์");
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
 
-      const response = await axios.post("/api/analyze", {
-        symbol,
-        timeframe,
-        tradingStyle,
-        risk: riskPercent,
-        mode: analysisMode,
-      });
+      let token = await getSafeIdToken();
+      if (!token) {
+        try {
+          if (auth?.currentUser) {
+            token = await auth.currentUser.getIdToken(true);
+          }
+        } catch (_e) {}
+      }
+
+      if (!token || typeof token !== "string" || token.length === 0) {
+        alert("ไม่สามารถรับ Token ยืนยันตัวตนได้ กรุณาออกจากระบบแล้วเข้าสู่ระบบใหม่");
+        setLoading(false);
+        return;
+      }
+
+      const makeRequest = async (idToken: string) => {
+        return axios.post("/api/analyze", {
+          symbol,
+          timeframe,
+          tradingStyle,
+          risk: riskPercent,
+          mode: analysisMode,
+        }, {
+          headers: { Authorization: `Bearer ${idToken}` }
+        });
+      };
+
+      let response;
+      try {
+        response = await makeRequest(token);
+      } catch (err: any) {
+        if (err.response?.status === 401) {
+          token = await getSafeIdToken(true);
+          if (!token && auth?.currentUser) {
+            try { token = await auth.currentUser.getIdToken(true); } catch (_e) {}
+          }
+          if (token) {
+            response = await makeRequest(token);
+          } else {
+            alert("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่อีกครั้ง");
+            setLoading(false);
+            return;
+          }
+        } else {
+          throw err;
+        }
+      }
 
       const data = response.data;
       setMarketData(data.marketData);
@@ -325,8 +387,8 @@ function AnalyzePageContent() {
 
     } catch (err: any) {
       console.error("Orchestrator analysis error:", err.message);
-      const errMsg = err.response?.data?.message || err.message;
-      setError(`วิเคราะห์ล้มเหลว: ${errMsg}`);
+      const errMsg = err.response?.data?.message || err.response?.data?.error || err.message;
+      setError(`ไม่สามารถติดต่อกับเซิร์ฟเวอร์วิเคราะห์ AI ได้: ${errMsg}`);
     } finally {
       setLoading(false);
     }

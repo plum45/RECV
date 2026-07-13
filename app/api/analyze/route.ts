@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getTicker, getKlines } from "../../../lib/binance";
+import { getTicker, getKlines, normalizeSymbol } from "../../../lib/binance";
 import { calculateIndicators } from "../../../lib/indicators";
 import { calculateSupportResistance } from "../../../lib/supportResistance";
 import { fetchNews } from "../../../lib/news";
@@ -8,9 +8,24 @@ import { generateLocalReport } from "../../../lib/localAnalysis";
 import { generateAnalysisReport } from "../../../lib/openai";
 import { buildAnalysisPrompt } from "../../../lib/prompt";
 import { checkRateLimit, getAiCache, setAiCache } from "../../../lib/aiCache";
+import { verifyFirebaseIdTokenDetailed } from "../../../lib/firebaseAdmin";
+
+export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
+    // Enforce Firebase Auth
+    const { decoded, error: authErr } = await verifyFirebaseIdTokenDetailed(request);
+    if (!decoded || !decoded.uid) {
+      return NextResponse.json(
+        { 
+          error: "Unauthorized", 
+          message: `กรุณาเข้าสู่ระบบก่อนใช้งาน: ${authErr || "Token verification failed"}` 
+        }, 
+        { status: 401 }
+      );
+    }
+
     const clientIp = request.headers.get("x-forwarded-for") || "local-client";
     const rateCheck = checkRateLimit(`analyze:${clientIp}`, 12, 60 * 1000);
     if (!rateCheck.allowed) {
@@ -25,8 +40,8 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => ({}));
 
-    // Validate inputs — default to NVDA (US stock, not BTCUSDT)
-    const symbol = (body.symbol || "NVDA").toUpperCase();
+    // Validate and normalize inputs — default to NVDA
+    const symbol = normalizeSymbol(body.symbol || "NVDA");
     const timeframe = body.timeframe || "1H";
     const tradingStyle = body.tradingStyle || "Day Trade";
     const risk = body.risk || "1%";

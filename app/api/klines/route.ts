@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { getKlines } from "../../../lib/binance";
+import { getKlines, normalizeSymbol } from "../../../lib/binance";
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const symbol = searchParams.get("symbol") || "BTCUSDT";
+    const rawSymbol = searchParams.get("symbol") || "BTC-USD";
+    const symbol = normalizeSymbol(rawSymbol);
     const timeframe = searchParams.get("timeframe") || "1H";
     const limitStr = searchParams.get("limit") || "200";
     const limit = parseInt(limitStr, 10);
