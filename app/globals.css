@@ -3,8 +3,8 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #020617;
-  --foreground: #f1f5f9;
+  --background: #060A12;
+  --foreground: #F8FAFC;
   --font-serif: Georgia, Cambria, "Times New Roman", Times, serif;
   --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -12,14 +12,14 @@
   /* IVES specific variables */
   --font-heading: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-body: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --color-text: #192837;
-  --color-accent: #7342E2;
-  --color-login-bg: #F2F2EE;
+  --color-text: #F8FAFC;
+  --color-accent: #6366F1;
+  --color-login-bg: #060A12;
 
   /* Design tokens */
-  --glow-indigo: rgba(99, 102, 241, 0.18);
-  --glow-purple: rgba(168, 85, 247, 0.14);
-  --border-dim: rgba(30, 41, 59, 0.8);
+  --glow-indigo: rgba(99, 102, 241, 0.12);
+  --glow-purple: rgba(168, 85, 247, 0.08);
+  --border-dim: #263449;
   --border-bright: rgba(99, 102, 241, 0.25);
 }
 
@@ -31,6 +31,48 @@
   --font-sans: var(--font-sans);
   --font-serif: var(--font-serif);
   --font-mono: var(--font-mono);
+
+  /* Overwriting Tailwind default color variables to match Dark Premium specifications globally */
+  --color-slate-950: #060A12;
+  --color-slate-900: #0B1220;
+  --color-slate-800: #263449;
+  --color-slate-850: #1c2635;
+  --color-slate-700: #3b4d68;
+  --color-slate-600: #4e6382;
+  --color-slate-500: #64748B;
+  --color-slate-400: #94A3B8;
+  --color-slate-300: #cbd5e1;
+  --color-slate-200: #e2e8f0;
+  --color-slate-100: #F8FAFC;
+  
+  --color-indigo-650: #6366F1;
+  --color-indigo-500: #6366F1;
+  --color-indigo-400: #8B5CF6;
+  
+  --color-emerald-400: #10B981;
+  --color-rose-400: #F43F5E;
+  --color-amber-400: #F59E0B;
+  
+  --color-cyan-400: #22D3EE;
+
+  /* Dark Premium Palette tokens for Tailwind utility classes */
+  --color-primary-bg: #060A12;
+  --color-secondary-bg: #0B1220;
+  --color-card-bg: #111827;
+  --color-card-hover: #172033;
+  --color-border-dim: #263449;
+  
+  --color-indigo-premium: #6366F1;
+  --color-violet-premium: #8B5CF6;
+  --color-cyan-premium: #22D3EE;
+  
+  --color-bullish: #10B981;
+  --color-bearish: #F43F5E;
+  --color-warning: #F59E0B;
+  
+  --color-text-main: #F8FAFC;
+  --color-text-sub: #94A3B8;
+  --color-text-dim: #64748B;
 }
 
 body {

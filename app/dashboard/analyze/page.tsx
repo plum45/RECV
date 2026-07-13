@@ -69,6 +69,13 @@ function AnalyzePageContent() {
     }
     return "";
   });
+  const [analyzedSymbol, setAnalyzedSymbol] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("symbol")?.toUpperCase() || "";
+    }
+    return "";
+  });
   const [timeframe, setTimeframe] = useState("1H");
   const [tradingStyle, setTradingStyle] = useState("swing");
   const [riskPercent, setRiskPercent] = useState("1%");
@@ -86,6 +93,7 @@ function AnalyzePageContent() {
   useEffect(() => {
     if (urlSymbol) {
       setSymbol(urlSymbol.toUpperCase());
+      setAnalyzedSymbol(urlSymbol.toUpperCase());
       setIsSymbolInitialized(true);
     }
   }, [urlSymbol]);
@@ -159,6 +167,7 @@ function AnalyzePageContent() {
       // 1. URL is primary source of truth
       if (hasUrlSymbol) {
         setSymbol(hasUrlSymbol.toUpperCase());
+        setAnalyzedSymbol(hasUrlSymbol.toUpperCase());
         setIsSymbolInitialized(true);
         return;
       }
@@ -172,8 +181,10 @@ function AnalyzePageContent() {
             const data = docSnap.data();
             if (data.symbol) {
               setSymbol(data.symbol.toUpperCase());
+              setAnalyzedSymbol(data.symbol.toUpperCase());
             } else {
               setSymbol("NVDA"); // 3. Tertiary fallback
+              setAnalyzedSymbol("NVDA");
             }
             if (data.timeframe) setTimeframe(data.timeframe);
             if (data.tradingStyle) setTradingStyle(data.tradingStyle);
@@ -181,13 +192,16 @@ function AnalyzePageContent() {
             if (data.analysisMode) setAnalysisMode(data.analysisMode);
           } else {
             setSymbol("NVDA"); // 3. Tertiary fallback
+            setAnalyzedSymbol("NVDA");
           }
         } catch (err) {
           console.error("Failed to load user preferences", err);
           setSymbol("NVDA"); // 3. Tertiary fallback
+          setAnalyzedSymbol("NVDA");
         }
       } else {
         setSymbol("NVDA"); // 3. Tertiary fallback
+        setAnalyzedSymbol("NVDA");
       }
       setIsSymbolInitialized(true);
     };
@@ -315,6 +329,7 @@ function AnalyzePageContent() {
       if (activeRequestSymbolRef.current === currentRequestedSymbol) {
         setMarketData(tickerRes.data);
         setIsPriceStale(false);
+        setAnalyzedSymbol(tgtSymbol);
       }
 
       const klinesRes = await axios.get<any[]>(`/api/klines?symbol=${encodeURIComponent(tgtSymbol)}&timeframe=${tgtTf}&limit=450`, { signal });
@@ -479,6 +494,7 @@ function AnalyzePageContent() {
       setNews(data.news);
       setSentiment(data.sentiment);
       setAnalysisReport(data.analysis);
+      setAnalyzedSymbol(symbol);
 
     } catch (err: any) {
       console.error("Orchestrator analysis error:", err.message);
@@ -650,7 +666,7 @@ function AnalyzePageContent() {
         {/* สรุปก่อนตัดสินใจ (Decision Summary Panel) */}
         {symbol && (
           <SummaryPanel
-            symbol={symbol}
+            symbol={analyzedSymbol || symbol}
             marketData={marketData}
             supportResistance={supportResistance}
             indicators={indicators}
@@ -804,7 +820,7 @@ function AnalyzePageContent() {
                   
                   {chartView === "tradingview" ? (
                     <div className="w-full shadow-[0_20px_50px_rgba(99,102,241,0.03)] border border-slate-850 rounded-2xl overflow-hidden bg-slate-900/10">
-                      <TradingViewChart symbol={symbol} interval={timeframe} />
+                      <TradingViewChart symbol={analyzedSymbol || symbol} interval={timeframe} />
                     </div>
                   ) : (
                     <SRChart
@@ -824,14 +840,14 @@ function AnalyzePageContent() {
                   <SentimentPanel 
                     sentiment={sentiment} 
                     loading={loadingSentiment} 
-                    symbol={symbol} 
+                    symbol={analyzedSymbol || symbol} 
                     error={errorSentiment}
                     isStale={isSentimentStale}
                   />
                   <NewsPanel 
                     news={news} 
                     loading={loadingNews} 
-                    symbol={symbol} 
+                    symbol={analyzedSymbol || symbol} 
                     error={errorNews}
                     isStale={isNewsStale}
                   />
@@ -843,7 +859,7 @@ function AnalyzePageContent() {
               <div className="lg:col-span-4 space-y-6 flex flex-col">
                 
                 {/* Rocket Score gauge card */}
-                <RocketScoreCard reportText={analysisReport} loading={loading} symbol={symbol} />
+                <RocketScoreCard reportText={analysisReport} loading={loading} symbol={analyzedSymbol || symbol} />
 
                 {/* Market indicators & stats */}
                 <MarketStats
