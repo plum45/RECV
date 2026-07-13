@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
 import { auth, getAuthErrorMessage } from "../../../lib/firebase";
 import { useRouter } from "next/navigation";
@@ -14,6 +14,16 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
+  // Load last used email on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedEmail = localStorage.getItem("rocket_last_email");
+      if (savedEmail) {
+        setEmail(savedEmail);
+      }
+    }
+  }, []);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -21,6 +31,14 @@ export default function LoginPage() {
     try {
       if (!auth) {
         throw new Error("ยังไม่ได้ตั้งค่า Firebase ในไฟล์ .env.local");
+      }
+      // Save last used email if rememberMe is checked
+      if (typeof window !== "undefined") {
+        if (rememberMe) {
+          localStorage.setItem("rocket_last_email", email);
+        } else {
+          localStorage.removeItem("rocket_last_email");
+        }
       }
       // Set persistence based on remember me checkbox
       await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
