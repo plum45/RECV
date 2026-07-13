@@ -3,6 +3,8 @@ import axios from "axios";
 import { getFirebaseAdminDb } from "../../../../lib/firebaseAdmin";
 import { getTelegramBotToken } from "../../../../lib/telegramConfig";
 
+export const runtime = "nodejs";
+
 export async function POST(request: Request) {
   try {
     // Verify Telegram webhook secret if configured

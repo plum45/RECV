@@ -6,6 +6,8 @@ import { calculateSupportResistance } from "../../../../lib/supportResistance";
 import { getFirebaseAdminDb } from "../../../../lib/firebaseAdmin";
 import { getTelegramBotToken } from "../../../../lib/telegramConfig";
 
+export const runtime = "nodejs";
+
 export async function GET(request: Request) {
   return triggerAlerts(request);
 }

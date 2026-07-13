@@ -3,6 +3,8 @@ import axios from "axios";
 import { verifyFirebaseIdTokenDetailed, getFirebaseAdminDb } from "../../../../lib/firebaseAdmin";
 import { getTelegramBotToken } from "../../../../lib/telegramConfig";
 
+export const runtime = "nodejs";
+
 export async function POST(request: Request) {
   try {
     const { decoded, error: authErr } = await verifyFirebaseIdTokenDetailed(request);

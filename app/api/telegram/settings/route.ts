@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { verifyFirebaseIdTokenDetailed, getFirebaseAdminDb } from "../../../../lib/firebaseAdmin";
 
+export const runtime = "nodejs";
+
 export async function GET(request: Request) {
   try {
     const { decoded, error: authErr } = await verifyFirebaseIdTokenDetailed(request);
