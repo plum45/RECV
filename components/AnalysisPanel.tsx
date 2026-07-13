@@ -159,8 +159,14 @@ function renderCustomMarkdown(report: string): React.ReactNode {
           pushTable(tableRows, `table-${sIdx}-end`);
         }
 
+        const sectionId = isLongSetup
+          ? "long-trading-setup"
+          : isShortSetup
+            ? "short-trading-setup"
+            : undefined;
+
         return (
-          <div key={sIdx} className={cardStyles}>
+          <div key={sIdx} id={sectionId} className={cardStyles}>
             {/* Colored side indicators for setups */}
             {isLongSetup && <div className="absolute top-0 left-0 w-full h-1 bg-emerald-500" />}
             {isShortSetup && <div className="absolute top-0 left-0 w-full h-1 bg-rose-500" />}

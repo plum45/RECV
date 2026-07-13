@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyFirebaseIdTokenDetailed, getFirebaseAdminDb } from "../../../../lib/firebaseAdmin";
+import { normalizeAlertSettings } from "../../../../lib/alertUtils";
 
 export const runtime = "nodejs";
 
@@ -20,21 +21,14 @@ export async function GET(request: Request) {
     const alertSettingsDoc = await db.collection("users").doc(uid).collection("settings").doc("alertSettings").get();
 
     const telegramData = telegramDoc.exists ? telegramDoc.data() : { enabled: false, chatId: null };
-    const alertSettingsData = alertSettingsDoc.exists ? alertSettingsDoc.data() : {
-      enabled: true,
-      symbols: ["BTC-USD", "ETH-USD", "SOL-USD"],
-      rsiEnabled: true,
-      macdEnabled: true,
-      bbEnabled: true,
-      volEnabled: true,
-      interval: "15m",
-      customAlerts: [],
-    };
+    const alertSettingsData = alertSettingsDoc.exists ? alertSettingsDoc.data() || {} : {};
+    
+    const finalAlertSettings = normalizeAlertSettings(alertSettingsData);
 
     return NextResponse.json({
       success: true,
       telegram: telegramData,
-      alertSettings: alertSettingsData,
+      alertSettings: finalAlertSettings,
     });
   } catch (error: any) {
     console.error("Get settings error:", error.message);
@@ -79,18 +73,12 @@ export async function POST(request: Request) {
         const tgDoc = await db.collection("users").doc(uid).collection("settings").doc("telegram").get();
         const alertDoc = await db.collection("users").doc(uid).collection("settings").doc("alertSettings").get();
         const tgData = tgDoc.data() || {};
-        const alertData = alertDoc.data() || {};
+        const alertData = normalizeAlertSettings(alertDoc.data() || {});
         if (tgData.chatId) {
           await db.collection("activeAlertSubscriptions").doc(uid).set({
             uid,
             chatId: tgData.chatId,
-            enabled: Boolean(alertData.enabled !== undefined ? alertData.enabled : true),
-            symbols: Array.isArray(alertData.symbols) ? alertData.symbols : ["BTC-USD", "ETH-USD", "SOL-USD"],
-            rsiEnabled: alertData.rsiEnabled !== undefined ? Boolean(alertData.rsiEnabled) : true,
-            macdEnabled: alertData.macdEnabled !== undefined ? Boolean(alertData.macdEnabled) : true,
-            srFlipEnabled: alertData.srFlipEnabled !== undefined ? Boolean(alertData.srFlipEnabled) : true,
-            supportEnabled: alertData.supportEnabled !== undefined ? Boolean(alertData.supportEnabled) : true,
-            cooldownMinutes: typeof alertData.cooldownMinutes === "number" ? alertData.cooldownMinutes : 120,
+            ...alertData,
             updatedAt: Date.now(),
           }, { merge: true });
         }
@@ -99,16 +87,7 @@ export async function POST(request: Request) {
     }
 
     if (alertSettings) {
-      const updatedAlertData = {
-        enabled: alertSettings.enabled !== undefined ? Boolean(alertSettings.enabled) : true,
-        symbols: Array.isArray(alertSettings.symbols) ? alertSettings.symbols : ["BTC-USD", "ETH-USD", "SOL-USD"],
-        rsiEnabled: alertSettings.rsiEnabled !== undefined ? Boolean(alertSettings.rsiEnabled) : true,
-        macdEnabled: alertSettings.macdEnabled !== undefined ? Boolean(alertSettings.macdEnabled) : true,
-        srFlipEnabled: alertSettings.srFlipEnabled !== undefined ? Boolean(alertSettings.srFlipEnabled) : true,
-        supportEnabled: alertSettings.supportEnabled !== undefined ? Boolean(alertSettings.supportEnabled) : true,
-        cooldownMinutes: typeof alertSettings.cooldownMinutes === "number" && alertSettings.cooldownMinutes >= 15 ? alertSettings.cooldownMinutes : 120,
-        updatedAt: Date.now(),
-      };
+      const updatedAlertData = normalizeAlertSettings(alertSettings, Date.now());
       await db.collection("users").doc(uid).collection("settings").doc("alertSettings").set(updatedAlertData, { merge: true });
 
       const tgDoc = await db.collection("users").doc(uid).collection("settings").doc("telegram").get();
@@ -124,7 +103,7 @@ export async function POST(request: Request) {
           await db.collection("activeAlertSubscriptions").doc(uid).delete().catch(() => {});
         }
       }
-      return NextResponse.json({ success: true, alertSettings });
+      return NextResponse.json({ success: true, alertSettings: updatedAlertData });
     }
 
     return NextResponse.json({ success: false, message: "Invalid action" }, { status: 400 });

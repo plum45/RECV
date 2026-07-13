@@ -22,8 +22,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const clientIp = request.headers.get("x-forwarded-for") || "local-client";
-    const rateCheck = checkRateLimit(`scanner:${clientIp}`, 20, 60 * 1000);
+    const rateCheck = checkRateLimit(`scanner:${decoded.uid}`, 20, 60 * 1000);
     if (!rateCheck.allowed) {
       return NextResponse.json(
         { error: "Rate limit exceeded", message: "ระบบถูกสแกนบ่อยเกินไป กรุณารอสักครู่เพื่อป้องกันโควต้าเต็ม" },

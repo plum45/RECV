@@ -1,18 +1,27 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
-import { Home, Search, BarChart2, Briefcase, Menu, X, Rocket, Zap, Sun, Moon } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Home, Search, BarChart2, Briefcase, Menu, X, Rocket, Zap, Sun, Moon, Bell } from "lucide-react";
 import { useTheme } from "next-themes";
 import MobileNavBar from "../../components/MobileNavBar";
+import { useAuth } from "../../contexts/AuthContext";
 
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const { user, loading: authLoading } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { resolvedTheme, setTheme } = useTheme();
   const theme = resolvedTheme || "dark";
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace("/auth/login");
+    }
+  }, [authLoading, user, router]);
 
   const toggleTheme = () => {
     const nextTheme = theme === "dark" ? "light" : "dark";
@@ -25,7 +34,16 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     { name: "วิเคราะห์ (Analyze)", path: "/dashboard/analyze", icon: BarChart2 },
     { name: "สแกนสัญญาณ (Scanner)", path: "/dashboard/scanner", icon: Zap },
     { name: "พอร์ต (Portfolio)", path: "/dashboard/analyze?tab=portfolio", icon: Briefcase },
+    { name: "แจ้งเตือน (Alerts)", path: "/dashboard/alerts", icon: Bell },
   ];
+
+  if (authLoading || !user) {
+    return (
+      <div className="dashboard-canvas flex h-screen items-center justify-center text-slate-100">
+        <div className="h-10 w-10 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-canvas flex h-screen overflow-hidden text-slate-100">

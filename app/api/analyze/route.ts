@@ -26,8 +26,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const clientIp = request.headers.get("x-forwarded-for") || "local-client";
-    const rateCheck = checkRateLimit(`analyze:${clientIp}`, 12, 60 * 1000);
+    const rateCheck = checkRateLimit(`analyze:${decoded.uid}`, 12, 60 * 1000);
     if (!rateCheck.allowed) {
       return NextResponse.json(
         {
@@ -155,4 +154,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

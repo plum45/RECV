@@ -5,6 +5,12 @@ import {
   getFirebaseAdminDb, 
   verifyFirebaseIdTokenDetailed 
 } from "../../../lib/firebaseAdmin";
+import {
+  calculateAlertOutcome,
+  isWithinQuietHours,
+  normalizeAlertSettings,
+  resolveSymbolAlertConfig,
+} from "../../../lib/alertUtils";
 import crypto from "crypto";
 
 export const runtime = "nodejs";
@@ -139,6 +145,77 @@ export async function GET(request: Request) {
 
     // Clean up
     await testDocRef.delete();
+  });
+
+  // 7. Test per-symbol alert settings normalization and fallback behavior
+  await runTest("Alert Settings — Per-symbol Config Normalization", () => {
+    const settings = normalizeAlertSettings({
+      enabled: true,
+      symbols: ["btc-usd", "BTC-USD", "bad symbol !!!", "TSLA"],
+      rsiEnabled: false,
+      macdEnabled: true,
+      srFlipEnabled: true,
+      supportEnabled: false,
+      cooldownMinutes: 5,
+      quietHours: { enabled: true, start: "22:00", end: "06:00" },
+      configs: {
+        "btc-usd": {
+          rsiEnabled: true,
+          macdEnabled: false,
+          srFlipEnabled: true,
+          supportEnabled: true,
+        },
+      },
+    });
+
+    if (settings.symbols.join(",") !== "BTC-USD,TSLA") {
+      throw new Error(`Expected normalized symbols BTC-USD,TSLA, got ${settings.symbols.join(",")}`);
+    }
+    if (settings.cooldownMinutes !== 120) {
+      throw new Error(`Expected invalid cooldown to fallback to 120, got ${settings.cooldownMinutes}`);
+    }
+
+    const btcConfig = resolveSymbolAlertConfig(settings, "BTC-USD");
+    if (!btcConfig.rsiEnabled || btcConfig.macdEnabled || !btcConfig.supportEnabled) {
+      throw new Error("Expected BTC-USD config override to win over global alert settings.");
+    }
+
+    const tslaConfig = resolveSymbolAlertConfig(settings, "TSLA");
+    if (tslaConfig.rsiEnabled || !tslaConfig.macdEnabled || tslaConfig.supportEnabled) {
+      throw new Error("Expected TSLA to fallback to normalized global alert settings.");
+    }
+  });
+
+  // 8. Test Quiet Hours conversion for Thailand time, including overnight ranges
+  await runTest("Alert Settings — Quiet Hours Thailand Time", () => {
+    const quietHours = { enabled: true, start: "22:00", end: "06:00" };
+    const insideQuietHours = new Date("2026-07-13T16:30:00.000Z"); // 23:30 Asia/Bangkok
+    const outsideQuietHours = new Date("2026-07-13T07:30:00.000Z"); // 14:30 Asia/Bangkok
+
+    if (!isWithinQuietHours(quietHours, insideQuietHours)) {
+      throw new Error("Expected 23:30 Asia/Bangkok to be inside Quiet Hours.");
+    }
+    if (isWithinQuietHours(quietHours, outsideQuietHours)) {
+      throw new Error("Expected 14:30 Asia/Bangkok to be outside Quiet Hours.");
+    }
+  });
+
+  // 9. Test alert outcome percentage and label calculation after one hour
+  await runTest("Alert History — Outcome Calculation", () => {
+    const bullishOutcome = calculateAlertOutcome(100, 101, 0.5);
+    if (bullishOutcome.result !== "Bullish" || bullishOutcome.changePercent !== 1) {
+      throw new Error(`Expected Bullish +1%, got ${bullishOutcome.result} ${bullishOutcome.changePercent}`);
+    }
+
+    const bearishOutcome = calculateAlertOutcome(100, 99.25, 0.5);
+    if (bearishOutcome.result !== "Bearish" || bearishOutcome.changePercent !== -0.75) {
+      throw new Error(`Expected Bearish -0.75%, got ${bearishOutcome.result} ${bearishOutcome.changePercent}`);
+    }
+
+    const neutralOutcome = calculateAlertOutcome(100, 100.2, 0.5);
+    if (neutralOutcome.result !== "Neutral") {
+      throw new Error(`Expected Neutral result, got ${neutralOutcome.result}`);
+    }
   });
 
   const testsFailed = results.filter(r => r.status === "FAIL").length;
