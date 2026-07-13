@@ -10,7 +10,41 @@ import { buildAnalysisPrompt } from "../../../lib/prompt";
 import { checkRateLimit, getAiCache, setAiCache } from "../../../lib/aiCache";
 import { verifyFirebaseIdTokenDetailed } from "../../../lib/firebaseAdmin";
 
+import { z } from "zod";
+
 export const runtime = "nodejs";
+
+const analyzeInputSchema = z.object({
+  symbol: z.string().default("NVDA"),
+  timeframe: z.string().default("1H"),
+  tradingStyle: z.enum(["day", "swing", "position"])
+    .or(z.string().transform((val) => {
+      const lower = val.toLowerCase();
+      if (lower.includes("day")) return "day" as const;
+      if (lower.includes("position")) return "position" as const;
+      return "swing" as const;
+    }))
+    .default("swing"),
+  risk: z.string().default("1%"),
+});
+
+const styleMeta = {
+  day: {
+    holdingPeriod: "นาทีถึงภายในวัน (Minutes to Intraday)",
+    recommendedTimeframes: ["5m", "15m", "1H"],
+    styleReason: "เน้นการเก็งกำไรเร็วในรอบวันโดยคำนวณ RSI, MACD, Volume และแนวรับ/แนวต้านระยะสั้นเพื่อหาจุดตัดขาดทุนแคบ"
+  },
+  swing: {
+    holdingPeriod: "หลายวันถึงหลายสัปดาห์ (3–20 วันโดยประมาณ)",
+    recommendedTimeframes: ["4H", "1D"],
+    styleReason: "เน้นการเกาะแนวโน้มรอบราคากลาง ค้นหาจุดเสี่ยงคุ้มค่าอ้างอิงเส้น EMA 20/50 และความผันผวน ATR"
+  },
+  position: {
+    holdingPeriod: "หลายสัปดาห์ถึงหลายเดือน (Weeks to Months)",
+    recommendedTimeframes: ["1D"],
+    styleReason: "เน้นทิศทางตามเทรนด์ภาพใหญ่ระดับมหภาคด้วยเส้น EMA 50/200, Fibonacci และแนวรับ/แนวต้านระยะยาว"
+  }
+};
 
 export async function POST(request: Request) {
   try {
@@ -39,11 +73,12 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => ({}));
 
-    // Validate and normalize inputs — default to NVDA
-    const symbol = normalizeSymbol(body.symbol || "NVDA");
-    const timeframe = body.timeframe || "1H";
-    const tradingStyle = body.tradingStyle || "Day Trade";
-    const risk = body.risk || "1%";
+    // Validate with Zod schema
+    const parsedInput = analyzeInputSchema.parse(body);
+    const symbol = normalizeSymbol(parsedInput.symbol);
+    const timeframe = parsedInput.timeframe;
+    const tradingStyle = parsedInput.tradingStyle;
+    const risk = parsedInput.risk;
 
     // 1. Fetch live market price and ticker details
     const marketData = await getTicker(symbol);
@@ -105,6 +140,7 @@ export async function POST(request: Request) {
             supportResistance,
             news,
             sentiment,
+            klines,
           });
           analysisSource = "Local Quant Engine (Fallback)";
         }
@@ -120,6 +156,7 @@ export async function POST(request: Request) {
         supportResistance,
         news,
         sentiment,
+        klines,
       });
     }
 
@@ -128,6 +165,9 @@ export async function POST(request: Request) {
       symbol,
       timeframe,
       tradingStyle,
+      holdingPeriod: styleMeta[tradingStyle].holdingPeriod,
+      recommendedTimeframes: styleMeta[tradingStyle].recommendedTimeframes,
+      styleReason: styleMeta[tradingStyle].styleReason,
       source: {
         price: process.env.FINNHUB_API_KEY ? "Finnhub API" : "Market Data API",
         chart: "TradingView Widget",

@@ -12,6 +12,7 @@ import {
   resolveSymbolAlertConfig,
 } from "../../../lib/alertUtils";
 import crypto from "crypto";
+import { generateLocalReport } from "../../../lib/localAnalysis";
 
 export const runtime = "nodejs";
 
@@ -215,6 +216,157 @@ export async function GET(request: Request) {
     const neutralOutcome = calculateAlertOutcome(100, 100.2, 0.5);
     if (neutralOutcome.result !== "Neutral") {
       throw new Error(`Expected Neutral result, got ${neutralOutcome.result}`);
+    }
+  });
+
+  // 10. Test Trading Styles Report Generation
+  await runTest("Trading Styles — Day Trade Report", () => {
+    const mockPayload = {
+      symbol: "NVDA",
+      timeframe: "1H",
+      risk: "1%",
+      marketData: {
+        symbol: "NVDA",
+        currentPrice: 100,
+        high24h: 105,
+        low24h: 98,
+        volume24h: 5000000,
+        change24h: 2.5,
+      },
+      indicators: {
+        ema20: 98,
+        ema50: 95,
+        ema200: 90,
+        rsi14: 60,
+        macd: { macdLine: 1, signalLine: 0.5, histogram: 0.5, crossover: "none" as const },
+        atr14: 2,
+        pivot: { p: 100, s1: 98, s2: 96, s3: 94, r1: 102, r2: 104, r3: 106 },
+        volumeAnalysis: { currentVolume: 100000, avgVolume20: 80000, volumeRatio: 1.25, isVolumeSpike: false, obvTrend: "rising" as const, obv: 10000 },
+        bollingerBands: { upper: 104, middle: 100, lower: 96, percentB: 0.5, bandwidth: 0.08, squeeze: false },
+        adx: { adx: 30, plusDI: 28, minusDI: 15, direction: "up" as const, trending: true },
+        stochasticRSI: { k: 70, d: 60, overbought: false, oversold: false },
+        fibonacci: { swing_high: 105, swing_low: 95, r0: 105, r236: 102.6, r382: 101.2, r500: 100, r618: 98.8, r786: 97.2, r100: 95, ext127: 107.7, ext161: 111.1 },
+        vwap: 99,
+        marketStructure: { type: "uptrend" as const, higherHighs: true, higherLows: true, lowerHighs: false, lowerLows: false, lastSwingHigh: 105, lastSwingLow: 95, breakOfStructure: "none" as const }
+      },
+      supportResistance: {
+        supportZones: [{ zone: "98-99", score: 8, touches: 2, reasons: ["Pivot S1", "EMA20"], type: "support" as const }],
+        resistanceZones: [{ zone: "102-103", score: 7, touches: 1, reasons: ["Pivot R1"], type: "resistance" as const }]
+      },
+      news: [],
+      sentiment: { 
+        overallSentiment: "Bullish" as const, 
+        reasons: ["RSI rising"],
+        fearAndGreed: { value: 65, label: "Greed" },
+        fundingRate: 0.0001,
+        openInterest: 150000000,
+        longShortRatio: 1.25
+      }
+    };
+
+    const report = generateLocalReport({ ...mockPayload, tradingStyle: "day" });
+    if (!report.includes("Day Trade") || !report.includes("นาทีถึงภายในวัน")) {
+      throw new Error("Expected Day Trade report with Intraday hold description.");
+    }
+  });
+
+  await runTest("Trading Styles — Swing Trade Report", () => {
+    const mockPayload = {
+      symbol: "NVDA",
+      timeframe: "1H",
+      risk: "1%",
+      marketData: {
+        symbol: "NVDA",
+        currentPrice: 100,
+        high24h: 105,
+        low24h: 98,
+        volume24h: 5000000,
+        change24h: 2.5,
+      },
+      indicators: {
+        ema20: 98,
+        ema50: 95,
+        ema200: 90,
+        rsi14: 60,
+        macd: { macdLine: 1, signalLine: 0.5, histogram: 0.5, crossover: "none" as const },
+        atr14: 2,
+        pivot: { p: 100, s1: 98, s2: 96, s3: 94, r1: 102, r2: 104, r3: 106 },
+        volumeAnalysis: { currentVolume: 100000, avgVolume20: 80000, volumeRatio: 1.25, isVolumeSpike: false, obvTrend: "rising" as const, obv: 10000 },
+        bollingerBands: { upper: 104, middle: 100, lower: 96, percentB: 0.5, bandwidth: 0.08, squeeze: false },
+        adx: { adx: 30, plusDI: 28, minusDI: 15, direction: "up" as const, trending: true },
+        stochasticRSI: { k: 70, d: 60, overbought: false, oversold: false },
+        fibonacci: { swing_high: 105, swing_low: 95, r0: 105, r236: 102.6, r382: 101.2, r500: 100, r618: 98.8, r786: 97.2, r100: 95, ext127: 107.7, ext161: 111.1 },
+        vwap: 99,
+        marketStructure: { type: "uptrend" as const, higherHighs: true, higherLows: true, lowerHighs: false, lowerLows: false, lastSwingHigh: 105, lastSwingLow: 95, breakOfStructure: "none" as const }
+      },
+      supportResistance: {
+        supportZones: [{ zone: "98-99", score: 8, touches: 2, reasons: ["Pivot S1", "EMA20"], type: "support" as const }],
+        resistanceZones: [{ zone: "102-103", score: 7, touches: 1, reasons: ["Pivot R1"], type: "resistance" as const }]
+      },
+      news: [],
+      sentiment: { 
+        overallSentiment: "Bullish" as const, 
+        reasons: ["RSI rising"],
+        fearAndGreed: { value: 65, label: "Greed" },
+        fundingRate: 0.0001,
+        openInterest: 150000000,
+        longShortRatio: 1.25
+      }
+    };
+
+    const report = generateLocalReport({ ...mockPayload, tradingStyle: "swing" });
+    if (!report.includes("Swing Trade") || !report.includes("3–20 วัน")) {
+      throw new Error("Expected Swing Trade report with swing holding period.");
+    }
+  });
+
+  await runTest("Trading Styles — Position Trade Report", () => {
+    const mockPayload = {
+      symbol: "NVDA",
+      timeframe: "1H",
+      risk: "1%",
+      marketData: {
+        symbol: "NVDA",
+        currentPrice: 100,
+        high24h: 105,
+        low24h: 98,
+        volume24h: 5000000,
+        change24h: 2.5,
+      },
+      indicators: {
+        ema20: 98,
+        ema50: 95,
+        ema200: 90,
+        rsi14: 60,
+        macd: { macdLine: 1, signalLine: 0.5, histogram: 0.5, crossover: "none" as const },
+        atr14: 2,
+        pivot: { p: 100, s1: 98, s2: 96, s3: 94, r1: 102, r2: 104, r3: 106 },
+        volumeAnalysis: { currentVolume: 100000, avgVolume20: 80000, volumeRatio: 1.25, isVolumeSpike: false, obvTrend: "rising" as const, obv: 10000 },
+        bollingerBands: { upper: 104, middle: 100, lower: 96, percentB: 0.5, bandwidth: 0.08, squeeze: false },
+        adx: { adx: 30, plusDI: 28, minusDI: 15, direction: "up" as const, trending: true },
+        stochasticRSI: { k: 70, d: 60, overbought: false, oversold: false },
+        fibonacci: { swing_high: 105, swing_low: 95, r0: 105, r236: 102.6, r382: 101.2, r500: 100, r618: 98.8, r786: 97.2, r100: 95, ext127: 107.7, ext161: 111.1 },
+        vwap: 99,
+        marketStructure: { type: "uptrend" as const, higherHighs: true, higherLows: true, lowerHighs: false, lowerLows: false, lastSwingHigh: 105, lastSwingLow: 95, breakOfStructure: "none" as const }
+      },
+      supportResistance: {
+        supportZones: [{ zone: "98-99", score: 8, touches: 2, reasons: ["Pivot S1", "EMA20"], type: "support" as const }],
+        resistanceZones: [{ zone: "102-103", score: 7, touches: 1, reasons: ["Pivot R1"], type: "resistance" as const }]
+      },
+      news: [],
+      sentiment: { 
+        overallSentiment: "Bullish" as const, 
+        reasons: ["RSI rising"],
+        fearAndGreed: { value: 65, label: "Greed" },
+        fundingRate: 0.0001,
+        openInterest: 150000000,
+        longShortRatio: 1.25
+      }
+    };
+
+    const report = generateLocalReport({ ...mockPayload, tradingStyle: "position" });
+    if (!report.includes("Position Trade") || !report.includes("หลายสัปดาห์ถึงหลายเดือน")) {
+      throw new Error("Expected Position Trade report with Position holding period.");
     }
   });
 

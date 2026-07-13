@@ -12,6 +12,7 @@ interface LocalAnalysisPayload {
   supportResistance: SupportResistanceData;
   news: NewsArticle[];
   sentiment: SentimentData;
+  klines?: any[];
 }
 
 const fmt = (num: number, decimals = 2): string => {
@@ -23,7 +24,7 @@ const fmt = (num: number, decimals = 2): string => {
 const pct = (num: number): string => `${num >= 0 ? "+" : ""}${num.toFixed(2)}%`;
 
 export function generateLocalReport(payload: LocalAnalysisPayload): string {
-  const { symbol, timeframe, tradingStyle, risk, marketData, indicators, supportResistance, news, sentiment } = payload;
+  const { symbol, timeframe, tradingStyle, risk, marketData, indicators, supportResistance, news, sentiment, klines } = payload;
 
   const price = marketData.currentPrice;
   const { ema20, ema50, ema200, rsi14, macd, atr14, pivot, volumeAnalysis,
@@ -177,8 +178,14 @@ export function generateLocalReport(payload: LocalAnalysisPayload): string {
     .filter((f) => f > price)
     .reduce((a, b) => (Math.abs(b - price) < Math.abs(a - price) ? b : a), fib.r236);
 
-  // ATR-based SL buffer
-  const slBuffer = atr14 * 1.5;
+  // ATR-based SL buffer adjusted for Trading Style
+  let slFactor = 1.5;
+  if (tradingStyle === "day") {
+    slFactor = 1.0;
+  } else if (tradingStyle === "position") {
+    slFactor = 2.5;
+  }
+  const slBuffer = atr14 * slFactor;
 
   // Long setup
   const longEntry  = sup1 > 0 ? sup1 : price;
@@ -203,13 +210,28 @@ export function generateLocalReport(payload: LocalAnalysisPayload): string {
   const longRiskPU    = longEntry - longSL;
   const posSize       = longRiskPU > 0 ? (riskDollar / longRiskPU).toFixed(4) : "N/A";
 
+  const styleName = tradingStyle === "day" ? "Day Trade" : tradingStyle === "position" ? "Position Trade" : "Swing Trade";
+  const holdingDesc = 
+    tradingStyle === "day" ? "นาทีถึงภายในวัน (Minutes to Intraday)" :
+    tradingStyle === "position" ? "หลายสัปดาห์ถึงหลายเดือน (Weeks to Months)" :
+    "หลายวันถึงหลายสัปดาห์ (3–20 วันโดยประมาณ)";
+
+  // Warning alert if data is insufficient
+  let warningAlert = "";
+  if (!klines || klines.length < 150) {
+    warningAlert = `\n> [!WARNING]\n> ข้อมูลแท่งเทียนประวัติศาสตร์มีจำนวนไม่เพียงพอ (${klines?.length || 0}/150) สำหรับสไตล์การเทรดแบบ ${styleName} สัญญาณการวิเคราะห์อาจไม่มีความเสถียรเพียงพอ โปรดใช้ความระมัดระวังสูงสุดในการเปิดออเดอร์\n`;
+  }
+
   // ── GENERATE REPORT ────────────────────────────────────────────────────
   return `# 📊 Rocket AI · ${symbol} Analysis Report
+${warningAlert}
+> **คำชี้แจงสถานะ:** ระดับ "Long Setup" ในตารางวิเคราะห์ข้อมูลนี้ หมายถึง **มุมมองเชิงเทคนิคอลที่คาดว่าราคาของหลักทรัพย์จะปรับตัวสูงขึ้น (Bullish Outlook)** ไม่ได้มีความสัมพันธ์กับระยะเวลาหรือข้อกำหนดระยะการถือครองเปิดออเดอร์แต่อย่างใด
 
 ## ═══ 1. Market Overview ═══
 | ฟิลด์ | ข้อมูล |
 | :--- | :--- |
 | Symbol | **${symbol}** · Timeframe: **${timeframe}** |
+| Trading Style | **${styleName}** (ระยะถือครองโดยประมาณ: ${holdingDesc}) |
 | ราคาปัจจุบัน | **$${fmt(price)}** |
 | 24h Range | Low $${fmt(marketData.low24h)} → High $${fmt(marketData.high24h)} |
 | 24h Change | ${pct(marketData.change24h)} |

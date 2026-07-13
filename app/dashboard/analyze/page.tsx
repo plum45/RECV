@@ -70,7 +70,7 @@ function AnalyzePageContent() {
     return "";
   });
   const [timeframe, setTimeframe] = useState("1H");
-  const [tradingStyle, setTradingStyle] = useState("Day Trade");
+  const [tradingStyle, setTradingStyle] = useState("swing");
   const [riskPercent, setRiskPercent] = useState("1%");
   const [analysisMode, setAnalysisMode] = useState("Analyze Both Long & Short");
 
@@ -663,8 +663,108 @@ function AnalyzePageContent() {
             isPriceStale={isPriceStale}
           />
         )}
+        {/* Configuration Selectors Bar */}
+        {symbol && (
+          <div className="bg-slate-900/60 border border-slate-800/80 backdrop-blur-md rounded-3xl p-4 lg:p-5 shadow-xl flex flex-col md:flex-row gap-5 relative z-20">
+            {/* Trading Style Selector */}
+            <div className="flex-1 space-y-1.5">
+              <label className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                สไตล์การเทรด (Trading Style)
+              </label>
+              <select
+                value={tradingStyle}
+                onChange={(e) => {
+                  const style = e.target.value;
+                  setTradingStyle(style);
+                  // Auto adjust recommended timeframe
+                  if (style === "day") {
+                    setTimeframe("15m");
+                  } else if (style === "swing") {
+                    setTimeframe("1H");
+                  } else if (style === "position") {
+                    setTimeframe("1D");
+                  }
+                }}
+                aria-label="เลือกสไตล์การเทรด"
+                className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs font-semibold rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 cursor-pointer"
+              >
+                <option value="day">Day Trade (เก็งกำไรระยะสั้น / Minutes to Intraday)</option>
+                <option value="swing">Swing Trade (แนะนำ / เก็งกำไรส่วนต่างรอบ / Days to Weeks)</option>
+                <option value="position">Position Trade (เก็งกำไรตามทิศทางแนวโน้มใหญ่ / Weeks to Months)</option>
+              </select>
+              <p className="text-[10px] text-slate-500 font-medium">
+                {tradingStyle === "day" && "ระยะถือครอง: นาทีถึงภายในวัน • แนะนำ: 5m, 15m, 1H • เน้น RSI/MACD/Vol และรับ-ต้านระยะสั้น"}
+                {tradingStyle === "swing" && "ระยะถือครอง: 3–20 วันโดยประมาณ • แนะนำ: 4H, 1D • เน้น EMA 20/50, โครงสร้าง และ ATR"}
+                {tradingStyle === "position" && "ระยะถือครอง: หลายสัปดาห์ถึงหลายเดือน • แนะนำ: 1D • เน้น EMA 50/200, Fibonacci และเทรนด์หลัก"}
+              </p>
+            </div>
 
-          <>
+            {/* Timeframe Selector */}
+            <div className="md:w-44 space-y-1.5">
+              <label className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                กรอบเวลา (Timeframe)
+              </label>
+              <select
+                value={timeframe}
+                onChange={(e) => setTimeframe(e.target.value)}
+                aria-label="เลือกกรอบเวลา"
+                className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs font-semibold rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 cursor-pointer"
+              >
+                <option value="5m">5 Minutes (5m)</option>
+                <option value="15m">15 Minutes (15m)</option>
+                <option value="1H">1 Hour (1H)</option>
+                <option value="4H">4 Hours (4H)</option>
+                <option value="1D">1 Day (1D)</option>
+              </select>
+              <p className="text-[10px] text-slate-500 font-medium">
+                กรอบเวลากราฟสำหรับวิเคราะห์
+              </p>
+            </div>
+
+            {/* Risk Selection */}
+            <div className="md:w-36 space-y-1.5">
+              <label className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                ความเสี่ยงต่อไม้ (Risk %)
+              </label>
+              <select
+                value={riskPercent}
+                onChange={(e) => setRiskPercent(e.target.value)}
+                aria-label="เลือกความเสี่ยงต่อครั้ง"
+                className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs font-semibold rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 cursor-pointer"
+              >
+                <option value="1%">1% Risk</option>
+                <option value="2%">2% Risk</option>
+                <option value="3%">3% Risk</option>
+                <option value="5%">5% Risk</option>
+              </select>
+              <p className="text-[10px] text-slate-500 font-medium">
+                ใช้คำนวณขนาดไม้เหมาะสม
+              </p>
+            </div>
+
+            {/* Analysis Mode Selector */}
+            <div className="md:w-64 space-y-1.5">
+              <label className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                โหมดการวิเคราะห์ (Analysis Mode)
+              </label>
+              <select
+                value={analysisMode}
+                onChange={(e) => setAnalysisMode(e.target.value)}
+                aria-label="เลือกโหมดวิเคราะห์ของบอต AI"
+                className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs font-semibold rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 cursor-pointer"
+              >
+                <option value="Analyze Both Long & Short">Analyze Both Long & Short</option>
+                <option value="Long Positions Only">Long Positions Only</option>
+                <option value="Short Positions Only">Short Positions Only</option>
+              </select>
+              <p className="text-[10px] text-slate-500 font-medium">
+                แผนภาพและกรณีการเทรดที่แนะนำ
+              </p>
+            </div>
+          </div>
+        )}
+
+        <>
 
             {/* Dashboard Grid Workspace */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
