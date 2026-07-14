@@ -115,6 +115,7 @@ function renderCustomMarkdown(report: string): React.ReactNode {
         };
 
         for (let i = 0; i < contentLines.length; i++) {
+          const indentSpaces = contentLines[i].match(/^\s*/)?.[0].length || 0;
           let line = contentLines[i].trim();
 
           // 1. Parse tables
@@ -200,8 +201,57 @@ function renderCustomMarkdown(report: string): React.ReactNode {
           // 4. Parse list items (* Item or - Item)
           if (line.startsWith("*") || line.startsWith("-")) {
             const listText = line.replace(/^[*+-]\s*/, "").trim();
+            const indentClass = indentSpaces >= 4 ? "ml-8" : indentSpaces >= 2 ? "ml-4" : "ml-1.5";
+
+            // Check if it is a Checkbox item (- [ ] or - [x])
+            const checkboxMatch = listText.match(/^\[([ xX/])\]\s*(.*)/);
+            if (checkboxMatch) {
+              const isChecked = checkboxMatch[1].toLowerCase() === "x" || checkboxMatch[1] === "/";
+              const cleanText = checkboxMatch[2];
+              parsedContent.push(
+                <div key={i} className={`flex items-start gap-2.5 text-xs ${indentClass} my-1.5 leading-relaxed`}>
+                  {isChecked ? (
+                    <CheckCircle size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+                  ) : (
+                    <div className="w-4 h-4 border border-slate-600 rounded shrink-0 mt-0.5 bg-slate-900/60 flex items-center justify-center"></div>
+                  )}
+                  <span className={`flex-1 ${isChecked ? "text-slate-200 font-medium" : "text-slate-400"}`}>
+                    {parseInlineMarkdown(cleanText)}
+                  </span>
+                </div>
+              );
+              continue;
+            }
+
+            // Check if it is a Price Projection summary metric (Current Price, Upside Target Zone, etc.)
+            if (isPriceProjection) {
+              const metricMatch = listText.match(/^(Current Price|Upside Target Zone|Upside Zone|Base Range|Downside Target Zone|Downside Zone|Time Horizon|Confidence Rating|Confidence|Confirmation Conditions|Invalidation Conditions|News\/Event Risk|Event Risk Status)\s*:\s*(.*)/i);
+              if (metricMatch) {
+                const label = metricMatch[1].trim();
+                const value = metricMatch[2].trim();
+                let borderHighlight = "border-slate-800/80 bg-slate-900/60";
+                let labelColor = "text-cyan-400";
+                if (/Upside/i.test(label)) { borderHighlight = "border-emerald-500/30 bg-emerald-950/20"; labelColor = "text-emerald-400"; }
+                else if (/Downside/i.test(label)) { borderHighlight = "border-rose-500/30 bg-rose-950/20"; labelColor = "text-rose-400"; }
+                else if (/Base/i.test(label)) { borderHighlight = "border-amber-500/30 bg-amber-950/20"; labelColor = "text-amber-400"; }
+                else if (/Risk|Invalidation/i.test(label)) { borderHighlight = "border-purple-500/30 bg-purple-950/20"; labelColor = "text-purple-400"; }
+
+                parsedContent.push(
+                  <div key={i} className={`flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-4 p-3 my-2 rounded-xl border ${borderHighlight} shadow-sm text-xs`}>
+                    <span className={`font-bold ${labelColor} uppercase tracking-wider shrink-0`}>
+                      {label}
+                    </span>
+                    <span className="text-slate-200 sm:text-right font-medium">
+                      {parseInlineMarkdown(value)}
+                    </span>
+                  </div>
+                );
+                continue;
+              }
+            }
+
             parsedContent.push(
-              <div key={i} className="flex items-start gap-2 text-xs text-slate-300 ml-1.5 my-1.5 leading-relaxed">
+              <div key={i} className={`flex items-start gap-2 text-xs text-slate-300 ${indentClass} my-1.5 leading-relaxed`}>
                 <span className="text-indigo-400 mt-0.5 shrink-0 font-bold">•</span>
                 <span className="flex-1">{parseInlineMarkdown(listText)}</span>
               </div>

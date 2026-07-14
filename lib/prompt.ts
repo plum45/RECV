@@ -164,9 +164,14 @@ ${sentimentReasons}
 
 ## 8. Price Projection Matrix & 3-Scenario Analysis (คาดการณ์โซนราคา)
 * Current Price: [ราคาปัจจุบัน]
+* Upside Target Zone: [โซนเป้าหมายกรณีขาขึ้น เช่น $155–$160]
+* Base Range: [กรอบราคาพักตัวสะสมพลัง เช่น $145–$152]
+* Downside Target Zone: [โซนเป้าหมายกรณีขาลง เช่น $138–$142]
 * Time Horizon: [1-3 วัน หรือตาม Timeframe]
-* Confidence Rating: [High / Moderate / Low / Conflicting - ห้ามเรียกเป็นโอกาสชนะ หรือ % Win rate]
-* Event Risk Status: [High Risk / Low Risk ตามปฏิทินข่าว]
+* Confidence: [High / Moderate / Low / Conflicting - ห้ามเรียกเป็นโอกาสชนะ หรือ % Win rate]
+* Confirmation Conditions: [เงื่อนไขรอยืนยันในภาพรวม]
+* Invalidation Conditions: [เงื่อนไขยกเลิกภาพรวมเมื่อหลุดกรอบ]
+* News/Event Risk: [High Risk / Low Risk ตามปฏิทินข่าวสาร]
 
 ### 🗺️ Scenario Comparison Table
 | สถานการณ์ (Scenario) | โซนเป้าหมาย (Target Zone) | เงื่อนไขยืนยัน (Confirmations) | แนวเป้าหมายถัดไป | จุดยกเลิก (Invalidation Level) |

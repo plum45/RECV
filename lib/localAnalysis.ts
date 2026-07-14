@@ -478,9 +478,14 @@ export function generateLocalReport(payload: LocalAnalysisPayload): string {
 *ระบบคำนวณคาดการณ์โซนราคาที่อาจไปถึงเป็น Scenario และช่วงราคา โดยไม่ฟันธงทิศทางเดียว อ้างอิงตามสูตร Confluence S/R & Fibonacci*
 
 - **Current Price:** **$${fmt(proj.currentPrice)}**
+- **Upside Target Zone:** **${proj.upsideScenario.targetZone.formatted}**
+- **Base Range:** **${proj.baseScenario.targetZone.formatted}**
+- **Downside Target Zone:** **${proj.downsideScenario.targetZone.formatted}**
 - **Time Horizon:** **${proj.timeHorizon}**
-- **Confidence Rating:** **${proj.confidence === "High" ? "🟢 High (ความเชื่อมั่นสูง)" : proj.confidence === "Moderate" ? "🟡 Moderate (ความเชื่อมั่นปานกลาง)" : proj.confidence === "Low" ? "🔴 Low (ความเชื่อมั่นต่ำ)" : "⚖️ Conflicting (สัญญาณขัดแย้ง)"}** (${proj.confidenceReasons[0] || "ตามเงื่อนไขยืนยันทางเทคนิค"})
-- **Event Risk Status:** **${proj.eventRisk.level === "High" ? "🚨 High Risk (มี Event สำคัญใน 24 ชม.)" : "🟢 Low Risk"}** ${proj.eventRisk.warningMessage ? `· ${proj.eventRisk.warningMessage}` : ""}
+- **Confidence:** **${proj.confidence === "High" ? "🟢 High" : proj.confidence === "Moderate" ? "🟡 Moderate" : proj.confidence === "Low" ? "🔴 Low" : "⚖️ Conflicting"}** (${proj.confidenceReasons[0] || "ตามเงื่อนไขยืนยันทางเทคนิค"})
+- **Confirmation Conditions:** **${proj.upsideScenario.confirmations.filter(c => c.isConfirmed).map(c => c.label).join(", ") || "รอยืนยัน Volume และ Price Action"}**
+- **Invalidation Conditions:** **Break > $${proj.baseScenario.targetZone.high} หรือ หลุด < $${proj.baseScenario.targetZone.low} พร้อม Volume**
+- **News/Event Risk:** **${proj.eventRisk.level === "High" ? "🚨 High Risk (มี Event สำคัญใน 24 ชม.)" : "🟢 Low Risk"}** ${proj.eventRisk.warningMessage ? `(${proj.eventRisk.warningMessage})` : ""}
 
 ### 🗺️ Scenario Comparison Table
 | สถานการณ์ (Scenario) | โซนเป้าหมาย (Target Zone) | เงื่อนไขยืนยัน (Confirmations) | แนวเป้าหมายถัดไป | จุดยกเลิก (Invalidation Level) |
