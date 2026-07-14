@@ -1,6 +1,7 @@
 import { TickerData, IndicatorData, SupportResistanceData } from "../types/market";
 import { NewsArticle } from "../types/news";
 import { SentimentData } from "../types/analysis";
+import { PriceProjectionData } from "../types/projection";
 
 interface PromptBuilderPayload {
   symbol: string;
@@ -11,6 +12,7 @@ interface PromptBuilderPayload {
   supportResistance: SupportResistanceData;
   news: NewsArticle[];
   sentiment: SentimentData;
+  priceProjection?: PriceProjectionData;
 }
 
 export function buildAnalysisPrompt(payload: PromptBuilderPayload): string {
@@ -38,6 +40,15 @@ export function buildAnalysisPrompt(payload: PromptBuilderPayload): string {
   const resistanceString = supportResistance.resistanceZones
     .map(z => `- Zone: ${z.zone} | Score: ${z.score}/10 | Reasons: ${z.reasons.join(", ")}`)
     .join("\n");
+
+  const projectionString = payload.priceProjection
+    ? `- Upside Target Zone: ${payload.priceProjection.upsideScenario.targetZone.formatted} (Reasons: ${payload.priceProjection.upsideScenario.targetZone.reason})
+- Base Range: ${payload.priceProjection.baseScenario.targetZone.formatted} (Reasons: ${payload.priceProjection.baseScenario.targetZone.reason})
+- Downside Target Zone: ${payload.priceProjection.downsideScenario.targetZone.formatted} (Reasons: ${payload.priceProjection.downsideScenario.targetZone.reason})
+- Time Horizon: ${payload.priceProjection.timeHorizon}
+- Confidence: ${payload.priceProjection.confidence} (${payload.priceProjection.confidenceReasons[0] || ""})
+- Event Risk: ${payload.priceProjection.eventRisk.level} (${payload.priceProjection.eventRisk.warningMessage || "Low"})`
+    : "คำนวณจาก Confluence S/R & Pivot";
 
   const styleName = tradingStyle === "day" ? "Day Trade" : tradingStyle === "position" ? "Position Trade" : "Swing Trade";
   const styleDescription = 
@@ -151,27 +162,32 @@ ${sentimentReasons}
 * Sentiment รวม: [ดัชนีภาพรวมจิตวิทยาตลาดและความหมาย]
 * สิ่งที่ต้องระวัง: [ปัจจัยภายนอก ข้อมูลทางสถิติ หรือข่าวที่จะประกาศเร็ว ๆ นี้]
 
-## 8. Scenario Analysis
+## 8. Price Projection Matrix & 3-Scenario Analysis (คาดการณ์โซนราคา)
+* Current Price: [ราคาปัจจุบัน]
+* Time Horizon: [1-3 วัน หรือตาม Timeframe]
+* Confidence Rating: [High / Moderate / Low / Conflicting - ห้ามเรียกเป็นโอกาสชนะ หรือ % Win rate]
+* Event Risk Status: [High Risk / Low Risk ตามปฏิทินข่าว]
 
-### Bullish Case
-* เงื่อนไข: [เช่น ราคายืนเหนือ EMA50 หรือเบรคแนวต้าน]
-* Target 1: [ค่า]
-* Target 2: [ค่า]
-* Target 3: [ค่า]
-* Invalidation: [ระดับราคาที่ทำให้กรณีขาขึ้นเป็นโมฆะ]
+### 🗺️ Scenario Comparison Table
+| สถานการณ์ (Scenario) | โซนเป้าหมาย (Target Zone) | เงื่อนไขยืนยัน (Confirmations) | แนวเป้าหมายถัดไป | จุดยกเลิก (Invalidation Level) |
+| :--- | :--- | :--- | :--- | :--- |
+| 🚀 Bullish Scenario | [นำค่า Upside Target Zone จากข้อ 4 มาแสดง] | [ระบุเงื่อนไขยืนยันที่ผ่าน] | [แนวต้านถัดไป] | [จุดยกเลิกเมื่อหลุดรับ] |
+| ⚖️ Base Scenario | [นำค่า Base Range จากข้อ 4 มาแสดง] | [สภาวะ Sideways/พักตัว] | [SMA/Pivot กลาง] | [Breakout บน/ล่าง] |
+| 🔻 Bearish Scenario | [นำค่า Downside Target Zone จากข้อ 4 มาแสดง] | [ระบุเงื่อนไขยืนยันที่ผ่าน] | [แนวรับถัดไป] | [จุดยกเลิกเมื่อทะลุต้าน] |
 
-### Bearish Case
-* เงื่อนไข: [เช่น ราคาหลุด EMA20 หรือทะลุแนวรับสำคัญ]
-* Target 1: [ค่า]
-* Target 2: [ค่า]
-* Target 3: [ค่า]
-* Invalidation: [ระดับราคาที่ทำให้กรณีขาลงเป็นโมฆะ]
+### Bullish Scenario Details
+* เหตุผลสนับสนุน: [อธิบายตามสูตรและ Price Action]
+* เงื่อนไขยืนยัน: [รายละเอียดเงื่อนไขทางเทคนิค]
+* Invalidation: [ระดับราคาและเงื่อนไขที่ทำให้กรณีขาขึ้นเป็นโมฆะ]
 
-### Sideway Case
-* กรอบบน: [ค่า]
-* กรอบล่าง: [ค่า]
-* กลยุทธ์: [คำแนะนำสำหรับการเทรดในกรอบ]
-* จุดรอ Breakout: [ราคาที่ต้องยืนยันเพื่อหลุดกรอบสะสมพลัง]
+### Base Scenario Details
+* กรอบการสะสมพลัง: [ช่วงราคา Base Range]
+* เงื่อนไขเปลี่ยนสถานะ (Shift Triggers): [เงื่อนไขที่ราคาจะเลือกทางไป Bullish หรือ Bearish]
+
+### Bearish Scenario Details
+* เหตุผลกดดัน: [อธิบายตามสูตรและ Price Action]
+* เงื่อนไขยืนยัน: [รายละเอียดเงื่อนไขทางเทคนิค]
+* Invalidation: [ระดับราคาและเงื่อนไขที่ทำให้กรณีขาลงเป็นโมฆะ]
 
 ## 9. Long Setup (Wait-for-Confirmation Model)
 * Entry Type: [เลือกระหว่าง Limit Entry / Breakout Entry / Retest Entry / Market Entry]

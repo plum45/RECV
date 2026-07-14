@@ -1,7 +1,7 @@
 import axios from "axios";
-import { NewsArticle } from "../types/news";
+import { NewsArticle, SectorImpactCategory } from "../types/news";
+import { normalizeSymbol, SYMBOL_ALIAS_MAP } from "./symbolMapping";
 
-// === Tech-Focused Symbol Registry ===
 // US Tech stocks that must NOT have "crypto" appended to search queries
 const US_TECH_SYMBOLS = new Set([
   "NVDA", "AMD", "INTC", "AVGO", "QCOM", "MSFT", "AAPL", "AMZN", "GOOGL",
@@ -16,38 +16,12 @@ const INTL_TECH_SYMBOLS = new Set([
   "SAMSUNG", "HYNIX", "SKHYNIX", "MEDIATEK", "SONY",
 ]);
 
-// Symbol aliases for search normalization
-const SYMBOL_ALIAS_MAP: Record<string, string> = {
-  "ASML.AS": "ASML",
-  "2330.TW": "TSMC TSM",
-  "2330": "TSMC TSM",
-  "005930.KS": "Samsung Electronics",
-  "005930": "Samsung Electronics",
-  "000660.KS": "SK Hynix",
-  "2454.TW": "MediaTek",
-  "6758.T": "Sony",
-  "SAP.DE": "SAP SE",
-  "SIE.DE": "Siemens",
-  "BTCUSDT": "BTC",
-  "ETHUSDT": "ETH",
-  "SOLUSDT": "SOL",
-};
-
-// Sector Impact Categories
-type SectorImpactCategory =
-  | "Direct"       // Direct company news
-  | "Sector"       // Same sector (semiconductors, cloud, AI)
-  | "Supply Chain" // Supply chain partner
-  | "Macro"        // Fed, CPI, GDP, rates
-  | "Geopolitical" // Trade war, sanctions, export controls
-  | "Noise";       // Not tech-relevant
-
 function classifySectorImpact(
   title: string,
   symbol: string
 ): SectorImpactCategory {
   const t = title.toLowerCase();
-  const s = symbol.toUpperCase();
+  const s = normalizeSymbol(symbol);
 
   // Direct company mention
   const company = (SYMBOL_ALIAS_MAP[s] || s).toLowerCase();
@@ -61,7 +35,8 @@ function classifySectorImpact(
     t.includes("china ban") ||
     t.includes("taiwan strait") ||
     t.includes("chip act") ||
-    t.includes("chips act")
+    t.includes("chips act") ||
+    t.includes("tariffs")
   )
     return "Geopolitical";
 
@@ -107,7 +82,7 @@ function classifySectorImpact(
     t.includes("mediatek") ||
     t.includes("foxconn") ||
     t.includes("packaging") ||
-    t.includes("coWoS") ||
+    t.includes("cowos") ||
     t.includes("euv")
   )
     return "Supply Chain";
@@ -200,6 +175,7 @@ function parseGoogleNewsRss(xmlText: string, symbol: string, maxItems = 20): New
   const articles: NewsArticle[] = [];
   const itemRegex = /<item>([\s\S]*?)<\/item>/g;
   let match;
+  const fetchedAtIso = new Date().toISOString();
 
   while ((match = itemRegex.exec(xmlText)) !== null && articles.length < maxItems) {
     const itemContent = match[1];
@@ -236,20 +212,18 @@ function parseGoogleNewsRss(xmlText: string, symbol: string, maxItems = 20): New
       source,
       url,
       publishedAt,
+      fetchedAt: fetchedAtIso,
       sentiment,
       impact,
       isPriceIn,
       sectorImpact,
+      status: "LIVE",
     });
   }
 
   return articles;
 }
 
-/**
- * Determine whether a symbol is a US/international tech stock
- * so we can build the right search query (no "crypto" keyword).
- */
 function isTechStock(symbol: string): boolean {
   const s = symbol.toUpperCase().replace(/\.(NYSE|NASDAQ|US|DE|AS|TW|KS|T)$/i, "");
   return US_TECH_SYMBOLS.has(s) || INTL_TECH_SYMBOLS.has(s);
@@ -266,43 +240,91 @@ function isCryptoSymbol(symbol: string): boolean {
 }
 
 /**
- * Build a tech-focused search query from a symbol.
- * - US tech stocks: query = "NVDA stock earnings"  (no "crypto")
- * - Crypto: query = "BTC crypto price"
- * - International: query = "ASML semiconductor"
+ * Build a search query:
+ * - Stocks: search by symbol + company name (no crypto keywords)
+ * - Crypto: append "crypto" only for crypto symbols
  */
 function buildSearchQuery(symbol: string): string {
-  const s = symbol.toUpperCase();
-  const alias = SYMBOL_ALIAS_MAP[s] || s;
+  const norm = normalizeSymbol(symbol);
+  const alias = SYMBOL_ALIAS_MAP[symbol.toUpperCase()] || SYMBOL_ALIAS_MAP[norm] || norm;
 
-  if (isCryptoSymbol(s)) {
+  if (isCryptoSymbol(symbol) || isCryptoSymbol(norm)) {
     const clean = alias.replace(/USDT|USDC|-USD/g, "");
-    return `${clean} crypto price`;
+    return `${clean} crypto price news`;
   }
 
-  if (isTechStock(s)) {
-    // International tech
-    if (INTL_TECH_SYMBOLS.has(s) || s.includes(".")) {
-      return `${alias} semiconductor technology stock`;
+  if (isTechStock(norm)) {
+    // International or US tech: query by ticker and company keyword
+    return `${alias} stock company news`;
+  }
+
+  return `${alias} stock market news`;
+}
+
+/**
+ * Fetches Company News directly from Finnhub API if FINNHUB_API_KEY is available.
+ */
+async function fetchFinnhubCompanyNews(symbol: string, maxItems = 20): Promise<NewsArticle[]> {
+  const apiKey = process.env.FINNHUB_API_KEY;
+  if (!apiKey || apiKey === "your_finnhub_api_key_optional" || apiKey.includes("your_")) {
+    return [];
+  }
+
+  try {
+    const normSym = normalizeSymbol(symbol);
+    const now = new Date();
+    const fromDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10);
+    const toDate = now.toISOString().substring(0, 10);
+
+    const url = `https://finnhub.io/api/v1/company-news?symbol=${normSym}&from=${fromDate}&to=${toDate}&token=${apiKey}`;
+    const response = await axios.get<any>(url, { timeout: 8000 });
+
+    if (Array.isArray(response.data) && response.data.length > 0) {
+      const fetchedAtIso = new Date().toISOString();
+      return response.data.slice(0, maxItems).map((art: any) => {
+        const title = art.headline || art.summary || "Company News";
+        const publishedAt = art.datetime ? new Date(art.datetime * 1000).toISOString() : new Date().toISOString();
+        const { sentiment, impact, isPriceIn, sectorImpact } = tagSentimentAndImpact(title, normSym);
+
+        return {
+          title,
+          source: art.source || "Finnhub Company News",
+          url: art.url || "#",
+          publishedAt,
+          fetchedAt: fetchedAtIso,
+          sentiment,
+          impact,
+          isPriceIn,
+          sectorImpact,
+          status: "LIVE",
+        };
+      });
     }
-    // US tech
-    return `${alias} stock technology AI`;
+  } catch (err: any) {
+    console.warn("Finnhub Company News fetch failed:", err.message);
   }
 
-  // Generic fallback
-  return `${alias} stock market`;
+  return [];
 }
 
 export async function fetchNews(symbol: string): Promise<NewsArticle[]> {
-  const normalizedSymbol = symbol.toUpperCase().replace(/USDT|USDC/g, "");
-  const apiKey = process.env.NEWS_API_KEY;
-  const searchQuery = buildSearchQuery(symbol);
+  const normalizedSymbol = normalizeSymbol(symbol);
+  const fetchedAtIso = new Date().toISOString();
   const MAX_ARTICLES = 20;
 
-  // 1. Try NewsAPI if API key provided
-  if (apiKey && apiKey !== "your_news_api_key_optional") {
+  // 1. Try Finnhub Company News first (primary live source when API key exists)
+  const finnhubArticles = await fetchFinnhubCompanyNews(normalizedSymbol, MAX_ARTICLES);
+  if (finnhubArticles.length > 0) {
+    return finnhubArticles;
+  }
+
+  // 2. Try NewsAPI if key provided
+  const newsApiKey = process.env.NEWS_API_KEY;
+  const searchQuery = buildSearchQuery(symbol);
+
+  if (newsApiKey && newsApiKey !== "your_news_api_key_optional" && !newsApiKey.includes("your_")) {
     try {
-      const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(searchQuery)}&sortBy=publishedAt&pageSize=${MAX_ARTICLES}&language=en&apiKey=${apiKey}`;
+      const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(searchQuery)}&sortBy=publishedAt&pageSize=${MAX_ARTICLES}&language=en&apiKey=${newsApiKey}`;
       const response = await axios.get<any>(url, { timeout: 8000 });
 
       if (response.data?.articles && response.data.articles.length > 0) {
@@ -317,22 +339,21 @@ export async function fetchNews(symbol: string): Promise<NewsArticle[]> {
               source: art.source?.name || "NewsAPI",
               url: art.url || "#",
               publishedAt: art.publishedAt || new Date().toISOString(),
+              fetchedAt: fetchedAtIso,
               sentiment,
               impact,
               isPriceIn,
               sectorImpact,
+              status: "LIVE",
             };
           });
       }
     } catch (error: any) {
-      console.warn(
-        "NewsAPI failed, falling back to Google News RSS:",
-        error.message
-      );
+      console.warn("NewsAPI failed, falling back to Google News RSS:", error.message);
     }
   }
 
-  // 2. Fallback: Google News RSS (returns up to 20 items)
+  // 3. Fallback: Google News RSS
   try {
     const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(searchQuery)}&hl=en-US&gl=US&ceid=US:en`;
     const response = await axios.get<string>(rssUrl, {
@@ -351,15 +372,33 @@ export async function fetchNews(symbol: string): Promise<NewsArticle[]> {
     console.error("Google News RSS failed:", error.message);
   }
 
-  // 3. Ultimate fallback – high-quality mock news (no Thai stocks, no crypto mixing)
+  // 4. Production behavior check: no mock news in production if all sources fail
+  if (process.env.NODE_ENV === "production") {
+    return [
+      {
+        title: `Live news temporarily unavailable for ${normalizedSymbol}.`,
+        source: "System Notice",
+        url: "#",
+        publishedAt: fetchedAtIso,
+        fetchedAt: fetchedAtIso,
+        sentiment: "neutral",
+        impact: "noise",
+        isPriceIn: "maybe",
+        sectorImpact: "Noise",
+        status: "UNAVAILABLE",
+      },
+    ];
+  }
+
+  // 5. Non-production / Dev fallback: Mock News explicitly tagged with status: "FALLBACK"
   return getMockNews(normalizedSymbol);
 }
 
 function getMockNews(symbol: string): NewsArticle[] {
-  const asset = symbol.toUpperCase().replace(/USDT|USDC|-USD/g, "");
+  const asset = normalizeSymbol(symbol);
   const now = new Date();
+  const fetchedAtIso = now.toISOString();
   const isStock = isTechStock(asset);
-  const isCrypto = isCryptoSymbol(asset);
 
   const mockArticles: NewsArticle[] = [
     {
@@ -367,60 +406,72 @@ function getMockNews(symbol: string): NewsArticle[] {
       source: "Rocket Market Insights",
       url: "#",
       publishedAt: new Date(now.getTime() - 1000 * 60 * 30).toISOString(),
+      fetchedAt: fetchedAtIso,
       sentiment: "neutral",
       impact: "short-term",
       isPriceIn: "maybe",
       sectorImpact: "Direct",
+      status: "FALLBACK",
     },
     {
       title: `${isStock ? "AI Chip Demand Surge Boosts" : "Institutional Accumulation in"} ${asset} ${isStock ? "Revenue Outlook" : "On-Chain Activity"}`,
       source: isStock ? "The Information" : "Chain Analytics",
       url: "#",
       publishedAt: new Date(now.getTime() - 1000 * 60 * 90).toISOString(),
+      fetchedAt: fetchedAtIso,
       sentiment: "positive",
       impact: "long-term",
       isPriceIn: false,
       sectorImpact: isStock ? "Sector" : "Direct",
+      status: "FALLBACK",
     },
     {
       title: `Federal Reserve Rate Outlook Creates Headwinds for ${isStock ? "High-Growth Tech" : "Risk Assets"} Including ${asset}`,
       source: "Macro Finance",
       url: "#",
       publishedAt: new Date(now.getTime() - 1000 * 60 * 150).toISOString(),
+      fetchedAt: fetchedAtIso,
       sentiment: "negative",
       impact: "long-term",
       isPriceIn: "maybe",
       sectorImpact: "Macro",
+      status: "FALLBACK",
     },
     {
       title: `${isStock ? "Semiconductor Supply Chain" : "Market"} Update: ${asset} ${isStock ? "Faces TSMC Capacity Allocation Questions" : "Liquidity Analysis"}`,
       source: isStock ? "DigiTimes" : "CryptoQuant",
       url: "#",
       publishedAt: new Date(now.getTime() - 1000 * 60 * 240).toISOString(),
+      fetchedAt: fetchedAtIso,
       sentiment: "uncertain",
       impact: "short-term",
       isPriceIn: "maybe",
       sectorImpact: isStock ? "Supply Chain" : "Direct",
+      status: "FALLBACK",
     },
     {
       title: `${isStock ? "US Export Controls on Advanced Chips" : "Regulatory Landscape"} Could Impact ${asset} ${isStock ? "International Revenue" : "Market"}`,
       source: isStock ? "Reuters Technology" : "Bloomberg Crypto",
       url: "#",
       publishedAt: new Date(now.getTime() - 1000 * 60 * 360).toISOString(),
+      fetchedAt: fetchedAtIso,
       sentiment: "negative",
       impact: "long-term",
       isPriceIn: false,
       sectorImpact: isStock ? "Geopolitical" : "Macro",
+      status: "FALLBACK",
     },
     {
       title: `${asset} ${isStock ? "Technical Breakout" : "Price"} Setup: Volume Analysis Suggests Momentum Building`,
       source: "Technical Edge",
       url: "#",
       publishedAt: new Date(now.getTime() - 1000 * 60 * 480).toISOString(),
+      fetchedAt: fetchedAtIso,
       sentiment: "positive",
       impact: "short-term",
       isPriceIn: true,
       sectorImpact: "Direct",
+      status: "FALLBACK",
     },
   ];
 

@@ -11,9 +11,11 @@ export interface NewsArticle {
   source: string;
   url: string;
   publishedAt: string;
+  fetchedAt?: string;
   sentiment: "positive" | "negative" | "neutral" | "uncertain";
   impact: "short-term" | "long-term" | "catalyst" | "noise";
   isPriceIn: boolean | "maybe";
   /** Sector impact category for tech-focused filtering */
   sectorImpact?: SectorImpactCategory;
+  status?: "LIVE" | "FALLBACK" | "UNAVAILABLE";
 }

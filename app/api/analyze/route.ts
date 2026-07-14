@@ -9,6 +9,8 @@ import { generateAnalysisReport } from "../../../lib/openai";
 import { buildAnalysisPrompt } from "../../../lib/prompt";
 import { checkRateLimit, getAiCache, setAiCache } from "../../../lib/aiCache";
 import { verifyFirebaseIdTokenDetailed } from "../../../lib/firebaseAdmin";
+import { calculatePriceProjection } from "../../../lib/priceProjection";
+import { CALENDAR_DATABASE } from "../../../lib/calendarDb";
 
 import { z } from "zod";
 
@@ -108,6 +110,21 @@ export async function POST(request: Request) {
     // 6. Gather market sentiment metrics
     const sentiment = await fetchSentiment(symbol);
 
+    // 6.5 Calculate Price Projection Matrix (Quant Engine)
+    const priceProjection = calculatePriceProjection(
+      symbol,
+      marketData.currentPrice,
+      klines,
+      indicators,
+      supportResistance,
+      news,
+      CALENDAR_DATABASE,
+      tradingStyle,
+      timeframe,
+      marketData.priceSource || "Finnhub API",
+      marketData
+    );
+
     // 7. Generate report (OpenAI GPT-4o-mini with fallback to Local Quant Engine)
     let reportText = "";
     let analysisSource = "Local Quant Engine";
@@ -130,6 +147,7 @@ export async function POST(request: Request) {
             supportResistance,
             news,
             sentiment,
+            priceProjection,
           });
           reportText = await generateAnalysisReport(prompt);
           setAiCache(cacheKey, reportText, 180); // Cache for 3 minutes to save tokens & speed up requests
@@ -152,6 +170,7 @@ export async function POST(request: Request) {
             leverage: parsedInput.leverage,
             feePercent: parsedInput.feePercent,
             slippagePercent: parsedInput.slippagePercent,
+            priceProjection,
           });
           analysisSource = "Local Quant Engine (Fallback)";
         }
@@ -173,6 +192,7 @@ export async function POST(request: Request) {
         leverage: parsedInput.leverage,
         feePercent: parsedInput.feePercent,
         slippagePercent: parsedInput.slippagePercent,
+        priceProjection,
       });
     }
 
@@ -195,6 +215,7 @@ export async function POST(request: Request) {
       supportResistance,
       news,
       sentiment,
+      priceProjection,
       analysis: reportText,
     };
 

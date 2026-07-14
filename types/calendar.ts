@@ -5,6 +5,7 @@ export interface EventSource {
   sourceUrl?: string;
   fetchedAt: string;
   timezone: string;
+  eventId?: string;
 }
 
 export interface EventScenario {
@@ -24,8 +25,19 @@ export interface EventImpact {
   negativeScenario: EventScenario;
 }
 
+export type EventStatus =
+  | "confirmed"
+  | "estimated"
+  | "delayed"
+  | "LIVE"
+  | "DELAYED"
+  | "ESTIMATED"
+  | "FALLBACK"
+  | "UNAVAILABLE";
+
 export interface EconomicEvent {
   id: string;
+  eventId?: string;
   title: string;
   type: "economic";
   importance: EventImportance;
@@ -37,11 +49,12 @@ export interface EconomicEvent {
   revision: string | null;
   country: string;
   source: EventSource;
-  status: "confirmed" | "estimated" | "delayed";
+  status: EventStatus;
 }
 
 export interface EarningsEvent {
   id: string;
+  eventId?: string;
   symbol: string;
   type: "earnings";
   announcedAt: string; // ISO String
@@ -58,11 +71,15 @@ export interface EarningsEvent {
   guidance?: string | null;
   eventTypeName: "Earnings" | "Dividend" | "Meeting" | "InvestorDay" | "AnalystMeeting";
   source: EventSource;
-  status: "confirmed" | "estimated" | "delayed";
+  status: EventStatus;
+  quarter?: number;
+  year?: number;
+  exchange?: string;
 }
 
 export interface CryptoEvent {
   id: string;
+  eventId?: string;
   title: string;
   type: "crypto";
   symbol: string;
@@ -73,7 +90,7 @@ export interface CryptoEvent {
   forecast: string | null;
   previous: string | null;
   source: EventSource;
-  status: "confirmed" | "estimated" | "delayed";
+  status: EventStatus;
 }
 
 export type GeneralCalendarEvent = EconomicEvent | EarningsEvent | CryptoEvent;

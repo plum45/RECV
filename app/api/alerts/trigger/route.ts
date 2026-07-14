@@ -7,6 +7,8 @@ import { getFirebaseAdminDb } from "../../../../lib/firebaseAdmin";
 import { getTelegramBotToken } from "../../../../lib/telegramConfig";
 import { calculateAlertOutcome, isWithinQuietHours, resolveSymbolAlertConfig } from "../../../../lib/alertUtils";
 import { CALENDAR_DATABASE, isTechScopeSymbol } from "../../../../lib/calendarDb";
+import { getMergedCalendarEvents } from "../../../../lib/liveCalendarService";
+import { normalizeSymbol, matchesAnySymbol } from "../../../../lib/symbolMapping";
 import type { EarningsEvent } from "../../../../types/calendar";
 
 export const runtime = "nodejs";
@@ -504,19 +506,17 @@ async function processEarningsCountdownAlerts(
   subscribers: any[],
   now: number
 ): Promise<void> {
-  const LEAD_TIMES: Array<{ label: string; ms: number }> = [
-    { label: "7d",  ms: 7 * 24 * 60 * 60 * 1000 },
-    { label: "24h", ms:     24 * 60 * 60 * 1000 },
-    { label: "1h",  ms:          60 * 60 * 1000 },
+  const LEAD_TIMES: Array<{ label: string; ms: number; toleranceMs: number }> = [
+    { label: "7d",  ms: 7 * 24 * 60 * 60 * 1000, toleranceMs: 60 * 60 * 1000 },
+    { label: "24h", ms:     24 * 60 * 60 * 1000, toleranceMs: 30 * 60 * 1000 },
+    { label: "1h",  ms:          60 * 60 * 1000, toleranceMs: 15 * 60 * 1000 },
   ];
 
-  // Only upcoming + recently released earnings
-  const earningsEvents = CALENDAR_DATABASE.filter(
-    (e): e is EarningsEvent =>
-      e.type === "earnings" &&
-      e.eventTypeName === "Earnings" &&
-      isTechScopeSymbol((e as EarningsEvent).symbol)
-  ) as EarningsEvent[];
+  // Fetch live + fallback earnings events across past 6 hours and next 8 days
+  const fromDate = new Date(now - 6 * 60 * 60 * 1000);
+  const toDate = new Date(now + 8 * 24 * 60 * 60 * 1000);
+  const { events } = await getMergedCalendarEvents(fromDate, toDate, null, "earnings");
+  const earningsEvents = events as EarningsEvent[];
 
   for (const sub of subscribers) {
     const chatId = sub.chatId;
@@ -528,31 +528,33 @@ async function processEarningsCountdownAlerts(
       : ["NVDA", "AAPL", "MSFT", "AMD", "GOOGL", "META", "TSM", "AMZN"];
 
     for (const event of earningsEvents) {
-      const sym = event.symbol.toUpperCase();
-      if (!watchlist.includes(sym)) continue;
+      if (!matchesAnySymbol(event.symbol, watchlist)) continue;
 
+      const sym = normalizeSymbol(event.symbol);
       const eventTime = new Date(event.announcedAt).getTime();
       const msUntil = eventTime - now;
       const msSince = now - eventTime;
+      const eventId = event.eventId || event.id;
 
       // ── Case 1: Upcoming earnings countdown ──────────────────────────────
       for (const lt of LEAD_TIMES) {
-        // Fire if we are within ±15 min of the lead time window
         const diff = Math.abs(msUntil - lt.ms);
-        if (diff > 15 * 60 * 1000) continue; // not in window
+        if (diff > lt.toleranceMs) continue; // not in window
 
-        const alertKey = `earnings-countdown-${event.id}-${lt.label}-${uid}`;
+        const alertKey = `earnings-countdown-${eventId}-${lt.label}-${uid}`;
         const logRef = db.collection("eventAlertLogs").doc(alertKey);
         const existing = await logRef.get();
         if (existing.exists) continue; // already sent
 
         const daysOrHrs = lt.label === "7d" ? "7 วัน" : lt.label === "24h" ? "24 ชั่วโมง" : "1 ชั่วโมง";
         const thaiTime = new Date(eventTime).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" });
+        const sourceName = event.source?.source || "Live Calendar";
 
         const msg =
           `📅 [Rocket AI · Earnings Reminder]\n` +
           `⏰ อีก ${daysOrHrs}: ${sym} รายงานผลประกอบการ\n\n` +
           `🗓 เวลาประกาศ (ไทย): ${thaiTime}\n` +
+          `📡 แหล่งข้อมูล: ${sourceName}\n` +
           `📊 EPS Forecast: ${event.epsForecast || "N/A"} (Previous: ${event.epsPrevious || "N/A"})\n` +
           `💰 Revenue Forecast: ${event.revenueForecast || "N/A"} (Previous: ${event.revenuePrevious || "N/A"})\n` +
           (event.guidance ? `📌 Guidance: ${event.guidance}\n` : "") +
@@ -560,12 +562,12 @@ async function processEarningsCountdownAlerts(
           `\n*Rocket AI — ไม่ใช่คำแนะนำทางการเงิน*`;
 
         await sendUserTelegramMessage(uid, chatId, msg, db);
-        await logRef.set({ sentAt: now, event: event.id, leadTime: lt.label, uid });
+        await logRef.set({ sentAt: now, eventId, leadTime: lt.label, uid });
       }
 
       // ── Case 2: Actual results released — EPS Beat / Miss / In-line ──────
-      if (event.epsActual !== null && msSince >= 0 && msSince <= 6 * 60 * 60 * 1000) {
-        const alertKey = `earnings-actual-${event.id}-${uid}`;
+      if (event.epsActual !== null && event.epsActual !== undefined && msSince >= 0 && msSince <= 6 * 60 * 60 * 1000) {
+        const alertKey = `earnings-actual-${eventId}-${uid}`;
         const logRef = db.collection("eventAlertLogs").doc(alertKey);
         const existing = await logRef.get();
         if (existing.exists) continue;
@@ -583,9 +585,12 @@ async function processEarningsCountdownAlerts(
         if (epsDiff > 3 || revDiff > 2) { verdict = "🚀 Beat — ดีกว่าคาด"; verdictEmoji = "🟢"; }
         else if (epsDiff < -3 || revDiff < -2) { verdict = "💥 Miss — แย่กว่าคาด"; verdictEmoji = "🔴"; }
 
+        const sourceName = event.source?.source || "Live Calendar";
+
         const msg =
           `🔔 [Rocket AI · Earnings Release]\n` +
           `${verdictEmoji} ${sym} รายงานผลประกอบการแล้ว: ${verdict}\n\n` +
+          `📡 แหล่งข้อมูล: ${sourceName}\n` +
           `📈 EPS Actual: ${event.epsActual} (Forecast: ${event.epsForecast}) — ${epsDiff >= 0 ? "+" : ""}${epsDiff.toFixed(1)}%\n` +
           `💰 Revenue Actual: ${event.revenueActual} (Forecast: ${event.revenueForecast}) — ${revDiff >= 0 ? "+" : ""}${revDiff.toFixed(1)}%\n` +
           (event.guidance ? `📌 Guidance: ${event.guidance}\n` : "") +
@@ -593,7 +598,7 @@ async function processEarningsCountdownAlerts(
           `\n*Rocket AI — ไม่ใช่คำแนะนำทางการเงิน*`;
 
         await sendUserTelegramMessage(uid, chatId, msg, db);
-        await logRef.set({ sentAt: now, event: event.id, verdict, uid });
+        await logRef.set({ sentAt: now, eventId, verdict, uid });
       }
     }
   }

@@ -2,6 +2,8 @@ import { TickerData, IndicatorData, SupportResistanceData, KlineData } from "../
 import { NewsArticle, SectorImpactCategory } from "../types/news";
 import { SentimentData } from "../types/analysis";
 import { CALENDAR_DATABASE } from "./calendarDb";
+import { PriceProjectionData } from "../types/projection";
+import { calculatePriceProjection } from "./priceProjection";
 
 interface LocalAnalysisPayload {
   symbol: string;
@@ -14,6 +16,7 @@ interface LocalAnalysisPayload {
   news: NewsArticle[];
   sentiment: SentimentData;
   klines?: KlineData[];
+  priceProjection?: PriceProjectionData;
   // Advanced position size settings
   accountSize?: number;
   riskPercent?: number;
@@ -456,19 +459,54 @@ export function generateLocalReport(payload: LocalAnalysisPayload): string {
   const hasMacroNews = (sectorNewsMap["Macro"]?.length || 0) > 0;
   const hasGeopolitical = (sectorNewsMap["Geopolitical"]?.length || 0) > 0;
 
-  let bullScenarioProb = 35, baseScenarioProb = 45, bearScenarioProb = 20;
-  if (bullPct >= 65 && hasAIOrSemisNews) { bullScenarioProb = 55; baseScenarioProb = 30; bearScenarioProb = 15; }
-  else if (bullPct <= 35 || hasMacroNews || hasGeopolitical) { bullScenarioProb = 20; baseScenarioProb = 35; bearScenarioProb = 45; }
+  const proj = payload.priceProjection || calculatePriceProjection(
+    symbol,
+    price,
+    klines,
+    indicators,
+    supportResistance,
+    news,
+    CALENDAR_DATABASE,
+    tradingStyle,
+    timeframe,
+    marketData.priceSource || "Finnhub API",
+    marketData
+  );
 
   const scenarioSection = `
-## ═══ 10. 3-Scenario Analysis & Tech Sector Impact ═══
-*แบบจำลองความน่าจะเป็น 3 สถานการณ์ (Bullish / Base / Bearish Case) สำหรับอุตสาหกรรมเทคโนโลยีและ AI*
+## ═══ 10. Price Projection Matrix & 3-Scenario Analysis (คาดการณ์โซนราคา) ═══
+*ระบบคำนวณคาดการณ์โซนราคาที่อาจไปถึงเป็น Scenario และช่วงราคา โดยไม่ฟันธงทิศทางเดียว อ้างอิงตามสูตร Confluence S/R & Fibonacci*
 
-| สถานการณ์ | ความน่าจะเป็น | เงื่อนไขการเกิด (Catalyst / Trigger) | ระดับราคาเป้าหมาย |
-| :--- | :---: | :--- | :--- |
-| 🟢 **Bullish Case** (ปรับตัวขึ้นต่อ) | **${bullScenarioProb}%** | ทะลุแนวต้าน $${fmt(res1Mid)} พร้อมปริมาณซื้อหนาแน่น ${hasAIOrSemisNews ? "บวกแรงหนุนจากปัจจัยบวกกลุ่ม AI / Semiconductor" : ""} | $${fmt(longTP2)} (${pct(((longTP2 - price) / price) * 100)}) |
-| 🟡 **Base Case** (แกว่งตัวสะสมพลัง) | **${baseScenarioProb}%** | เคลื่อนไหวในกรอบ $${fmt(sup1Mid)} – $${fmt(res1Mid)} เพื่อรอสัญญาณยืนยันงบการเงินหรือทิศทางดอกเบี้ย | $${fmt(pivot.p)} (Pivot Equilibrium) |
-| 🔴 **Bearish Case** (ย่อตัวปรับฐาน) | **${bearScenarioProb}%** | หลุดแนวรับสำคัญ $${fmt(sup1Mid)} ${hasMacroNews ? "กดดันโดยความผันผวนมหภาคหรือกังวล Capex" : ""} พร้อมแรงขายทะลุ VWAP | $${fmt(shortTP2)} (${pct(((shortTP2 - price) / price) * 100)}) |
+- **Current Price:** **$${fmt(proj.currentPrice)}**
+- **Time Horizon:** **${proj.timeHorizon}**
+- **Confidence Rating:** **${proj.confidence === "High" ? "🟢 High (ความเชื่อมั่นสูง)" : proj.confidence === "Moderate" ? "🟡 Moderate (ความเชื่อมั่นปานกลาง)" : proj.confidence === "Low" ? "🔴 Low (ความเชื่อมั่นต่ำ)" : "⚖️ Conflicting (สัญญาณขัดแย้ง)"}** (${proj.confidenceReasons[0] || "ตามเงื่อนไขยืนยันทางเทคนิค"})
+- **Event Risk Status:** **${proj.eventRisk.level === "High" ? "🚨 High Risk (มี Event สำคัญใน 24 ชม.)" : "🟢 Low Risk"}** ${proj.eventRisk.warningMessage ? `· ${proj.eventRisk.warningMessage}` : ""}
+
+### 🗺️ Scenario Comparison Table
+| สถานการณ์ (Scenario) | โซนเป้าหมาย (Target Zone) | เงื่อนไขยืนยัน (Confirmations) | แนวเป้าหมายถัดไป | จุดยกเลิก (Invalidation Level) |
+| :--- | :--- | :--- | :--- | :--- |
+| 🚀 **Bullish Scenario** | **${proj.upsideScenario.targetZone.formatted}** | **${proj.upsideScenario.confirmedCount}/6 Confirmations** (${proj.upsideScenario.confirmations.filter(c => c.isConfirmed).map(c => c.label).slice(0, 2).join(", ") || "รอยืนยัน"}) | ${proj.upsideScenario.nextLevel.formatted} (${proj.upsideScenario.nextLevel.label}) | ${proj.upsideScenario.invalidationTrigger.formatted} (${proj.upsideScenario.invalidationTrigger.condition}) |
+| ⚖️ **Base Scenario** | **${proj.baseScenario.targetZone.formatted}** | **ADX=${proj.adxStrength}** (${proj.isSidewaysAdx ? "Sideways / แกว่งตัวในกรอบ" : "พักตัวรอเลือกทิศทาง"}) | ${proj.baseScenario.nextLevel.formatted} (SMA 20 Midband) | Break > $${proj.baseScenario.targetZone.high} หรือ < $${proj.baseScenario.targetZone.low} พร้อม Volume |
+| 🔻 **Bearish Scenario** | **${proj.downsideScenario.targetZone.formatted}** | **${proj.downsideScenario.confirmedCount}/6 Confirmations** (${proj.downsideScenario.confirmations.filter(c => c.isConfirmed).map(c => c.label).slice(0, 2).join(", ") || "รอยืนยัน"}) | ${proj.downsideScenario.nextLevel.formatted} (${proj.downsideScenario.nextLevel.label}) | ${proj.downsideScenario.invalidationTrigger.formatted} (${proj.downsideScenario.invalidationTrigger.condition}) |
+
+### 📋 รายละเอียดเหตุผลและเงื่อนไขของแต่ละ Scenario
+#### 1️⃣ Bullish Scenario (เป้าหมายโซนบน: ${proj.upsideScenario.targetZone.formatted})
+- **เหตุผลสนับสนุน:** ${proj.upsideScenario.supportingReasons.join(" · ")}
+- **ตารางตรวจสอบ 6 เงื่อนไขยืนยัน:**
+  ${proj.upsideScenario.confirmations.map(c => `  - [${c.isConfirmed ? "x" : " "}] **${c.label}:** ${c.detail}`).join("\n")}
+- **จุดยกเลิกแผน (Invalidation Trigger):** ${proj.upsideScenario.invalidationTrigger.condition}
+
+#### 2️⃣ Base Scenario (กรอบราคากลาง: ${proj.baseScenario.targetZone.formatted})
+- **เหตุผลที่ตลาดยังไม่มีทิศทางชัดเจน:** ${proj.baseScenario.supportingReasons.join(" · ")}
+- **เงื่อนไขเปลี่ยนสถานะ (Shift Triggers):**
+  - **ไป Bullish:** ${proj.baseScenario.shiftConditions?.[0] || `ราคาปิดเหนือ $${proj.baseScenario.targetZone.high} พร้อม Volume`}
+  - **ไป Bearish:** ${proj.baseScenario.shiftConditions?.[1] || `ราคาปิดใต้ $${proj.baseScenario.targetZone.low} พร้อม Volume`}
+
+#### 3️⃣ Bearish Scenario (เป้าหมายโซนล่าง: ${proj.downsideScenario.targetZone.formatted})
+- **เหตุผลกดดัน:** ${proj.downsideScenario.supportingReasons.join(" · ")}
+- **ตารางตรวจสอบ 6 เงื่อนไขยืนยัน:**
+  ${proj.downsideScenario.confirmations.map(c => `  - [${c.isConfirmed ? "x" : " "}] **${c.label}:** ${c.detail}`).join("\n")}
+- **จุดยกเลิกแผน (Invalidation Trigger):** ${proj.downsideScenario.invalidationTrigger.condition}
 
 ### 🔬 Sector Impact Categorization (ปัจจัยกระทบอุตสาหกรรม)
 | ปัจจัยเทคโนโลยี | ข่าวสารที่เกี่ยวข้องล่าสุด | ระดับผลกระทบ |
@@ -479,7 +517,7 @@ export function generateLocalReport(payload: LocalAnalysisPayload): string {
 | 🌍 Geopolitical | ${(sectorNewsMap["Geopolitical"] || []).slice(0, 1).join(" · ") || "ไม่มีข่าว Geopolitical"} | ${hasGeopolitical ? "⭐⭐⭐ สูง" : "—"} |
 
 > [!NOTE]
-> ⚠️ ระบบนี้ออกแบบมาเพื่อหุ้น US Tech และหุ้นต่างประเทศที่มีผลกระทบต่ออุตสาหกรรมเทคโนโลยี (NVDA, AMD, MSFT, AAPL, GOOGL, META, TSLA, TSM, ASML ฯลฯ) โดยเน้นระบบเงื่อนไขรอยืนยันสัญญาณ (Wait-for-Confirmation Model) เพื่อความปลอดภัยสูงสุด
+> ⚠️ ระบบ Price Projection นี้แสดง Scenario และช่วงราคาที่อาจเป็นไปได้ตามสูตรคณิตศาสตร์และ Confluence ของแนวรับ-แนวต้าน ไม่ใช่การฟันธงหรือการรับประกันราคาในอนาคต กรุณาปฏิบัติตามจุด Invalidation และรอยืนยัน Volume ทุกครั้ง
 `;
 
   return `# 📊 Rocket AI · ${symbol} Technical Analysis Report

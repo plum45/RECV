@@ -48,7 +48,8 @@ function renderCustomMarkdown(report: string): React.ReactNode {
         const isShortSetup = rawTitle.toLowerCase().includes("short setup") || rawTitle.includes("ฝั่งขาย");
         const isRiskMgmt = rawTitle.toLowerCase().includes("risk management") || rawTitle.toLowerCase().includes("position setup");
         const isWarning = rawTitle.toLowerCase().includes("คำเตือน") || headerLine.includes("⚠️");
-        const isSummary = rawTitle.toLowerCase().includes("สรุป") || rawTitle.toLowerCase().includes("scenario");
+        const isPriceProjection = rawTitle.toLowerCase().includes("price projection") || rawTitle.includes("คาดการณ์โซนราคา") || rawTitle.toLowerCase().includes("scenario");
+        const isSummary = rawTitle.toLowerCase().includes("สรุป");
         const isScore = rawTitle.toLowerCase().includes("rocket score");
 
         // General Card wrapper styles
@@ -64,6 +65,9 @@ function renderCustomMarkdown(report: string): React.ReactNode {
         } else if (isRiskMgmt || isWarning) {
           cardStyles = "bg-amber-950/15 border border-amber-500/40 rounded-2xl p-6 shadow-xl relative overflow-hidden";
           iconElement = <ShieldAlert className="text-amber-400 shrink-0" size={22} />;
+        } else if (isPriceProjection) {
+          cardStyles = "bg-gradient-to-br from-slate-950 via-cyan-950/20 to-purple-950/20 border border-cyan-500/40 rounded-2xl p-6 shadow-xl relative overflow-hidden border-l-4 border-l-cyan-400";
+          iconElement = <CheckCircle className="text-cyan-400 shrink-0 animate-pulse" size={22} />;
         } else if (isScore) {
           cardStyles = "bg-indigo-950/20 border border-indigo-500/30 rounded-2xl p-6 shadow-lg relative overflow-hidden";
           iconElement = <Award className="text-indigo-400 shrink-0" size={22} />;

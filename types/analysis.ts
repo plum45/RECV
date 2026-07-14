@@ -1,5 +1,6 @@
 import { TickerData, IndicatorData, SupportResistanceData } from "./market";
 import { NewsArticle } from "./news";
+import { PriceProjectionData } from "./projection";
 
 export interface SentimentData {
   fearAndGreed: {
@@ -28,5 +29,6 @@ export interface AnalyzeResponse {
   supportResistance: SupportResistanceData;
   news: NewsArticle[];
   sentiment: SentimentData;
+  priceProjection?: PriceProjectionData;
   analysis: string; // Markdown text in Thai
 }
