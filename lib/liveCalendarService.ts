@@ -1,7 +1,7 @@
 import axios from "axios";
 import { CALENDAR_DATABASE } from "./calendarDb";
 import { normalizeSymbol, matchesAnySymbol } from "./symbolMapping";
-import type { GeneralCalendarEvent, EarningsEvent, EventImportance, EventStatus } from "../types/calendar";
+import type { EconomicEvent, GeneralCalendarEvent, EarningsEvent, EventImportance, EventStatus } from "../types/calendar";
 
 // Cache structure for Finnhub earnings responses
 interface CachedEarnings {
@@ -13,6 +13,26 @@ interface CachedEarnings {
 
 let earningsCache: CachedEarnings | null = null;
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour cache to respect Finnhub rate limits
+
+interface ForexFactoryCalendarEvent {
+  title?: string;
+  country?: string;
+  date?: string;
+  impact?: string;
+  actual?: string | number | null;
+  forecast?: string | number | null;
+  previous?: string | number | null;
+}
+
+interface CachedEconomicEvents {
+  events: EconomicEvent[];
+  fetchedAt: number;
+}
+
+let economicCache: CachedEconomicEvents | null = null;
+const ECONOMIC_CACHE_TTL_MS = 15 * 60 * 1000;
+const FOREX_FACTORY_WEEKLY_CALENDAR_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json";
+const TECH_RELEVANT_MACRO_CURRENCIES = new Set(["USD", "CNY", "EUR", "JPY", "GBP", "CAD"]);
 
 function newYorkTimeToUtc(dateStr: string, hour: number, minute: number): Date {
   const [year, month, day] = dateStr.split("-").map(Number);
@@ -45,6 +65,95 @@ export function isRelevantTechSymbol(rawSymbol: string): boolean {
   if (!rawSymbol) return false;
   const norm = normalizeSymbol(rawSymbol);
   return RELEVANT_TECH_SYMBOLS.has(norm);
+}
+
+function macroImportance(impact?: string): EventImportance {
+  const normalized = impact?.trim().toLowerCase();
+  if (normalized === "high") return "high";
+  if (normalized === "medium" || normalized === "med") return "medium";
+  return "low";
+}
+
+function valueOrNull(value: string | number | null | undefined): string | null {
+  return value === null || value === undefined || value === "" ? null : String(value);
+}
+
+/**
+ * Fetches this week's published macro calendar. Finnhub's economic-calendar
+ * endpoint is premium-only, so this uses Forex Factory's public weekly JSON
+ * export for upcoming releases such as CPI, PPI, retail sales, and Fed events.
+ */
+export async function fetchLiveEconomicCalendar(): Promise<{
+  events: EconomicEvent[];
+  status: "LIVE" | "UNAVAILABLE";
+  error?: string;
+}> {
+  const now = Date.now();
+  if (economicCache && now - economicCache.fetchedAt < ECONOMIC_CACHE_TTL_MS) {
+    return { events: economicCache.events, status: "LIVE" };
+  }
+
+  try {
+    const response = await axios.get<ForexFactoryCalendarEvent[]>(FOREX_FACTORY_WEEKLY_CALENDAR_URL, {
+      timeout: 10_000,
+      headers: { Accept: "application/json" },
+    });
+    if (!Array.isArray(response.data)) {
+      return { events: [], status: "UNAVAILABLE", error: "Invalid economic calendar response." };
+    }
+
+    const fetchedAt = new Date().toISOString();
+    const events = response.data.flatMap((item) => {
+      const country = item.country?.toUpperCase();
+      const title = item.title?.trim();
+      const announcedAt = item.date ? new Date(item.date) : null;
+      const importance = macroImportance(item.impact);
+
+      // Limit the general calendar to macro releases likely to move US tech,
+      // while keeping the page readable instead of listing every low-impact release.
+      if (!country || !title || !announcedAt || Number.isNaN(announcedAt.getTime()) || importance === "low") {
+        return [];
+      }
+      if (!TECH_RELEVANT_MACRO_CURRENCIES.has(country)) return [];
+
+      const announcedAtIso = announcedAt.toISOString();
+      const id = `ff-economic-${country}-${announcedAtIso}-${title}`
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
+
+      return [{
+        id,
+        eventId: id,
+        type: "economic" as const,
+        title,
+        importance,
+        announcedAt: announcedAtIso,
+        timeThai: announcedAt.toLocaleString("th-TH", { timeZone: "Asia/Bangkok" }),
+        actual: valueOrNull(item.actual),
+        forecast: valueOrNull(item.forecast),
+        previous: valueOrNull(item.previous),
+        revision: null,
+        country,
+        source: {
+          source: "Forex Factory Weekly Calendar",
+          sourceUrl: FOREX_FACTORY_WEEKLY_CALENDAR_URL,
+          fetchedAt,
+          timezone: "UTC offset supplied by source",
+          eventId: id,
+        },
+        // The feed warns that scheduled times can change, so do not present
+        // them as confirmed to the minute.
+        status: "ESTIMATED" as const,
+      } satisfies EconomicEvent];
+    });
+
+    economicCache = { events, fetchedAt: now };
+    return { events, status: "LIVE" };
+  } catch (err: any) {
+    console.error("Live economic calendar fetch failed:", err.message);
+    return { events: [], status: "UNAVAILABLE", error: `Economic calendar unavailable: ${err.message}` };
+  }
 }
 
 /**
