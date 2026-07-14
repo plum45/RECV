@@ -17,6 +17,7 @@ interface LocalAnalysisPayload {
   sentiment: SentimentData;
   klines?: KlineData[];
   priceProjection?: PriceProjectionData;
+  calendarEvents?: any[];
   // Advanced position size settings
   accountSize?: number;
   riskPercent?: number;
@@ -194,7 +195,8 @@ export function generateLocalReport(payload: LocalAnalysisPayload): string {
   let newsRiskLevel = "Low 🟢";
   let newsWarningSection = "";
 
-  const majorCalendarEvents = CALENDAR_DATABASE.filter(e => {
+  const evList = payload.calendarEvents || CALENDAR_DATABASE;
+  const majorCalendarEvents = evList.filter(e => {
     if (e.type === "economic") {
       return e.country === "US" || e.title.toLowerCase().includes("tech") || e.title.toLowerCase().includes("semiconductor");
     }
@@ -466,7 +468,7 @@ export function generateLocalReport(payload: LocalAnalysisPayload): string {
     indicators,
     supportResistance,
     news,
-    CALENDAR_DATABASE,
+    payload.calendarEvents || CALENDAR_DATABASE,
     tradingStyle,
     timeframe,
     marketData.priceSource || "Finnhub API",

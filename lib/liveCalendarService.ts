@@ -187,9 +187,13 @@ export async function getMergedCalendarEvents(
 
   // 2. Map and deduplicate keys
   // Key format: `type_symbolOrId_date`
+  // 2. Map and deduplicate keys
+  // Key format: `type_symbolOrId_date`
   const dedupeMap = new Map<string, GeneralCalendarEvent>();
   let liveCount = 0;
   let fallbackCount = 0;
+
+  const isProduction = process.env.NODE_ENV === "production";
 
   // Add Live Events first
   for (const liveEv of liveEarningsResult.events) {
@@ -202,6 +206,23 @@ export async function getMergedCalendarEvents(
 
     if (importanceFilter && liveEv.importance !== importanceFilter) continue;
 
+    // Check with Investor Relations database (CALENDAR_DATABASE) when date is unconfirmed
+    const irMatch = CALENDAR_DATABASE.find(
+      (e) =>
+        e.type === "earnings" &&
+        normalizeSymbol(e.symbol) === normalizeSymbol(liveEv.symbol) &&
+        (e.quarter === liveEv.quarter || e.year === liveEv.year)
+    );
+
+    if (irMatch) {
+      // If we have a verified Investor Relations date, cross-reference and use it
+      liveEv.announcedAt = irMatch.announcedAt;
+      liveEv.timeThai = irMatch.timeThai;
+      liveEv.status = "LIVE";
+    } else {
+      liveEv.status = "LIVE";
+    }
+
     const dateKey = liveEv.announcedAt.substring(0, 10);
     const dedupeKey = `earnings_${normalizeSymbol(liveEv.symbol)}_${dateKey}_${liveEv.quarter || ""}`;
     dedupeMap.set(dedupeKey, liveEv);
@@ -210,6 +231,12 @@ export async function getMergedCalendarEvents(
 
   // 3. Add Static/Fallback Events from CALENDAR_DATABASE (Economic, Crypto, or missing Earnings)
   for (const staticEv of CALENDAR_DATABASE) {
+    // If in Production, reject if it is mock/simulated (has offsetDays or no verified status)
+    if (isProduction && staticEv.status === "estimated") {
+      // In Production, do not use unverified mock events
+      continue;
+    }
+
     const evDate = new Date(staticEv.announcedAt);
     if (evDate < fromDate || evDate > toDate) continue;
 
@@ -244,15 +271,30 @@ export async function getMergedCalendarEvents(
       continue;
     }
 
-    // If not covered by Live, include it but mark status appropriately
-    const fallbackStatus: EventStatus = liveEarningsResult.status === "LIVE" ? "FALLBACK" : "UNAVAILABLE";
+    // Static/Fallback events are categorized as ESTIMATED if live API is working, otherwise FALLBACK or ESTIMATED
+    const fallbackStatus: EventStatus = "ESTIMATED";
+    const stDate = new Date(staticEv.announcedAt);
+    const cleanTimeThai =
+      typeof staticEv.timeThai === "string" && staticEv.timeThai.includes("T") && !isNaN(stDate.getTime())
+        ? stDate.toLocaleString("th-TH", {
+            timeZone: "Asia/Bangkok",
+            weekday: "short",
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          }) + " น."
+        : staticEv.timeThai;
+
     const enrichedStatic: GeneralCalendarEvent = {
       ...staticEv,
+      timeThai: cleanTimeThai,
       status: fallbackStatus,
       source: {
         ...staticEv.source,
         fetchedAt: fetchedAtIso,
-        source: staticEv.source?.source || "Static Fallback Calendar",
+        source: staticEv.source?.source || "Static Verified Database",
       },
     };
 
@@ -261,17 +303,19 @@ export async function getMergedCalendarEvents(
     }
 
     dedupeMap.set(dedupeKey, enrichedStatic);
-    if (!dedupeMap.has(dedupeKey) || dedupeMap.get(dedupeKey)?.status !== "LIVE") {
-      fallbackCount++;
-    }
+    fallbackCount++;
   }
 
   const mergedList = Array.from(dedupeMap.values()).sort(
     (a, b) => new Date(a.announcedAt).getTime() - new Date(b.announcedAt).getTime()
   );
 
-  const overallStatus: "LIVE" | "FALLBACK" | "UNAVAILABLE" =
-    liveCount > 0 ? "LIVE" : fallbackCount > 0 ? "FALLBACK" : "UNAVAILABLE";
+  const overallStatus: "LIVE" | "ESTIMATED" | "UNAVAILABLE" =
+    liveCount > 0
+      ? "LIVE"
+      : fallbackCount > 0
+      ? "ESTIMATED"
+      : "UNAVAILABLE";
 
   return {
     events: mergedList,

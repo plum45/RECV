@@ -2,12 +2,36 @@ import { GeneralCalendarEvent } from "../types/calendar";
 
 const now = new Date();
 
-function offsetDays(days: number, hour = 9, minute = 0): Date {
-  const d = new Date(now);
-  d.setDate(d.getDate() + days);
-  d.setHours(hour, minute, 0, 0);
-  return d;
+class BangkokDateHelper {
+  private date: Date;
+  constructor(days: number, hourBangkok: number, minuteBangkok: number) {
+    // Lock baseline to a fixed date (July 14, 2026) to prevent dates from dynamically floating/sliding
+    const baseDate = new Date("2026-07-14T00:00:00+07:00");
+    const bangkokDateStr = baseDate.toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
+    const [y, m, d] = bangkokDateStr.split("-").map(Number);
+    // hourBangkok in Asia/Bangkok (+7) converts to (hourBangkok - 7) in UTC
+    this.date = new Date(Date.UTC(y, m - 1, d + days, hourBangkok - 7, minuteBangkok, 0, 0));
+  }
+  toISOString(): string {
+    return this.date.toISOString();
+  }
+  toString(): string {
+    return this.date.toLocaleString("th-TH", {
+      timeZone: "Asia/Bangkok",
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }) + " น.";
+  }
 }
+
+function offsetDays(days: number, hour = 9, minute = 0) {
+  return new BangkokDateHelper(days, hour, minute);
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TECH-FOCUSED CALENDAR DATABASE

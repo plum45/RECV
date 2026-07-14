@@ -11,6 +11,7 @@ import { checkRateLimit, getAiCache, setAiCache } from "../../../lib/aiCache";
 import { verifyFirebaseIdTokenDetailed } from "../../../lib/firebaseAdmin";
 import { calculatePriceProjection } from "../../../lib/priceProjection";
 import { CALENDAR_DATABASE } from "../../../lib/calendarDb";
+import { getMergedCalendarEvents } from "../../../lib/liveCalendarService";
 
 import { z } from "zod";
 
@@ -110,6 +111,14 @@ export async function POST(request: Request) {
     // 6. Gather market sentiment metrics
     const sentiment = await fetchSentiment(symbol);
 
+    // 6.2 Fetch merged live calendar events (Finnhub + fallback) for accurate event risk & schedule
+    const now = new Date();
+    const { events: mergedCalendarEvents } = await getMergedCalendarEvents(
+      new Date(now.getTime() - 2 * 24 * 3600 * 1000),
+      new Date(now.getTime() + 14 * 24 * 3600 * 1000),
+      symbol ? [symbol] : null
+    );
+
     // 6.5 Calculate Price Projection Matrix (Quant Engine)
     const priceProjection = calculatePriceProjection(
       symbol,
@@ -118,7 +127,7 @@ export async function POST(request: Request) {
       indicators,
       supportResistance,
       news,
-      CALENDAR_DATABASE,
+      mergedCalendarEvents,
       tradingStyle,
       timeframe,
       marketData.priceSource || "Finnhub API",
@@ -148,6 +157,7 @@ export async function POST(request: Request) {
             news,
             sentiment,
             priceProjection,
+            calendarEvents: mergedCalendarEvents,
           });
           reportText = await generateAnalysisReport(prompt);
           setAiCache(cacheKey, reportText, 180); // Cache for 3 minutes to save tokens & speed up requests
@@ -171,6 +181,7 @@ export async function POST(request: Request) {
             feePercent: parsedInput.feePercent,
             slippagePercent: parsedInput.slippagePercent,
             priceProjection,
+            calendarEvents: mergedCalendarEvents,
           });
           analysisSource = "Local Quant Engine (Fallback)";
         }
@@ -193,6 +204,7 @@ export async function POST(request: Request) {
         feePercent: parsedInput.feePercent,
         slippagePercent: parsedInput.slippagePercent,
         priceProjection,
+        calendarEvents: mergedCalendarEvents,
       });
     }
 

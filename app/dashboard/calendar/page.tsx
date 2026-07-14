@@ -68,16 +68,19 @@ const typeCfg = {
   crypto: { icon: Zap, label: "Crypto", color: "text-amber-400" },
 };
 
-function formatThaiDate(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleDateString("th-TH", {
+function formatThaiDate(isoOrThai: string) {
+  if (!isoOrThai) return "—";
+  const d = new Date(isoOrThai);
+  if (isNaN(d.getTime())) return isoOrThai;
+  return d.toLocaleString("th-TH", {
     weekday: "short",
     day: "numeric",
     month: "short",
+    year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "Asia/Bangkok",
-  });
+  }) + " น.";
 }
 
 function groupByDay(events: CalEvent[]): Record<string, CalEvent[]> {
