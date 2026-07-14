@@ -1,4 +1,5 @@
 import axios from "axios";
+import YahooFinance from "yahoo-finance2";
 import { CALENDAR_DATABASE } from "./calendarDb";
 import { normalizeSymbol, matchesAnySymbol } from "./symbolMapping";
 import type { EconomicEvent, GeneralCalendarEvent, EarningsEvent, EventImportance, EventStatus } from "../types/calendar";
@@ -13,6 +14,44 @@ interface CachedEarnings {
 
 let earningsCache: CachedEarnings | null = null;
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour cache to respect Finnhub rate limits
+
+const yahooFinance = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
+const YAHOO_EARNINGS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+
+interface CachedYahooEarnings {
+  events: EarningsEvent[];
+  fetchedAt: number;
+  from: string;
+  to: string;
+}
+
+let yahooEarningsCache: CachedYahooEarnings | null = null;
+
+// Yahoo returns a company-level next earnings date without requiring an API
+// key. This targeted list fills the international and major-tech gaps in the
+// aggregate Finnhub calendar while keeping requests low enough to avoid abuse.
+const YAHOO_EARNINGS_SYMBOLS = [
+  { symbol: "ASML", yahooSymbol: "ASML" },
+  { symbol: "TSM", yahooSymbol: "TSM" },
+  { symbol: "NVDA", yahooSymbol: "NVDA" },
+  { symbol: "AAPL", yahooSymbol: "AAPL" },
+  { symbol: "MSFT", yahooSymbol: "MSFT" },
+  { symbol: "AMD", yahooSymbol: "AMD" },
+  { symbol: "GOOGL", yahooSymbol: "GOOGL" },
+  { symbol: "META", yahooSymbol: "META" },
+  { symbol: "AMZN", yahooSymbol: "AMZN" },
+  { symbol: "AVGO", yahooSymbol: "AVGO" },
+  { symbol: "QCOM", yahooSymbol: "QCOM" },
+  { symbol: "MU", yahooSymbol: "MU" },
+  { symbol: "ARM", yahooSymbol: "ARM" },
+  { symbol: "SMCI", yahooSymbol: "SMCI" },
+  { symbol: "PLTR", yahooSymbol: "PLTR" },
+  { symbol: "CRWD", yahooSymbol: "CRWD" },
+  { symbol: "SAP", yahooSymbol: "SAP" },
+  { symbol: "SIE", yahooSymbol: "SIE.DE" },
+  { symbol: "005930", yahooSymbol: "005930.KS" },
+  { symbol: "000660", yahooSymbol: "000660.KS" },
+] as const;
 
 interface ForexFactoryCalendarEvent {
   title?: string;
@@ -297,6 +336,99 @@ export async function fetchLiveEarningsFromFinnhub(from: string, to: string): Pr
 }
 
 /**
+ * Fetches a focused global earnings calendar from Yahoo Finance. Unlike the
+ * aggregate Finnhub endpoint, Yahoo exposes the next known date per company,
+ * which is especially useful for ASML, TSM, Samsung, and SK Hynix.
+ */
+export async function fetchYahooEarningsCalendar(from: string, to: string): Promise<{
+  events: EarningsEvent[];
+  status: "LIVE" | "UNAVAILABLE";
+  error?: string;
+}> {
+  const now = Date.now();
+  if (
+    yahooEarningsCache &&
+    now - yahooEarningsCache.fetchedAt < YAHOO_EARNINGS_CACHE_TTL_MS &&
+    yahooEarningsCache.from <= from &&
+    yahooEarningsCache.to >= to
+  ) {
+    return { events: yahooEarningsCache.events, status: "LIVE" };
+  }
+
+  const fromTime = new Date(`${from}T00:00:00.000Z`).getTime();
+  const toTime = new Date(`${to}T23:59:59.999Z`).getTime();
+  const fetchedAt = new Date().toISOString();
+
+  try {
+    const settled = await Promise.allSettled(
+      YAHOO_EARNINGS_SYMBOLS.map(async ({ symbol, yahooSymbol }) => {
+        const result = await yahooFinance.quoteSummary(yahooSymbol, {
+          modules: ["calendarEvents"],
+        });
+        const earnings = result.calendarEvents?.earnings;
+        const earningsDate = earnings?.earningsDate?.find((date) => {
+          const timestamp = date.getTime();
+          return timestamp >= fromTime && timestamp <= toTime;
+        });
+
+        if (!earningsDate) return null;
+
+        const isEstimated = earnings?.isEarningsDateEstimate !== false;
+        const dateKey = earningsDate.toISOString().slice(0, 10);
+        const id = `yahoo-earnings-${symbol}-${dateKey}`.toLowerCase();
+        const isMajorBellwether = new Set(["NVDA", "AAPL", "MSFT", "GOOGL", "META", "AMZN", "TSM", "ASML"]).has(symbol);
+
+        return {
+          id,
+          eventId: id,
+          symbol,
+          type: "earnings" as const,
+          announcedAt: earningsDate.toISOString(),
+          timeThai: earningsDate.toLocaleString("th-TH", { timeZone: "Asia/Bangkok" }),
+          importance: isMajorBellwether ? "high" : "medium",
+          revenueActual: null,
+          revenueForecast: earnings?.revenueAverage !== undefined ? String(earnings.revenueAverage) : null,
+          revenuePrevious: null,
+          epsActual: null,
+          epsForecast: earnings?.earningsAverage !== undefined ? String(earnings.earningsAverage) : null,
+          epsPrevious: null,
+          guidance: null,
+          eventTypeName: "Earnings",
+          exchange: yahooSymbol.includes(".") ? yahooSymbol.split(".").at(-1) || "Global" : "US",
+          source: {
+            source: "Yahoo Finance Calendar Events",
+            sourceUrl: `https://finance.yahoo.com/quote/${encodeURIComponent(yahooSymbol)}`,
+            fetchedAt,
+            timezone: "Timestamp supplied by Yahoo Finance",
+            eventId: id,
+          },
+          status: isEstimated ? "ESTIMATED" : "LIVE",
+        } satisfies EarningsEvent;
+      })
+    );
+
+    const events = settled.flatMap((result) => result.status === "fulfilled" && result.value ? [result.value] : []);
+    const failedCount = settled.filter((result) => result.status === "rejected").length;
+    if (events.length === 0 && failedCount === YAHOO_EARNINGS_SYMBOLS.length) {
+      const firstFailure = settled.find((result) => result.status === "rejected");
+      const message = firstFailure && firstFailure.status === "rejected"
+        ? String(firstFailure.reason?.message || firstFailure.reason)
+        : "All Yahoo earnings requests failed.";
+      return { events: [], status: "UNAVAILABLE", error: `Yahoo earnings unavailable: ${message.slice(0, 180)}` };
+    }
+
+    yahooEarningsCache = { events, fetchedAt: now, from, to };
+    return { events, status: "LIVE" };
+  } catch (err: any) {
+    return {
+      events: [],
+      status: "UNAVAILABLE",
+      error: `Yahoo earnings unavailable: ${String(err.message || err).slice(0, 180)}`,
+    };
+  }
+}
+
+/**
  * Merges live earnings with a live macro-event feed. Fixture data must never
  * be presented as a real schedule because its date can be stale.
  */
@@ -323,12 +455,21 @@ export async function getMergedCalendarEvents(
 
   // 1. Try fetching live earnings from Finnhub
   let liveEarningsResult = { events: [] as EarningsEvent[], status: "UNAVAILABLE" as EventStatus, error: "" };
+  let yahooEarningsResult = { events: [] as EarningsEvent[], status: "UNAVAILABLE" as EventStatus, error: "" };
   if (!typeFilter || typeFilter === "all" || typeFilter === "earnings") {
-    const res = await fetchLiveEarningsFromFinnhub(fromIsoDate, toIsoDate);
+    const [res, yahooRes] = await Promise.all([
+      fetchLiveEarningsFromFinnhub(fromIsoDate, toIsoDate),
+      fetchYahooEarningsCalendar(fromIsoDate, toIsoDate),
+    ]);
     liveEarningsResult = {
       events: res.events,
       status: res.status,
       error: res.error || "",
+    };
+    yahooEarningsResult = {
+      events: yahooRes.events,
+      status: yahooRes.status,
+      error: yahooRes.error || "",
     };
   }
 
@@ -347,25 +488,37 @@ export async function getMergedCalendarEvents(
   // 2. Map and deduplicate keys
   // Key format: `type_symbolOrId_date`
   const dedupeMap = new Map<string, GeneralCalendarEvent>();
-  let earningsCount = 0;
+  let finnhubEarningsCount = 0;
+  let yahooEarningsCount = 0;
   let economicCount = 0;
   let fallbackCount = 0;
 
   // Add Live Events first
-  for (const liveEv of liveEarningsResult.events) {
+  const addEarningsEvent = (liveEv: EarningsEvent, source: "finnhub" | "yahoo") => {
     const evDate = new Date(liveEv.announcedAt);
-    if (evDate < fromDate || evDate > toDate) continue;
+    if (evDate < fromDate || evDate > toDate) return;
 
     if (symbolFilter && symbolFilter.length > 0) {
-      if (!matchesAnySymbol(liveEv.symbol, symbolFilter)) continue;
+      if (!matchesAnySymbol(liveEv.symbol, symbolFilter)) return;
     }
 
-    if (importanceFilter && liveEv.importance !== importanceFilter) continue;
+    if (importanceFilter && liveEv.importance !== importanceFilter) return;
 
     const dateKey = liveEv.announcedAt.substring(0, 10);
-    const dedupeKey = `earnings_${normalizeSymbol(liveEv.symbol)}_${dateKey}_${liveEv.quarter || ""}`;
+    const dedupeKey = `earnings_${normalizeSymbol(liveEv.symbol)}_${dateKey}`;
+    if (dedupeMap.has(dedupeKey)) return;
     dedupeMap.set(dedupeKey, liveEv);
-    earningsCount++;
+    if (source === "finnhub") finnhubEarningsCount++;
+    else yahooEarningsCount++;
+  };
+
+  // Finnhub has priority for actual earnings figures. Yahoo fills dates that
+  // Finnhub Free does not cover, notably global semiconductor bellwethers.
+  for (const liveEv of liveEarningsResult.events) {
+    addEarningsEvent(liveEv, "finnhub");
+  }
+  for (const yahooEv of yahooEarningsResult.events) {
+    addEarningsEvent(yahooEv, "yahoo");
   }
 
   // Macro events remain relevant when a symbol filter is active: CPI, PPI,
@@ -459,6 +612,7 @@ export async function getMergedCalendarEvents(
     (a, b) => new Date(a.announcedAt).getTime() - new Date(b.announcedAt).getTime()
   );
 
+  const earningsCount = finnhubEarningsCount + yahooEarningsCount;
   const overallStatus: "LIVE" | "ESTIMATED" | "UNAVAILABLE" =
     earningsCount + economicCount > 0
       ? "LIVE"
@@ -471,9 +625,13 @@ export async function getMergedCalendarEvents(
     status: overallStatus,
     sourceInfo: {
       source: earningsCount > 0 && economicCount > 0
-        ? "Finnhub Live Earnings API + Forex Factory Weekly Calendar"
-        : earningsCount > 0
+        ? "Finnhub/Yahoo Earnings Calendar + Forex Factory Weekly Calendar"
+        : finnhubEarningsCount > 0 && yahooEarningsCount > 0
+        ? "Finnhub Live Earnings API + Yahoo Finance Calendar Events"
+        : finnhubEarningsCount > 0
         ? "Finnhub Live Earnings API"
+        : yahooEarningsCount > 0
+        ? "Yahoo Finance Calendar Events"
         : economicCount > 0
         ? "Forex Factory Weekly Calendar"
         : fallbackCount > 0
@@ -484,6 +642,7 @@ export async function getMergedCalendarEvents(
       fallbackCount,
       issues: [
         liveEarningsResult.status === "UNAVAILABLE" ? liveEarningsResult.error : "",
+        yahooEarningsResult.status === "UNAVAILABLE" ? yahooEarningsResult.error : "",
         liveEconomicResult.status === "UNAVAILABLE" ? liveEconomicResult.error : "",
       ].filter(Boolean),
     },
