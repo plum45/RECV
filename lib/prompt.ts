@@ -173,52 +173,65 @@ ${sentimentReasons}
 * กลยุทธ์: [คำแนะนำสำหรับการเทรดในกรอบ]
 * จุดรอ Breakout: [ราคาที่ต้องยืนยันเพื่อหลุดกรอบสะสมพลัง]
 
-## 9. Long Setup
-* เงื่อนไขก่อนเข้า: [สัญญาณยืนยันการเปิดสถานะ]
-* Entry Aggressive: [ราคาเข้าแบบเชิงรุก]
-* Entry Conservative: [ราคาเข้าแบบเชิงรับ/รอบลูแบ็ค]
+## 9. Long Setup (Wait-for-Confirmation Model)
+* Entry Type: [เลือกระหว่าง Limit Entry / Breakout Entry / Retest Entry / Market Entry]
+* Entry Zone: [$X - $Y ระบุเป็นโซนราคาระดับความสอดคล้องสูง ห้ามใช้แนวรับแนวต้านเดี่ยวๆ เป็นจุดเข้าทันที]
 * Stop Loss: [ราคาตัดขาดทุน]
-* TP1: [ค่า]
-* TP2: [ค่า]
-* TP3: [ค่า]
-* Risk/Reward: [อัตราส่วน]
-* แผนนี้ใช้ไม่ได้ถ้า: [เงื่อนไขยกเลิกสถานะ Long]
+* Take Profit 1: [ค่า] | Take Profit 2: [ค่า] | Take Profit 3: [ค่า]
+* Risk/Reward: [อัตราส่วนต้อง >= 1:1.5 หากต่ำกว่าต้องเตือนว่า Invalid]
+* 9-Point Confirmation Checklist:
+  - [ ] ราคาเข้าทดสอบโซนรับหรือโซน Confluence ($X-$Y)
+  - [ ] แท่งเทียนเกิดรูปแบบ Bullish Reversal บน Timeframe ที่เลือก
+  - [ ] RSI Momentum (> 45 หรือเกิด Divergence)
+  - [ ] MACD Histogram > 0 หรือเกิด Bullish Crossover
+  - [ ] Volume Ratio > 1.0 หรือ OBV สะสมเพิ่มขึ้น
+  - [ ] ราคายืนเหนือ EMA 20 / EMA 50
+  - [ ] โครงสร้างราคา Market Structure เป็น Uptrend (HH/HL)
+  - [ ] เกิด Bullish Break of Structure (BOS)
+  - [ ] ราคาเคลื่อนไหวอยู่เหนือ VWAP
+* แผนนี้ใช้ไม่ได้ถ้า (Invalidation): [เงื่อนไขยกเลิกสถานะ Long เช่น ปิด 4H ต่ำกว่า Stop Loss ด้วย Volume สูง]
 
-## 10. Short Setup
-* เงื่อนไขก่อนเข้า: [สัญญาณยืนยันการเปิดสถานะ]
-* Entry Aggressive: [ราคาเข้าแบบเชิงรุก]
-* Entry Conservative: [ราคาเข้าแบบเชิงรับ/รอพูลแบ็ค]
+## 10. Short Setup (Wait-for-Confirmation Model)
+* Entry Type: [เลือกระหว่าง Limit Entry / Breakout Entry / Retest Entry / Market Entry]
+* Entry Zone: [$X - $Y ระบุเป็นโซนราคาระดับความสอดคล้องสูง ห้ามใช้แนวต้านเดี่ยวๆ เป็นจุดเข้าทันที]
 * Stop Loss: [ราคาตัดขาดทุน]
-* TP1: [ค่า]
-* TP2: [ค่า]
-* TP3: [ค่า]
-* Risk/Reward: [อัตราส่วน]
-* แผนนี้ใช้ไม่ได้ถ้า: [เงื่อนไขยกเลิกสถานะ Short]
+* Take Profit 1: [ค่า] | Take Profit 2: [ค่า] | Take Profit 3: [ค่า]
+* Risk/Reward: [อัตราส่วนต้อง >= 1:1.5 หากต่ำกว่าต้องเตือนว่า Invalid]
+* 9-Point Confirmation Checklist:
+  - [ ] ราคาเข้าทดสอบโซนต้านหรือโซน Confluence ($X-$Y)
+  - [ ] แท่งเทียนเกิดรูปแบบ Bearish Reversal บน Timeframe ที่เลือก
+  - [ ] RSI Momentum (< 55 หรือเกิด Divergence)
+  - [ ] MACD Histogram < 0 หรือเกิด Bearish Crossover
+  - [ ] Volume Ratio > 1.0 หรือ OBV ขายกดทับ
+  - [ ] ราคาอยู่ใต้ EMA 20 / EMA 50
+  - [ ] โครงสร้างราคา Market Structure เป็น Downtrend (LH/LL)
+  - [ ] เกิด Bearish Break of Structure (BOS)
+  - [ ] ราคาเคลื่อนไหวอยู่ใต้ VWAP
+* แผนนี้ใช้ไม่ได้ถ้า (Invalidation): [เงื่อนไขยกเลิกสถานะ Short เช่น ปิด 4H เหนือ Stop Loss ด้วย Volume สูง]
 
-## 11. Risk Management
-* ความเสี่ยงต่อไม้: [แนะนำเปอร์เซ็นต์ความเสี่ยงที่เหมาะสม เช่น 1-2%]
-* จุดที่ไม่ควรเข้า: [ระดับราคาที่ไม่คุ้มความเสี่ยง]
-* สิ่งที่ต้องรอยืนยัน: [เช่น รอราคาปิดแท่ง หรือสัญญาณแท่งเทียนกลับตัว]
-* ข่าวที่ต้องระวัง: [ระบุข่าวสำคัญ]
-* คำแนะนำเรื่องขนาดไม้: [การคำนวณ Position Sizing และเลเวอเรจที่เหมาะสม]
+## 11. Risk Management & Position Setup
+* ความเสี่ยงต่อไม้: [แนะนำเปอร์เซ็นต์ความเสี่ยงที่เหมาะสม เช่น 1%]
+* การบริหารช่วงข่าว High Impact: [หากมีรายงาน Earnings หรือ FOMC ใน 24 ชม. ห้ามเข้า Market Entry เด็ดขาด ให้รอยืนยันหลังข่าว]
+* การประเมิน Gap Risk: [หาก Pre-market Gap > 2% ให้ระมัดระวัง Slippage และชะลอการเข้าซื้อ]
+* คำแนะนำเรื่อง Position Sizing: [อธิบายการคำนวณจำนวนยูนิตให้ความเสี่ยงสุทธิไม่เกินเกณฑ์]
 
-## 12. Rocket Score
-ให้คะแนนจากสภาวะตลาดปัจจุบันดังนี้ (สรุปคะแนนย่อยและคะแนนรวม):
-* Trend: __/20
-* Market Structure: __/15
-* Support / Resistance: __/15
-* Momentum: __/15
-* Volume: __/10
-* News: __/10
-* Sentiment: __/5
-* Risk/Reward: __/10
+## 12. Rocket Score Breakdown (7-Dimension Scoring)
+ให้คะแนนจากสภาวะตลาดปัจจุบัน 7 มิติ (ประเมินความสอดคล้องระบบ ไม่ใช่อัตรา Win Rate):
+* 1. Trend Direction & Bias: __/15
+* 2. Momentum (RSI & MACD): __/10
+* 3. Market Structure Alignment: __/10
+* 4. Volume & OBV Flow: __/10
+* 5. Support & Resistance Confluence: __/10
+* 6. News & Macro Safety: __/10
+* 7. Data Quality & Freshness: __/10
 
-รวม: __/100
+รวมคะแนนความสอดคล้องระบบ: __/75 (ระดับ: High Confluence / Moderate / Low Confluence)
 
 ## 13. สรุปแบบภาษาคนทั่วไป
 [คำอธิบายภาษาเรียบง่าย สรุปชัดเจนว่าฝั่งไหนได้เปรียบ ควรรอจังหวะใด ราคาจุดวัดใจคือจุดใด และปัจจัยหลักที่ต้องเฝ้าระวังสูงสุดคืออะไร]
 
 ## 14. คำเตือน
-**นี่ไม่ใช่คำแนะนำทางการเงิน การเทรดมีความเสี่ยงสูง ผู้ใช้ควรตัดสินใจด้วยตนเอง ใช้ Stop Loss เสมอ และไม่ควรเสี่ยงเงินทุนเกินกว่าที่รับไหว**
+> [!CAUTION]
+> **นี่ไม่ใช่คำแนะนำทางการเงิน การเทรดมีความเสี่ยงสูง ผู้ใช้ควรตัดสินใจด้วยตนเอง ใช้ Stop Loss เสมอ และไม่ควรเสี่ยงเงินทุนเกินกว่าที่รับไหว**
 `;
 }

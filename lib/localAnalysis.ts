@@ -1,6 +1,7 @@
 import { TickerData, IndicatorData, SupportResistanceData, KlineData } from "../types/market";
-import { NewsArticle } from "../types/news";
+import { NewsArticle, SectorImpactCategory } from "../types/news";
 import { SentimentData } from "../types/analysis";
+import { CALENDAR_DATABASE } from "./calendarDb";
 
 interface LocalAnalysisPayload {
   symbol: string;
@@ -118,7 +119,46 @@ export function runLocalBacktest(
   };
 }
 
+export function validateMarketDataBeforeAnalysis(payload: LocalAnalysisPayload): string | null {
+  const { marketData, klines = [], symbol, timeframe } = payload;
+
+  if (!symbol || !timeframe) {
+    return `# ⚠️ คำเตือนระบบ: ข้อมูลไม่เพียงพอหรือล่าช้าเกินกำหนด
+
+> [!CAUTION]
+> **ไม่สามารถคำนวณ Entry ได้:** ระบุสัญลักษณ์ (Symbol) หรือกรอบเวลา (Timeframe) ไม่ถูกต้อง กรุณาเลือกข้อมูลใหม่`;
+  }
+
+  if (klines.length < 50) {
+    return `# ⚠️ คำเตือนระบบ: ข้อมูลไม่เพียงพอหรือล่าช้าเกินกำหนด
+
+> [!CAUTION]
+> **ไม่สามารถคำนวณ Entry ได้อย่างแม่นยำ:** จำนวนแท่งเทียนย้อนหลัง (${klines.length} แท่ง) น้อยกว่าเกณฑ์ขั้นต่ำที่ต้องการ (50 แท่ง) กรุณารอระบบดึงข้อมูลอัปเดตหรือเปลี่ยน Timeframe เพื่อให้เครื่องมือทางสถิติและ EMA คำนวณได้อย่างถูกต้อง`;
+  }
+
+  // Check chronological order
+  if (klines.length >= 2 && klines[0].openTime > klines[klines.length - 1].openTime) {
+    klines.sort((a, b) => a.openTime - b.openTime);
+  }
+
+  // Check freshness and mock data in production
+  if (process.env.NODE_ENV === "production" && marketData.priceSource && marketData.priceSource.toLowerCase().includes("mock")) {
+    return `# ⚠️ คำเตือนระบบ: ข้อมูลจำลอง (Mock Data) ในระบบ Production
+
+> [!CAUTION]
+> **ไม่อนุญาตให้ออกสัญญาณ Trade จริง:** ระบบตรวจพบว่าข้อมูลราคาปัจจุบันเป็น Mock/Fallback Data เนื่องจากเชื่อมต่อ API ไม่สำเร็จ เพื่อความปลอดภัยของพอร์ตลงทุน ระบบจึงหยุดคำนวณจุดเข้าซื้อ/ขาย`;
+  }
+
+  return null;
+}
+
 export function generateLocalReport(payload: LocalAnalysisPayload): string {
+  // ── PRE-CALCULATION DATA VALIDATION ─────────────────────────────────────
+  const validationError = validateMarketDataBeforeAnalysis(payload);
+  if (validationError) {
+    return validationError;
+  }
+
   const {
     symbol,
     timeframe,
@@ -144,6 +184,58 @@ export function generateLocalReport(payload: LocalAnalysisPayload): string {
   const fib = fibonacci;
   const bb  = bollingerBands;
   const ms  = marketStructure;
+
+  // ── NEWS, EARNINGS & PRE-MARKET GAP RISK CHECK ──────────────────────────
+  let hasEvent24h = false;
+  let hasEvent72h = false;
+  let newsRiskLevel = "Low 🟢";
+  let newsWarningSection = "";
+
+  const majorCalendarEvents = CALENDAR_DATABASE.filter(e => {
+    if (e.type === "economic") {
+      return e.country === "US" || e.title.toLowerCase().includes("tech") || e.title.toLowerCase().includes("semiconductor");
+    }
+    if (e.type === "earnings") {
+      return e.symbol.toLowerCase() === symbol.toLowerCase();
+    }
+    return false;
+  });
+
+  const nowMs = Date.now();
+  for (const ev of majorCalendarEvents) {
+    const evTimeMs = new Date(ev.announcedAt).getTime();
+    const diffHours = (evTimeMs - nowMs) / (1000 * 3600);
+    if (diffHours >= -6 && diffHours <= 24) {
+      hasEvent24h = true;
+    } else if (diffHours > 24 && diffHours <= 72) {
+      hasEvent72h = true;
+    }
+  }
+
+  for (const n of news) {
+    const t = n.title.toLowerCase();
+    if (t.includes("earnings") || t.includes("fomc") || t.includes("cpi") || t.includes("fed") || t.includes("guidance")) {
+      hasEvent24h = true;
+    }
+  }
+
+  if (hasEvent24h) {
+    newsRiskLevel = "High 🔴";
+    newsWarningSection = `\n> [!WARNING]\n> **มีข่าวหรือ Event สำคัญใกล้เข้ามาภายใน 24 ชม.:** ตรวจพบรายงาน Earnings, FOMC หรือตัวเลขเศรษฐกิจสำคัญที่ส่งผลต่ออุตสาหกรรมเทคโนโลยี อาจเกิด Gap และทำให้ Entry/Stop Loss คลาดเคลื่อนสูง **ห้ามเข้า Market Entry เด็ดขาด** ให้รอสัญญาณยืนยันหลังข่าวสงบ\n`;
+  } else if (hasEvent72h) {
+    newsRiskLevel = "Medium 🟡";
+  }
+
+  // Pre-market / Session Gap Risk
+  const prevClose = marketData.previousClose || (klines.length >= 2 ? klines[klines.length - 2].close : price);
+  const gapPct = prevClose > 0 ? Math.abs(price - prevClose) / prevClose * 100 : 0;
+  let gapRiskLevel = "Low 🟢";
+  if (gapPct > 2.0) {
+    gapRiskLevel = "High 🔴";
+    newsWarningSection += `\n> [!WARNING]\n> **⚠️ Pre-market / After-hours Gap > 2% (${gapPct.toFixed(2)}%):** ราคาเปิดกระโดดห่างจากราคาปิดก่อนหน้าสูง อาจเกิดความผันผวนสูงเมื่อเปิดตลาด โปรดระวัง Slippage และ Gap Risk\n`;
+  } else if (gapPct > 1.0) {
+    gapRiskLevel = "Medium 🟡";
+  }
 
   // ── MARKET BIAS & SIGNAL STRENGTH ───────────────────────────────────────
   let bullPoints = 0, bearPoints = 0;
@@ -173,7 +265,7 @@ export function generateLocalReport(payload: LocalAnalysisPayload): string {
   const totalPoints = bullPoints + bearPoints;
   const bullPct = totalPoints > 0 ? (bullPoints / totalPoints) * 100 : 50;
 
-  // Signal Strength Terminology instead of "accuracy" or "win probability"
+  // Signal Strength Terminology
   let signalStrengthLabel = "Neutral / Conflicting Signals";
   if (bullPct >= 70) signalStrengthLabel = "Strong Bullish Bias";
   else if (bullPct >= 57) signalStrengthLabel = "Bullish Bias";
@@ -185,10 +277,10 @@ export function generateLocalReport(payload: LocalAnalysisPayload): string {
   const structureDiff = (bullPct > 55 && ms.type === "downtrend") || (bullPct < 45 && ms.type === "uptrend");
   const rsiDiff = (bullPct > 55 && rsi14 < 45) || (bullPct < 45 && rsi14 > 55);
   if (structureDiff || rsiDiff) {
-    conflictAlert = `\n> [!WARNING]\n> **สัญญาณขัดแย้ง (Conflicting Signals Detected):** สัญญาณแนวโน้มหลักและดัชนีโมเมนตัมกำลังวิ่งสวนทางกัน แนะนำจำกัดความเสี่ยงหรือหลีกเลี่ยงการเปิดออเดอร์ Breakout\n`;
+    conflictAlert = `\n> [!WARNING]\n> **สัญญาณขัดแย้ง (Conflicting Signals Detected — รอการยืนยัน):** สัญญาณแนวโน้มหลักและดัชนีโมเมนตัมกำลังวิ่งสวนทางกัน แนะนำจำกัดความเสี่ยงหรือหลีกเลี่ยงการเปิดออเดอร์ Breakout\n`;
   }
 
-  // ── ENTRY / SL / TP SETUP ───────────────────────────────────────────────
+  // ── MULTI-FACTOR ENTRY ZONE ($X - $Y) CALCULATIONS ──────────────────────
   const parseSRMid = (zone: string | undefined): number => {
     if (!zone) return 0;
     const parts = zone.replace(/,/g, "").split("-");
@@ -196,85 +288,145 @@ export function generateLocalReport(payload: LocalAnalysisPayload): string {
     return 0;
   };
 
-  const sup1 = parseSRMid(supportZones[0]?.zone)   || fib.r618 || price * 0.97;
-  const sup2 = parseSRMid(supportZones[1]?.zone)    || fib.r786 || price * 0.94;
-  const res1 = parseSRMid(resistanceZones[0]?.zone) || fib.r236 || price * 1.03;
-  const res2 = parseSRMid(resistanceZones[1]?.zone) || fib.ext127 || price * 1.06;
+  const sup1Mid = parseSRMid(supportZones[0]?.zone) || fib.r618 || (price * 0.98);
+  const sup2Mid = parseSRMid(supportZones[1]?.zone) || fib.r786 || (price * 0.95);
+  const res1Mid = parseSRMid(resistanceZones[0]?.zone) || fib.r236 || (price * 1.02);
+  const res2Mid = parseSRMid(resistanceZones[1]?.zone) || fib.ext127 || (price * 1.05);
 
-  // Select optimal Entry Type based on current price relationship
-  let longEntryType: "Market Entry" | "Limit Entry" | "Breakout Entry" | "Retest Entry" = "Market Entry";
-  let longEntry = price;
-  if (price > sup1 && (price - sup1) / price <= 0.015) {
-    longEntry = sup1;
+  // Long Confluence Entry Zone
+  const validLongLevels = [sup1Mid, fib.r618, fib.r500, ema20, ema50, vwap].filter(v => v > 0 && v < price * 1.015);
+  const longTargetBase = validLongLevels.length > 0
+    ? validLongLevels.reduce((prev, curr) => Math.abs(curr - sup1Mid) < Math.abs(prev - sup1Mid) ? curr : prev, validLongLevels[0])
+    : (price * 0.985);
+  
+  const longZoneMin = Math.min(longTargetBase - (atr14 * 0.25), price * 0.998);
+  const longZoneMax = Math.max(longTargetBase + (atr14 * 0.25), longZoneMin * 1.004);
+  const longEntryMid = (longZoneMin + longZoneMax) / 2;
+  const longDistancePct = ((price - longEntryMid) / price) * 100;
+
+  let longEntryType: "Retest Entry" | "Limit Entry" | "Breakout Entry" | "Market Entry" = "Limit Entry";
+  if (ms.breakOfStructure === "bullish_bos" || (price > res1Mid && volumeAnalysis.isVolumeSpike)) {
+    longEntryType = "Breakout Entry";
+  } else if (Math.abs(price - longEntryMid) / price <= 0.012) {
     longEntryType = "Retest Entry";
-  } else if (price > sup1) {
-    longEntry = sup1;
+  } else if (longEntryMid < price) {
     longEntryType = "Limit Entry";
   } else {
-    longEntry = price;
     longEntryType = "Market Entry";
   }
 
-  let shortEntryType: "Market Entry" | "Limit Entry" | "Breakout Entry" | "Retest Entry" = "Market Entry";
-  let shortEntry = price;
-  if (price < res1 && (res1 - price) / price <= 0.015) {
-    shortEntry = res1;
+  // Short Confluence Entry Zone
+  const validShortLevels = [res1Mid, fib.r382, fib.r236, ema20, ema50, vwap].filter(v => v > price * 0.985);
+  const shortTargetBase = validShortLevels.length > 0
+    ? validShortLevels.reduce((prev, curr) => Math.abs(curr - res1Mid) < Math.abs(prev - res1Mid) ? curr : prev, validShortLevels[0])
+    : (price * 1.015);
+
+  const shortZoneMin = Math.min(shortTargetBase - (atr14 * 0.25), shortTargetBase * 0.996);
+  const shortZoneMax = Math.max(shortTargetBase + (atr14 * 0.25), price * 1.002);
+  const shortEntryMid = (shortZoneMin + shortZoneMax) / 2;
+  const shortDistancePct = ((shortEntryMid - price) / price) * 100;
+
+  let shortEntryType: "Retest Entry" | "Limit Entry" | "Breakout Entry" | "Market Entry" = "Limit Entry";
+  if (ms.breakOfStructure === "bearish_bos" || (price < sup1Mid && volumeAnalysis.isVolumeSpike)) {
+    shortEntryType = "Breakout Entry";
+  } else if (Math.abs(shortEntryMid - price) / price <= 0.012) {
     shortEntryType = "Retest Entry";
-  } else if (price < res1) {
-    shortEntry = res1;
+  } else if (shortEntryMid > price) {
     shortEntryType = "Limit Entry";
   } else {
-    shortEntry = price;
     shortEntryType = "Market Entry";
   }
 
-  // ATR based Stop Loss
-  let slFactor = 1.5;
-  if (tradingStyle === "day") slFactor = 1.0;
-  else if (tradingStyle === "position") slFactor = 2.5;
+  // ── 9-POINT CONFIRMATION CHECKLISTS ─────────────────────────────────────
+  const longConfirmations = [
+    { name: "แตะโซนแนวรับ / อยู่ใกล้โซนรับ", passed: price <= longZoneMax * 1.015, detail: `ราคาปัจจุบัน ($${fmt(price)}) ทดสอบโซน $${fmt(longZoneMin)} - $${fmt(longZoneMax)}` },
+    { name: "แท่งเทียน Bullish Reversal", passed: klines.length >= 2 && klines[klines.length - 1].close >= klines[klines.length - 1].open, detail: klines.length >= 2 && klines[klines.length - 1].close >= klines[klines.length - 1].open ? "แท่งล่าสุดปิดเขียว/เกิดแรงซื้อกลับ" : "ยังไม่เกิดรูปแบบกลับตัวชัดเจน" },
+    { name: "RSI Momentum ยืนยัน (> 45 หรือ Divergence)", passed: rsi14 > 45 && rsi14 < 68, detail: `RSI = ${rsi14.toFixed(1)} (ไม่อยู่ในภาวะ Overbought)` },
+    { name: "MACD Bullish Crossover / Histogram > 0", passed: macd.histogram > 0 || macd.crossover === "bullish", detail: `MACD Hist = ${macd.histogram.toFixed(3)}` },
+    { name: "Volume Ratio > 1.0 / แรงซื้อสะสม", passed: volumeAnalysis.volumeRatio >= 1.0 || volumeAnalysis.obvTrend === "rising", detail: `Volume Ratio = ${volumeAnalysis.volumeRatio.toFixed(2)}x (${volumeAnalysis.obvTrend})` },
+    { name: "ราคายืนเหนือ EMA สำคัญ", passed: price > ema20 || price > ema50, detail: `ราคาเทียบ EMA20 ($${fmt(ema20)}) และ EMA50 ($${fmt(ema50)})` },
+    { name: "Market Structure เป็น Uptrend (HH/HL)", passed: ms.type === "uptrend" || ms.higherHighs || ms.higherLows, detail: `โครงสร้างตลาด: ${ms.type}` },
+    { name: "เกิด Bullish Break of Structure (BOS)", passed: ms.breakOfStructure === "bullish_bos", detail: ms.breakOfStructure === "bullish_bos" ? "ทะลุโครงสร้าง Swing High เดิมสำเร็จ" : "ยังไม่เกิดทะลุโครงสร้าง BOS" },
+    { name: "ราคายืนเหนือ VWAP", passed: vwap > 0 && price >= vwap * 0.998, detail: `VWAP = $${fmt(vwap)}` },
+  ];
+  const longConfirmCount = longConfirmations.filter(c => c.passed).length;
+  const longTechStrength = longConfirmCount >= 6 ? "Strong ⭐⭐⭐" : longConfirmCount >= 4 ? "Moderate ⭐⭐" : "Weak ⭐";
+
+  const shortConfirmations = [
+    { name: "แตะโซนแนวต้าน / อยู่ใกล้โซนต้าน", passed: price >= shortZoneMin * 0.985, detail: `ราคาปัจจุบัน ($${fmt(price)}) ทดสอบโซน $${fmt(shortZoneMin)} - $${fmt(shortZoneMax)}` },
+    { name: "แท่งเทียน Bearish Reversal", passed: klines.length >= 2 && klines[klines.length - 1].close <= klines[klines.length - 1].open, detail: klines.length >= 2 && klines[klines.length - 1].close <= klines[klines.length - 1].open ? "แท่งล่าสุดปิดแดง/เกิดแรงขายกดทับ" : "ยังไม่เกิดรูปแบบกลับตัวลงชัดเจน" },
+    { name: "RSI Momentum กดดัน (< 55 หรือ Divergence)", passed: rsi14 < 55 && rsi14 > 32, detail: `RSI = ${rsi14.toFixed(1)} (ไม่อยู่ในภาวะ Oversold เกินไป)` },
+    { name: "MACD Bearish Crossover / Histogram < 0", passed: macd.histogram < 0 || macd.crossover === "bearish", detail: `MACD Hist = ${macd.histogram.toFixed(3)}` },
+    { name: "Volume ขายเพิ่มขึ้น / OBV Falling", passed: volumeAnalysis.volumeRatio >= 1.0 || volumeAnalysis.obvTrend === "falling", detail: `Volume Ratio = ${volumeAnalysis.volumeRatio.toFixed(2)}x (${volumeAnalysis.obvTrend})` },
+    { name: "ราคาอยู่ใต้ EMA สำคัญ", passed: price < ema20 || price < ema50, detail: `ราคาเทียบ EMA20 ($${fmt(ema20)}) และ EMA50 ($${fmt(ema50)})` },
+    { name: "Market Structure เป็น Downtrend (LH/LL)", passed: ms.type === "downtrend" || ms.lowerHighs || ms.lowerLows, detail: `โครงสร้างตลาด: ${ms.type}` },
+    { name: "เกิด Bearish Break of Structure (BOS)", passed: ms.breakOfStructure === "bearish_bos", detail: ms.breakOfStructure === "bearish_bos" ? "หลุดโครงสร้าง Swing Low เดิมสำเร็จ" : "ยังไม่เกิดหลุดโครงสร้าง BOS" },
+    { name: "ราคาอยู่ใต้ VWAP", passed: vwap > 0 && price <= vwap * 1.002, detail: `VWAP = $${fmt(vwap)}` },
+  ];
+  const shortConfirmCount = shortConfirmations.filter(c => c.passed).length;
+  const shortTechStrength = shortConfirmCount >= 6 ? "Strong ⭐⭐⭐" : shortConfirmCount >= 4 ? "Moderate ⭐⭐" : "Weak ⭐";
+
+  // ── STOP LOSS, TAKE PROFIT & R:R VALIDATION ─────────────────────────────
+  let slFactor = tradingStyle === "day" ? 1.1 : tradingStyle === "position" ? 2.5 : 1.6;
   const slBuffer = atr14 * slFactor;
 
-  // Long Math Checks
-  let longSL = Math.max(sup2 * 0.995, longEntry - slBuffer);
-  let longTP1 = res1 > longEntry ? res1 : price * 1.02;
-  let longTP2 = res2 > res1 ? res2 : price * 1.05;
-  let longTP3 = fib.ext161 > longTP2 ? fib.ext161 : longTP2 * 1.03;
-
-  // Stop loss guard checks
-  if (longSL >= longEntry) {
-    longSL = longEntry * 0.97;
-  }
-  const longRR = (longTP2 - longEntry) / (longEntry - longSL);
-
-  // Short Math Checks
-  let shortSL = shortEntry + slBuffer;
-  let shortTP1 = sup1 < shortEntry ? sup1 : price * 0.98;
-  let shortTP2 = sup2 < sup1 ? sup2 : price * 0.95;
-  let shortTP3 = fib.r786 < shortTP2 ? fib.r786 : shortTP2 * 0.97;
-
-  if (shortSL <= shortEntry) {
-    shortSL = shortEntry * 1.03;
-  }
-  const shortRR = (shortEntry - shortTP2) / (shortSL - shortEntry);
-
-  // Advanced Position Sizing Math
-  const riskDollar = accountSize * (riskPercent / 100);
+  // Long Math Guards
+  let longSL = Math.min(sup2Mid, longZoneMin - slBuffer);
+  if (longSL >= longZoneMin) longSL = longZoneMin * 0.975;
   
-  // Long Position size
-  const longDiff = Math.abs(longEntry - longSL);
-  const longQtyRaw = longDiff > 0 ? (riskDollar / longDiff) * leverage : 0;
-  const longTotalValue = longQtyRaw * longEntry;
-  const longTotalFee = longTotalValue * (feePercent / 100) * 2; // Entry & Exit fees
-  const longSlippage = longTotalValue * (slippagePercent / 100);
-  const longActualRisk = riskDollar + longTotalFee + longSlippage;
+  let longTP1 = Math.max(res1Mid, longEntryMid + (atr14 * 2.0));
+  let longTP2 = Math.max(res2Mid, fib.ext127, longEntryMid + (atr14 * 3.5));
+  if (longTP1 <= longEntryMid) longTP1 = longEntryMid * 1.025;
+  if (longTP2 <= longTP1) longTP2 = longTP1 * 1.025;
 
-  // Short Position size
-  const shortDiff = Math.abs(shortSL - shortEntry);
+  const longRR = (longTP2 - longEntryMid) / (longEntryMid - longSL);
+  let longStatus = "Ready";
+  if (longRR < 1.5) {
+    longStatus = `Invalid (R:R ${longRR.toFixed(2)} < 1.5 — ไม่คุ้มค่าความเสี่ยง)`;
+  } else if (hasEvent24h) {
+    longStatus = "Wait Confirmation (ติดช่วงข่าว High Impact ห้ามเข้า Market Order)";
+  } else if (longConfirmCount < 3) {
+    longStatus = "Wait Confirmation (รอยืนยันเพิ่มเติม ยังไม่ควรเข้า Market Order)";
+  } else if (longDistancePct > 4.0 || longDistancePct < -1.0) {
+    longStatus = "Wait Confirmation (รอราคาเข้าโซน / หลีกเลี่ยงไล่ราคา)";
+  } else {
+    longStatus = `Ready (ผ่านเงื่อนไขยืนยัน ${longConfirmCount}/9 ข้อ)`;
+  }
+
+  // Short Math Guards
+  let shortSL = Math.max(res2Mid, shortZoneMax + slBuffer);
+  if (shortSL <= shortZoneMax) shortSL = shortZoneMax * 1.025;
+
+  let shortTP1 = Math.min(sup1Mid, shortEntryMid - (atr14 * 2.0));
+  let shortTP2 = Math.min(sup2Mid, fib.r786, shortEntryMid - (atr14 * 3.5));
+  if (shortTP1 >= shortEntryMid) shortTP1 = shortEntryMid * 0.975;
+  if (shortTP2 >= shortTP1) shortTP2 = shortTP1 * 0.975;
+
+  const shortRR = (shortEntryMid - shortTP2) / (shortSL - shortEntryMid);
+  let shortStatus = "Ready";
+  if (shortRR < 1.5) {
+    shortStatus = `Invalid (R:R ${shortRR.toFixed(2)} < 1.5 — ไม่คุ้มค่าความเสี่ยง)`;
+  } else if (hasEvent24h) {
+    shortStatus = "Wait Confirmation (ติดช่วงข่าว High Impact ห้ามเข้า Market Order)";
+  } else if (shortConfirmCount < 3) {
+    shortStatus = "Wait Confirmation (รอยืนยันเพิ่มเติม ยังไม่ควรเข้า Market Order)";
+  } else if (shortDistancePct > 4.0 || shortDistancePct < -1.0) {
+    shortStatus = "Wait Confirmation (รอราคาเข้าโซน / หลีกเลี่ยงไล่ราคา)";
+  } else {
+    shortStatus = `Ready (ผ่านเงื่อนไขยืนยัน ${shortConfirmCount}/9 ข้อ)`;
+  }
+
+  // Advanced Position Sizing
+  const riskDollar = accountSize * (riskPercent / 100);
+  const longDiff = Math.abs(longEntryMid - longSL);
+  const longQtyRaw = longDiff > 0 ? (riskDollar / longDiff) * leverage : 0;
+  const longTotalValue = longQtyRaw * longEntryMid;
+  const longActualRisk = riskDollar + (longTotalValue * (feePercent / 100) * 2) + (longTotalValue * (slippagePercent / 100));
+
+  const shortDiff = Math.abs(shortSL - shortEntryMid);
   const shortQtyRaw = shortDiff > 0 ? (riskDollar / shortDiff) * leverage : 0;
-  const shortTotalValue = shortQtyRaw * shortEntry;
-  const shortTotalFee = shortTotalValue * (feePercent / 100) * 2;
-  const shortSlippage = shortTotalValue * (slippagePercent / 100);
-  const shortActualRisk = riskDollar + shortTotalFee + shortSlippage;
+  const shortTotalValue = shortQtyRaw * shortEntryMid;
+  const shortActualRisk = riskDollar + (shortTotalValue * (feePercent / 100) * 2) + (shortTotalValue * (slippagePercent / 100));
 
   // Backtest Auditing info
   const btResult = runLocalBacktest(klines, tradingStyle);
@@ -290,10 +442,49 @@ export function generateLocalReport(payload: LocalAnalysisPayload): string {
 `;
   }
 
-  // ── GENERATE REPORT ────────────────────────────────────────────────────
+  // Sector Impact Scenarios
+  const sectorNewsMap: Record<string, string[]> = {};
+  news.forEach((n) => {
+    const cat: SectorImpactCategory = (n as any).sectorImpact || "Noise";
+    if (cat !== "Noise") {
+      if (!sectorNewsMap[cat]) sectorNewsMap[cat] = [];
+      sectorNewsMap[cat].push(n.title.slice(0, 80));
+    }
+  });
+
+  const hasAIOrSemisNews = (sectorNewsMap["AI & Hardware"]?.length || 0) > 0 || (sectorNewsMap["Semiconductors"]?.length || 0) > 0;
+  const hasMacroNews = (sectorNewsMap["Macro"]?.length || 0) > 0;
+  const hasGeopolitical = (sectorNewsMap["Geopolitical"]?.length || 0) > 0;
+
+  let bullScenarioProb = 35, baseScenarioProb = 45, bearScenarioProb = 20;
+  if (bullPct >= 65 && hasAIOrSemisNews) { bullScenarioProb = 55; baseScenarioProb = 30; bearScenarioProb = 15; }
+  else if (bullPct <= 35 || hasMacroNews || hasGeopolitical) { bullScenarioProb = 20; baseScenarioProb = 35; bearScenarioProb = 45; }
+
+  const scenarioSection = `
+## ═══ 10. 3-Scenario Analysis & Tech Sector Impact ═══
+*แบบจำลองความน่าจะเป็น 3 สถานการณ์ (Bullish / Base / Bearish Case) สำหรับอุตสาหกรรมเทคโนโลยีและ AI*
+
+| สถานการณ์ | ความน่าจะเป็น | เงื่อนไขการเกิด (Catalyst / Trigger) | ระดับราคาเป้าหมาย |
+| :--- | :---: | :--- | :--- |
+| 🟢 **Bullish Case** (ปรับตัวขึ้นต่อ) | **${bullScenarioProb}%** | ทะลุแนวต้าน $${fmt(res1Mid)} พร้อมปริมาณซื้อหนาแน่น ${hasAIOrSemisNews ? "บวกแรงหนุนจากปัจจัยบวกกลุ่ม AI / Semiconductor" : ""} | $${fmt(longTP2)} (${pct(((longTP2 - price) / price) * 100)}) |
+| 🟡 **Base Case** (แกว่งตัวสะสมพลัง) | **${baseScenarioProb}%** | เคลื่อนไหวในกรอบ $${fmt(sup1Mid)} – $${fmt(res1Mid)} เพื่อรอสัญญาณยืนยันงบการเงินหรือทิศทางดอกเบี้ย | $${fmt(pivot.p)} (Pivot Equilibrium) |
+| 🔴 **Bearish Case** (ย่อตัวปรับฐาน) | **${bearScenarioProb}%** | หลุดแนวรับสำคัญ $${fmt(sup1Mid)} ${hasMacroNews ? "กดดันโดยความผันผวนมหภาคหรือกังวล Capex" : ""} พร้อมแรงขายทะลุ VWAP | $${fmt(shortTP2)} (${pct(((shortTP2 - price) / price) * 100)}) |
+
+### 🔬 Sector Impact Categorization (ปัจจัยกระทบอุตสาหกรรม)
+| ปัจจัยเทคโนโลยี | ข่าวสารที่เกี่ยวข้องล่าสุด | ระดับผลกระทบ |
+| :--- | :--- | :---: |
+| 🤖 AI & Hardware | ${(sectorNewsMap["AI & Hardware"] || []).slice(0, 1).join(" · ") || "ไม่มีข่าวเด่น AI & Hardware"} | ${hasAIOrSemisNews ? "⭐⭐⭐ สูง" : "—"} |
+| 💾 Semiconductors | ${(sectorNewsMap["Semiconductors"] || []).slice(0, 1).join(" · ") || "ไม่มีข่าวเด่น Semiconductors"} | ${hasAIOrSemisNews ? "⭐⭐⭐ สูง" : "—"} |
+| 🏛️ Macro / Fed | ${(sectorNewsMap["Macro"] || []).slice(0, 1).join(" · ") || "ไม่มีข่าว Macro Impact"} | ${hasMacroNews ? "⭐⭐⭐ สูง" : "—"} |
+| 🌍 Geopolitical | ${(sectorNewsMap["Geopolitical"] || []).slice(0, 1).join(" · ") || "ไม่มีข่าว Geopolitical"} | ${hasGeopolitical ? "⭐⭐⭐ สูง" : "—"} |
+
+> [!NOTE]
+> ⚠️ ระบบนี้ออกแบบมาเพื่อหุ้น US Tech และหุ้นต่างประเทศที่มีผลกระทบต่ออุตสาหกรรมเทคโนโลยี (NVDA, AMD, MSFT, AAPL, GOOGL, META, TSLA, TSM, ASML ฯลฯ) โดยเน้นระบบเงื่อนไขรอยืนยันสัญญาณ (Wait-for-Confirmation Model) เพื่อความปลอดภัยสูงสุด
+`;
+
   return `# 📊 Rocket AI · ${symbol} Technical Analysis Report
 
-${conflictAlert}
+${conflictAlert}${newsWarningSection}
 
 ## ═══ 1. Market Overview ═══
 | ฟิลด์ | ข้อมูล |
@@ -301,7 +492,7 @@ ${conflictAlert}
 | Symbol | **${symbol}** · Timeframe: **${timeframe}** |
 | Trading Style | **${tradingStyle === "day" ? "Day Trade" : tradingStyle === "position" ? "Position Trade" : "Swing Trade"}** |
 | ราคาปัจจุบัน | **$${fmt(price)}** |
-| ความสดใหม่ข้อมูล | **สถานะ: LIVE** (Yahoo Finance/Finnhub Direct) |
+| ความสดใหม่ข้อมูล | **สถานะ: LIVE** (${marketData.priceSource || "Direct API"}) · ${marketData.isDelayed ? "⚠️ Delayed 15m" : "⚡ Real-time"} |
 | อัปเดต | ${new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })} |
 
 ---
@@ -313,12 +504,12 @@ ${conflictAlert}
 ---
 
 ## ═══ 3. Calculation Summary (Audit Log) ═══
-- **แหล่งข้อมูลราคาหลัก:** Yahoo Finance / Finnhub API
+- **แหล่งข้อมูลราคาหลัก:** ${marketData.priceSource || "Yahoo Finance / Finnhub API"}
 - **จำนวนแท่งเทียนคำนวณ:** ${klines.length} แท่ง (Min required: 50)
-- **ประเภทคำสั่ง Long:** \`${longEntryType}\` (ห่างจากราคาปัจจุบัน ${pct(((longEntry - price)/price)*100)})
-- **ประเภทคำสั่ง Short:** \`${shortEntryType}\` (ห่างจากราคาปัจจุบัน ${pct(((shortEntry - price)/price)*100)})
-- **ความคุ้มค่า Risk/Reward (Long):** 1:${longRR.toFixed(2)} ${longRR < 1.5 ? "⚠️ ต่ำกว่าเกณฑ์แนะนำ" : "✅ ผ่านเกณฑ์"}
-- **ความคุ้มค่า Risk/Reward (Short):** 1:${shortRR.toFixed(2)} ${shortRR < 1.5 ? "⚠️ ต่ำกว่าเกณฑ์แนะนำ" : "✅ ผ่านเกณฑ์"}
+- **ประเภทคำสั่ง Long:** \`${longEntryType}\` (ห่างจากราคาปัจจุบัน ${longDistancePct >= 0 ? `-${longDistancePct.toFixed(2)}%` : `+${Math.abs(longDistancePct).toFixed(2)}%`})
+- **ประเภทคำสั่ง Short:** \`${shortEntryType}\` (ห่างจากราคาปัจจุบัน ${shortDistancePct >= 0 ? `+${shortDistancePct.toFixed(2)}%` : `-${Math.abs(shortDistancePct).toFixed(2)}%`})
+- **ความคุ้มค่า Risk/Reward (Long):** 1:${longRR.toFixed(2)} ${longRR < 1.5 ? "⚠️ ต่ำกว่าเกณฑ์แนะนำ" : "✅ ผ่านเกณฑ์มาตรฐาน"}
+- **ความคุ้มค่า Risk/Reward (Short):** 1:${shortRR.toFixed(2)} ${shortRR < 1.5 ? "⚠️ ต่ำกว่าเกณฑ์แนะนำ" : "✅ ผ่านเกณฑ์มาตรฐาน"}
 
 ---
 
@@ -330,7 +521,7 @@ ${conflictAlert}
 | EMA 200 | ${ema200 > 0 ? `$${fmt(ema200)}` : "N/A"} | ${ema200 > 0 ? (price > ema200 ? "🟢 Bullish" : "🔴 Bearish") : "—"} | เทรนด์ภาพใหญ่ระดับมหภาค |
 | RSI (14) | ${rsi14.toFixed(1)} | ${rsi14 > 70 ? "⚠️ Overbought" : rsi14 < 30 ? "⚠️ Oversold" : rsi14 > 55 ? "🟢 Bullish" : rsi14 < 45 ? "🔴 Bearish" : "🟡 Neutral"} | ดัชนีวัดแรงส่งโมเมนตัม |
 | Stoch RSI K/D | ${stochasticRSI.k.toFixed(1)} / ${stochasticRSI.d.toFixed(1)} | ${stochasticRSI.overbought ? "⚠️ OB" : stochasticRSI.oversold ? "⚠️ OS" : stochasticRSI.k > stochasticRSI.d ? "🟢 Up" : "🔴 Down"} | สัญญาณกลับตัวระยะสั้น |
-| MACD Hist | ${macd.histogram.toFixed(3)} | ${macd.histogram > 0 ? "🟢 Positive" : "🔴 Negative"} | histogram บ่งชี้โมเมนตัม ${macd.crossoverBarsAgo >= 0 ? `(ตัดกันเมื่อ ${macd.crossoverBarsAgo} แท่งก่อน)` : ""} |
+| MACD Hist | ${macd.histogram.toFixed(3)} | ${macd.histogram > 0 ? "🟢 Positive" : "🔴 Negative"} | histogram บ่งชี้โมเมนตัม |
 | ADX | ${adx.adx.toFixed(1)} | ${adx.trending ? "✅ Trending" : "⚠️ Ranging"} | ความแข็งแกร่งของเทรนด์ |
 | Bollinger Bands | BW: ${(bb.bandwidth * 100).toFixed(2)}% | ${bb.squeeze ? "🔵 Squeeze" : "🟡 Normal"} | %B: ${(bb.percentB * 100).toFixed(1)}% |
 | ATR (14) | ${atr14.toFixed(2)} | — | ความผันผวนต่อแท่งเทียน |
@@ -343,7 +534,7 @@ ${conflictAlert}
 | :--- | :--- | :--- | :--- |
 | 161.8% Extension | $${fmt(fib.ext161)} | ${pct(((fib.ext161 - price)/price)*100)} | Target ด้านต้าน |
 | 127.2% Extension | $${fmt(fib.ext127)} | ${pct(((fib.ext127 - price)/price)*100)} | Target ด้านต้าน |
-| 100.0% (Swing High) | $${fmt(fib.r0)} | ${pct(((fib.r0 - price)/price)*100)} | Swing Highlookback |
+| 100.0% (Swing High) | $${fmt(fib.r0)} | ${pct(((fib.r0 - price)/price)*100)} | Swing High lookback |
 | 61.8% (Golden Ratio) | $${fmt(fib.r618)} | ${pct(((fib.r618 - price)/price)*100)} | แนวทอง |
 | 50.0% | $${fmt(fib.r500)} | ${pct(((fib.r500 - price)/price)*100)} | แนวรับต้านกลาง |
 | 38.2% | $${fmt(fib.r382)} | ${pct(((fib.r382 - price)/price)*100)} | แนวรับต้านย่อย |
@@ -363,44 +554,75 @@ ${resistanceZones.slice(0, 2).map(z => `- **🔴 แนวต้าน (${z.stre
 
 ---
 
-## ═══ 7. Risk Management & Position Size Calculator ═══
-### 📈 Long Setup (ฝั่งซื้อ)
-- **Entry Price (จุดเข้าซื้อ):** $${fmt(longEntry)}
-- **Stop Loss (จุดตัดขาดทุน):** $${fmt(longSL)} (ห่าง ${pct(((longSL - longEntry)/longEntry)*100)})
-- **Take Profit (เป้าหมาย):** $${fmt(longTP2)} (ห่าง ${pct(((longTP2 - longEntry)/longEntry)*100)})
-- **อัตรา Risk/Reward:** **1:${longRR.toFixed(2)}**
-- **สัดส่วนเงินทุนคำนวณ:**
-  - ขนาดพอร์ตที่ตั้งค่า: **$${accountSize.toLocaleString()}**
-  - ความเสี่ยงต่อการเทรด: **${riskPercent}% ($${riskDollar})**
-  - อัตรา Leverage: **${leverage}x**
-  - ค่าธรรมเนียม + Slippage ที่ตั้งไว้: **${feePercent}% + ${slippagePercent}%**
-  - **จำนวนหน่วยที่ควรเปิดออเดอร์:** **${longQtyRaw.toFixed(2)} Units**
-  - **มูลค่าพอร์ตรวมหน้าตัก (Total Margin Value):** **$${longTotalValue.toFixed(2)}**
-  - **ความเสี่ยงจริงสุทธิรวมค่าธรรมเนียม:** **$${longActualRisk.toFixed(2)}**
+## ═══ 7. Risk Management & Position Setup ═══
+### 📈 Long Setup (ฝั่งซื้อ / Bullish Outlook)
+- **Entry Type:** \`${longEntryType}\`
+- **Entry Zone:** **$${longZoneMin.toFixed(2)} - $${longZoneMax.toFixed(2)}**
+- **Current Price:** $${fmt(price)}
+- **Distance:** ${longDistancePct >= 0 ? `-${longDistancePct.toFixed(2)}%` : `+${Math.abs(longDistancePct).toFixed(2)}%`}
+- **Confirmation:** **${longConfirmCount}/9** (${longConfirmations.filter(c => c.passed).map(c => c.name).join(", ") || "ไม่มีเงื่อนไขผ่าน"})
+- **Technical Strength:** ${longTechStrength}
+- **News Risk:** ${newsRiskLevel}
+- **Gap Risk:** ${gapRiskLevel}
+- **Stop Loss:** **$${fmt(longSL)}**
+- **Take Profit 1:** $${fmt(longTP1)}
+- **Take Profit 2:** **$${fmt(longTP2)}**
+- **Risk/Reward:** **1:${longRR.toFixed(2)}** ${longRR < 1.5 ? "⚠️ ต่ำกว่าเกณฑ์มาตรฐาน 1.5" : "✅ ผ่านเกณฑ์"}
+- **Invalidation:** ยกเลิกแผนทันทีหากราคาปิดแท่ง 4H ต่ำกว่า $${fmt(longSL)} ด้วย Volume สูง หรือเกิด Bearish BOS
+- **Status:** **${longStatus}**
 
-### 📉 Short Setup (ฝั่งขายชอร์ต)
-- **Entry Price (จุดเปิดชอร์ต):** $${fmt(shortEntry)}
-- **Stop Loss (จุดตัดขาดทุน):** $${fmt(shortSL)} (ห่าง ${pct(((shortSL - shortEntry)/shortEntry)*100)})
-- **Take Profit (เป้าหมาย):** $${fmt(shortTP2)} (ห่าง ${pct(((shortTP2 - shortEntry)/shortEntry)*100)})
-- **อัตรา Risk/Reward:** **1:${shortRR.toFixed(2)}**
-- **สัดส่วนเงินทุนคำนวณ:**
-  - **จำนวนหน่วยที่ควรเปิดออเดอร์:** **${shortQtyRaw.toFixed(2)} Units**
-  - **มูลค่าพอร์ตรวมหน้าตัก (Total Margin Value):** **$${shortTotalValue.toFixed(2)}**
-  - **ความเสี่ยงจริงสุทธิรวมค่าธรรมเนียม:** **$${shortActualRisk.toFixed(2)}**
+#### 📋 ตารางตรวจสอบเงื่อนไขยืนยันฝั่ง Long (9-Point Checklist)
+| ปัจจัยยืนยัน (Confirmation Factors) | สถานะ | รายละเอียดการตรวจสอบ |
+| :--- | :---: | :--- |
+${longConfirmations.map(c => `| ${c.name} | ${c.passed ? "✅ ยืนยัน" : "⏳ รอยืนยัน"} | ${c.detail} |`).join("\n")}
+
+#### 💰 สัดส่วนเงินทุนคำนวณฝั่ง Long (Position Sizing)
+- ขนาดพอร์ตที่ตั้งค่า: **$${accountSize.toLocaleString()}** · ความเสี่ยง: **${riskPercent}% ($${riskDollar})** · Leverage: **${leverage}x**
+- **จำนวนหน่วยที่ควรเปิดออเดอร์:** **${longQtyRaw.toFixed(2)} Units** (มูลค่าหน้าตัก $${longTotalValue.toFixed(2)})
+- **ความเสี่ยงจริงสุทธิรวมค่าธรรมเนียม + Slippage:** **$${longActualRisk.toFixed(2)}**
+
+### 📉 Short Setup (ฝั่งขายชอร์ต / Bearish Outlook)
+- **Entry Type:** \`${shortEntryType}\`
+- **Entry Zone:** **$${shortZoneMin.toFixed(2)} - $${shortZoneMax.toFixed(2)}**
+- **Current Price:** $${fmt(price)}
+- **Distance:** ${shortDistancePct >= 0 ? `+${shortDistancePct.toFixed(2)}%` : `-${Math.abs(shortDistancePct).toFixed(2)}%`}
+- **Confirmation:** **${shortConfirmCount}/9** (${shortConfirmations.filter(c => c.passed).map(c => c.name).join(", ") || "ไม่มีเงื่อนไขผ่าน"})
+- **Technical Strength:** ${shortTechStrength}
+- **News Risk:** ${newsRiskLevel}
+- **Gap Risk:** ${gapRiskLevel}
+- **Stop Loss:** **$${fmt(shortSL)}**
+- **Take Profit 1:** $${fmt(shortTP1)}
+- **Take Profit 2:** **$${fmt(shortTP2)}**
+- **Risk/Reward:** **1:${shortRR.toFixed(2)}** ${shortRR < 1.5 ? "⚠️ ต่ำกว่าเกณฑ์มาตรฐาน 1.5" : "✅ ผ่านเกณฑ์"}
+- **Invalidation:** ยกเลิกแผนทันทีหากราคาปิดแท่ง 4H ทะลุเหนือ $${fmt(shortSL)} ด้วย Volume สูง หรือเกิด Bullish BOS
+- **Status:** **${shortStatus}**
+
+#### 📋 ตารางตรวจสอบเงื่อนไขยืนยันฝั่ง Short (9-Point Checklist)
+| ปัจจัยยืนยัน (Confirmation Factors) | สถานะ | รายละเอียดการตรวจสอบ |
+| :--- | :---: | :--- |
+${shortConfirmations.map(c => `| ${c.name} | ${c.passed ? "✅ ยืนยัน" : "⏳ รอยืนยัน"} | ${c.detail} |`).join("\n")}
+
+#### 💰 สัดส่วนเงินทุนคำนวณฝั่ง Short (Position Sizing)
+- **จำนวนหน่วยที่ควรเปิดออเดอร์:** **${shortQtyRaw.toFixed(2)} Units** (มูลค่าหน้าตัก $${shortTotalValue.toFixed(2)})
+- **ความเสี่ยงจริงสุทธิรวมค่าธรรมเนียม + Slippage:** **$${shortActualRisk.toFixed(2)}**
 
 ---
 
-## ═══ 8. Rocket Score Breakdown ═══
-| หมวดประเมิน | คะแนนดิบ | คะแนนเต็ม |
-| :--- | :---: | :---: |
-| Trend Direction & Bias | ${bullPoints} | 15 |
-| Market Structure Alignment | ${ms.type === "uptrend" ? 10 : 3} | 10 |
-| Support & Resistance Strength | ${supportZones.length * 5} | 10 |
-| Momentum (RSI/StochRSI) | ${rsi14 > 50 ? 8 : 4} | 10 |
-| Trend Force (ADX) | ${adx.trending ? 5 : 2} | 5 |
-| Volume Spike & OBV Trend | ${volumeAnalysis.isVolumeSpike ? 10 : 5} | 10 |
-| **รวมคะแนนความสอดคล้อง** | **${Math.round((bullPoints / 15) * 60)}** | **60** |
+## ═══ 8. Rocket Score Breakdown (7-Dimension Scoring) ═══
+*ประเมินความแข็งแกร่งของ Setup ทั้ง 7 มิติ (ไม่ใช่อัตราความน่าจะเป็นในการชนะหรือ Win Rate แต่เป็นค่าความสอดคล้องทางสถิติของระบบ)*
+
+| มิติการวิเคราะห์ (7-Dimension Score) | คะแนนดิบ | คะแนนเต็ม | คำอธิบาย |
+| :--- | :---: | :---: | :--- |
+| 1. Trend Direction & Bias | ${bullPoints} | 15 | โครงสร้าง EMA 20/50/200 และทิศทางหลัก |
+| 2. Momentum (RSI & MACD) | ${rsi14 > 50 && macd.histogram > 0 ? 10 : rsi14 < 45 && macd.histogram < 0 ? 3 : 6} | 10 | ความแข็งแกร่งและแรงส่งของการเคลื่อนไหว |
+| 3. Market Structure Alignment | ${ms.type === "uptrend" ? 10 : ms.type === "downtrend" ? 3 : 6} | 10 | การเกิด Higher Highs/Lows หรือ Lower Highs/Lows |
+| 4. Volume & OBV Flow | ${volumeAnalysis.isVolumeSpike ? 10 : volumeAnalysis.volumeRatio >= 1.0 ? 7 : 4} | 10 | การหมุนเวียนและอัตราส่วนปริมาณการซื้อขาย |
+| 5. Support & Resistance Confluence | ${Math.min(10, (supportZones.length + resistanceZones.length) * 3)} | 10 | ความหนาแน่นและการยืนยันของโซนแนวรับแนวต้าน |
+| 6. News & Macro Safety | ${hasEvent24h ? 2 : newsRiskLevel.includes("Medium") ? 6 : 10} | 10 | ความปลอดภัยจากเหตุการณ์ข่าว High Impact ใน 24 ชม. |
+| 7. Data Quality & Live Freshness | ${marketData.isDelayed ? 6 : klines.length >= 100 ? 10 : 8} | 10 | ความสดใหม่ของข้อมูลและจำนวนแท่งเทียนที่ใช้คำนวณ |
+| **รวมคะแนนความสอดคล้องระบบ (Total Score)** | **${Math.round(bullPoints + (rsi14 > 50 ? 8 : 4) + (ms.type === "uptrend" ? 10 : 4) + (volumeAnalysis.volumeRatio >= 1.0 ? 7 : 4) + (hasEvent24h ? 2 : 10) + 8)}** | **75** | **ระดับ: ${bullPct >= 65 ? "⭐ High Confluence" : bullPct >= 45 ? "🟡 Moderate Confluence" : "🔴 Low Confluence / Wait"}** |
 
 ${backtestSection}
+${scenarioSection}
 `;
 }

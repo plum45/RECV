@@ -6,6 +6,8 @@ import { calculateSupportResistance } from "../../../../lib/supportResistance";
 import { getFirebaseAdminDb } from "../../../../lib/firebaseAdmin";
 import { getTelegramBotToken } from "../../../../lib/telegramConfig";
 import { calculateAlertOutcome, isWithinQuietHours, resolveSymbolAlertConfig } from "../../../../lib/alertUtils";
+import { CALENDAR_DATABASE, isTechScopeSymbol } from "../../../../lib/calendarDb";
+import type { EarningsEvent } from "../../../../types/calendar";
 
 export const runtime = "nodejs";
 
@@ -60,7 +62,8 @@ async function triggerAlerts(request: Request) {
     }
 
     // Gather unique symbols across all subscribers plus legacy fallback symbols
-    const defaultSymbols = (process.env.ALERT_SYMBOLS || "BTC-USD,ETH-USD,SOL-USD").split(",").map((s) => s.trim().toUpperCase());
+    // Tech-focused default symbols — Thai stocks excluded by default
+    const defaultSymbols = (process.env.ALERT_SYMBOLS || "NVDA,AAPL,MSFT,AMD,GOOGL,META,TSM,AMZN").split(",").map((s) => s.trim().toUpperCase());
     const symbolSet = new Set<string>();
 
     activeSubscribers.forEach((sub) => {
@@ -365,6 +368,17 @@ async function triggerAlerts(request: Request) {
       }
     }
 
+    // ── EARNINGS COUNTDOWN ALERTS ─────────────────────────────────────────
+    // Fire alerts at: 7 days, 24 hours, 1 hour before earnings
+    // Also detect EPS/Revenue beat or miss on released events
+    if (db) {
+      try {
+        await processEarningsCountdownAlerts(db, activeSubscribers, now);
+      } catch (err: any) {
+        console.error("Earnings countdown alerts failed:", err.message);
+      }
+    }
+
     // ── PROCESS TRADING PLANS ──────────────────────────────────────────────
     if (db) {
       try {
@@ -477,6 +491,111 @@ async function triggerAlerts(request: Request) {
   } catch (error: any) {
     console.error("Alert trigger root error:", error.message);
     return NextResponse.json({ success: false, error: "Failed to execute alert triggers", message: error.message }, { status: 500 });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// EARNINGS COUNTDOWN ALERT ENGINE
+// Fires at: T-7d, T-24h, T-1h, Actual Release (Beat/Miss/In-line)
+// Deduplication: event ID + lead-time stored in Firestore "eventAlertLogs"
+// ─────────────────────────────────────────────────────────────────────────
+async function processEarningsCountdownAlerts(
+  db: any,
+  subscribers: any[],
+  now: number
+): Promise<void> {
+  const LEAD_TIMES: Array<{ label: string; ms: number }> = [
+    { label: "7d",  ms: 7 * 24 * 60 * 60 * 1000 },
+    { label: "24h", ms:     24 * 60 * 60 * 1000 },
+    { label: "1h",  ms:          60 * 60 * 1000 },
+  ];
+
+  // Only upcoming + recently released earnings
+  const earningsEvents = CALENDAR_DATABASE.filter(
+    (e): e is EarningsEvent =>
+      e.type === "earnings" &&
+      e.eventTypeName === "Earnings" &&
+      isTechScopeSymbol((e as EarningsEvent).symbol)
+  ) as EarningsEvent[];
+
+  for (const sub of subscribers) {
+    const chatId = sub.chatId;
+    const uid = sub.uid;
+    if (!chatId || !uid) continue;
+
+    const watchlist: string[] = Array.isArray(sub.symbols) && sub.symbols.length > 0
+      ? sub.symbols.map((s: string) => s.toUpperCase())
+      : ["NVDA", "AAPL", "MSFT", "AMD", "GOOGL", "META", "TSM", "AMZN"];
+
+    for (const event of earningsEvents) {
+      const sym = event.symbol.toUpperCase();
+      if (!watchlist.includes(sym)) continue;
+
+      const eventTime = new Date(event.announcedAt).getTime();
+      const msUntil = eventTime - now;
+      const msSince = now - eventTime;
+
+      // ── Case 1: Upcoming earnings countdown ──────────────────────────────
+      for (const lt of LEAD_TIMES) {
+        // Fire if we are within ±15 min of the lead time window
+        const diff = Math.abs(msUntil - lt.ms);
+        if (diff > 15 * 60 * 1000) continue; // not in window
+
+        const alertKey = `earnings-countdown-${event.id}-${lt.label}-${uid}`;
+        const logRef = db.collection("eventAlertLogs").doc(alertKey);
+        const existing = await logRef.get();
+        if (existing.exists) continue; // already sent
+
+        const daysOrHrs = lt.label === "7d" ? "7 วัน" : lt.label === "24h" ? "24 ชั่วโมง" : "1 ชั่วโมง";
+        const thaiTime = new Date(eventTime).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" });
+
+        const msg =
+          `📅 [Rocket AI · Earnings Reminder]\n` +
+          `⏰ อีก ${daysOrHrs}: ${sym} รายงานผลประกอบการ\n\n` +
+          `🗓 เวลาประกาศ (ไทย): ${thaiTime}\n` +
+          `📊 EPS Forecast: ${event.epsForecast || "N/A"} (Previous: ${event.epsPrevious || "N/A"})\n` +
+          `💰 Revenue Forecast: ${event.revenueForecast || "N/A"} (Previous: ${event.revenuePrevious || "N/A"})\n` +
+          (event.guidance ? `📌 Guidance: ${event.guidance}\n` : "") +
+          `\n⚠️ แจ้งเตือน: หากมีสถานะ Open ในหุ้น ${sym} ให้พิจารณาบริหารความเสี่ยงก่อนประกาศผล (Reduce size / Hedge)\n` +
+          `\n*Rocket AI — ไม่ใช่คำแนะนำทางการเงิน*`;
+
+        await sendUserTelegramMessage(uid, chatId, msg, db);
+        await logRef.set({ sentAt: now, event: event.id, leadTime: lt.label, uid });
+      }
+
+      // ── Case 2: Actual results released — EPS Beat / Miss / In-line ──────
+      if (event.epsActual !== null && msSince >= 0 && msSince <= 6 * 60 * 60 * 1000) {
+        const alertKey = `earnings-actual-${event.id}-${uid}`;
+        const logRef = db.collection("eventAlertLogs").doc(alertKey);
+        const existing = await logRef.get();
+        if (existing.exists) continue;
+
+        const epsActual = parseFloat(event.epsActual || "0");
+        const epsForecast = parseFloat(event.epsForecast || "0");
+        const revActual = parseFloat((event.revenueActual || "0").replace(/[^0-9.]/g, ""));
+        const revForecast = parseFloat((event.revenueForecast || "0").replace(/[^0-9.]/g, ""));
+
+        const epsDiff = epsForecast > 0 ? ((epsActual - epsForecast) / Math.abs(epsForecast)) * 100 : 0;
+        const revDiff = revForecast > 0 ? ((revActual - revForecast) / Math.abs(revForecast)) * 100 : 0;
+
+        let verdict = "📊 In-line";
+        let verdictEmoji = "🟡";
+        if (epsDiff > 3 || revDiff > 2) { verdict = "🚀 Beat — ดีกว่าคาด"; verdictEmoji = "🟢"; }
+        else if (epsDiff < -3 || revDiff < -2) { verdict = "💥 Miss — แย่กว่าคาด"; verdictEmoji = "🔴"; }
+
+        const msg =
+          `🔔 [Rocket AI · Earnings Release]\n` +
+          `${verdictEmoji} ${sym} รายงานผลประกอบการแล้ว: ${verdict}\n\n` +
+          `📈 EPS Actual: ${event.epsActual} (Forecast: ${event.epsForecast}) — ${epsDiff >= 0 ? "+" : ""}${epsDiff.toFixed(1)}%\n` +
+          `💰 Revenue Actual: ${event.revenueActual} (Forecast: ${event.revenueForecast}) — ${revDiff >= 0 ? "+" : ""}${revDiff.toFixed(1)}%\n` +
+          (event.guidance ? `📌 Guidance: ${event.guidance}\n` : "") +
+          `\n🎯 วิเคราะห์สถานการณ์บน Rocket AI Dashboard เพื่อวางแผน Post-Earnings Trade\n` +
+          `\n*Rocket AI — ไม่ใช่คำแนะนำทางการเงิน*`;
+
+        await sendUserTelegramMessage(uid, chatId, msg, db);
+        await logRef.set({ sentAt: now, event: event.id, verdict, uid });
+      }
+    }
   }
 }
 

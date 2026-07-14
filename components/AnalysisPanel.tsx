@@ -25,48 +25,54 @@ function parseInlineMarkdown(text: string): React.ReactNode[] {
 
 // Custom parser that splits markdown by header lines and renders custom UI blocks
 function renderCustomMarkdown(report: string): React.ReactNode {
-  const sections = report.split(/(?=^##\s+\d+\.)/m); // Split by "## X."
+  // Split by top-level or section headers (## or # at start of line)
+  const sections = report.split(/(?=^##\s+|^#\s+)/m);
   
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {sections.map((section, sIdx) => {
         const lines = section.trim().split("\n");
         if (lines.length === 0 || lines[0] === "") return null;
 
         const headerLine = lines[0];
-        const rawTitle = headerLine.replace(/^##\s+\d+\.\s*/, "").trim();
+        // Clean title: remove #, ##, numbers, and ═══ decorative characters
+        const rawTitle = headerLine
+          .replace(/^#+\s*(?:.*?\d+\.\s*|\d+\.\s*)?/, "")
+          .replace(/═══/g, "")
+          .trim() || "Overview / Analysis Note";
+
         const contentLines = lines.slice(1);
 
         // Classify the section to render custom cards
-        const isLongSetup = rawTitle.toLowerCase().includes("long setup");
-        const isShortSetup = rawTitle.toLowerCase().includes("short setup");
-        const isRiskMgmt = rawTitle.toLowerCase().includes("risk management");
-        const isWarning = rawTitle.toLowerCase().includes("คำเตือน");
-        const isSummary = rawTitle.toLowerCase().includes("สรุปแบบภาษาคนทั่วไป");
+        const isLongSetup = rawTitle.toLowerCase().includes("long setup") || rawTitle.includes("ฝั่งซื้อ");
+        const isShortSetup = rawTitle.toLowerCase().includes("short setup") || rawTitle.includes("ฝั่งขาย");
+        const isRiskMgmt = rawTitle.toLowerCase().includes("risk management") || rawTitle.toLowerCase().includes("position setup");
+        const isWarning = rawTitle.toLowerCase().includes("คำเตือน") || headerLine.includes("⚠️");
+        const isSummary = rawTitle.toLowerCase().includes("สรุป") || rawTitle.toLowerCase().includes("scenario");
         const isScore = rawTitle.toLowerCase().includes("rocket score");
 
         // General Card wrapper styles
-        let cardStyles = "bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-lg";
+        let cardStyles = "bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-lg relative overflow-hidden transition-all";
         let iconElement = <FileText className="text-indigo-400 shrink-0" size={20} />;
 
         if (isLongSetup) {
-          cardStyles = "bg-emerald-950/20 border border-emerald-500/30 rounded-2xl p-6 shadow-xl relative overflow-hidden";
-          iconElement = <TrendingUp className="text-emerald-400 shrink-0" size={20} />;
+          cardStyles = "bg-emerald-950/20 border border-emerald-500/40 rounded-2xl p-6 shadow-xl relative overflow-hidden";
+          iconElement = <TrendingUp className="text-emerald-400 shrink-0" size={22} />;
         } else if (isShortSetup) {
-          cardStyles = "bg-rose-950/20 border border-rose-500/30 rounded-2xl p-6 shadow-xl relative overflow-hidden";
-          iconElement = <TrendingDown className="text-rose-400 shrink-0" size={20} />;
+          cardStyles = "bg-rose-950/20 border border-rose-500/40 rounded-2xl p-6 shadow-xl relative overflow-hidden";
+          iconElement = <TrendingDown className="text-rose-400 shrink-0" size={22} />;
         } else if (isRiskMgmt || isWarning) {
-          cardStyles = "bg-amber-950/15 border border-amber-500/30 rounded-2xl p-6 shadow-xl relative overflow-hidden";
-          iconElement = <ShieldAlert className="text-amber-400 shrink-0" size={20} />;
+          cardStyles = "bg-amber-950/15 border border-amber-500/40 rounded-2xl p-6 shadow-xl relative overflow-hidden";
+          iconElement = <ShieldAlert className="text-amber-400 shrink-0" size={22} />;
         } else if (isScore) {
-          cardStyles = "bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-lg relative overflow-hidden";
-          iconElement = <Award className="text-indigo-400 shrink-0" size={20} />;
+          cardStyles = "bg-indigo-950/20 border border-indigo-500/30 rounded-2xl p-6 shadow-lg relative overflow-hidden";
+          iconElement = <Award className="text-indigo-400 shrink-0" size={22} />;
         } else if (isSummary) {
           cardStyles = "bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg border-l-4 border-l-indigo-500";
           iconElement = <CheckCircle className="text-indigo-400 shrink-0" size={20} />;
         }
 
-        // Parse list items, paragraphs, and tables in the content lines
+        // Parse list items, paragraphs, tables, alerts, and subheaders
         const parsedContent: React.ReactNode[] = [];
         let tableRows: string[][] = [];
         let isInsideTable = false;
@@ -79,7 +85,7 @@ function renderCustomMarkdown(report: string): React.ReactNode {
           parsedContent.push(
             <div key={key} className="overflow-x-auto w-full my-4 border border-slate-800/80 rounded-xl">
               <table className="min-w-full text-xs text-left text-slate-300">
-                <thead className="bg-slate-900 text-[10px] text-slate-400 uppercase tracking-wider font-bold border-b border-slate-800">
+                <thead className="bg-slate-900 text-[11px] text-slate-300 uppercase tracking-wider font-bold border-b border-slate-800">
                   <tr>
                     {headers.map((h, i) => (
                       <th key={i} className="px-4 py-3">
@@ -105,7 +111,7 @@ function renderCustomMarkdown(report: string): React.ReactNode {
         };
 
         for (let i = 0; i < contentLines.length; i++) {
-          const line = contentLines[i].trim();
+          let line = contentLines[i].trim();
 
           // 1. Parse tables
           if (line.startsWith("|")) {
@@ -121,30 +127,85 @@ function renderCustomMarkdown(report: string): React.ReactNode {
             }
           }
 
-          // 2. Parse subheaders (e.g. ### Header)
-          if (line.startsWith("###")) {
-            const subtitle = line.replace(/^###\s*/, "").trim();
+          // 2. Parse Alerts (> [!WARNING], > [!CAUTION], > [!NOTE])
+          if (line.startsWith("> [!")) {
+            const alertTypeMatch = line.match(/^>\s*\[!(WARNING|CAUTION|NOTE|IMPORTANT|TIP)\]/i);
+            const alertType = alertTypeMatch ? alertTypeMatch[1].toUpperCase() : "NOTE";
+            let alertTextLines: string[] = [];
+            let j = i + 1;
+            while (j < contentLines.length && contentLines[j].trim().startsWith(">")) {
+              alertTextLines.push(contentLines[j].trim().replace(/^>\s*/, ""));
+              j++;
+            }
+            i = j - 1; // Advance loop
+
+            let alertStyle = "bg-slate-900 border-l-4 border-l-blue-500 text-slate-300";
+            let alertIcon = <FileText size={18} className="text-blue-400 shrink-0 mt-0.5" />;
+            if (alertType === "WARNING") {
+              alertStyle = "bg-amber-950/30 border border-amber-500/40 border-l-4 border-l-amber-500 text-amber-200";
+              alertIcon = <AlertTriangle size={18} className="text-amber-400 shrink-0 mt-0.5" />;
+            } else if (alertType === "CAUTION") {
+              alertStyle = "bg-rose-950/40 border border-rose-500/40 border-l-4 border-l-rose-500 text-rose-200";
+              alertIcon = <ShieldAlert size={18} className="text-rose-400 shrink-0 mt-0.5" />;
+            } else if (alertType === "IMPORTANT" || alertType === "TIP") {
+              alertStyle = "bg-emerald-950/30 border border-emerald-500/40 border-l-4 border-l-emerald-500 text-emerald-200";
+              alertIcon = <CheckCircle size={18} className="text-emerald-400 shrink-0 mt-0.5" />;
+            }
+
             parsedContent.push(
-              <h4 key={i} className="text-sm font-bold text-slate-200 mt-4 mb-2 uppercase tracking-wide">
+              <div key={`alert-${i}`} className={`p-4 my-3 rounded-xl flex items-start gap-3 shadow-md ${alertStyle}`}>
+                {alertIcon}
+                <div className="text-xs leading-relaxed space-y-1">
+                  {alertTextLines.map((l, lIdx) => (
+                    <div key={lIdx}>{parseInlineMarkdown(l)}</div>
+                  ))}
+                </div>
+              </div>
+            );
+            continue;
+          }
+
+          // Simple blockquote starting with > without [!TYPE]
+          if (line.startsWith(">")) {
+            const blockText = line.replace(/^>\s*/, "");
+            parsedContent.push(
+              <blockquote key={i} className="p-3.5 my-2 border-l-4 border-l-indigo-500 bg-indigo-950/20 rounded-r-xl text-xs text-indigo-200 italic">
+                {parseInlineMarkdown(blockText)}
+              </blockquote>
+            );
+            continue;
+          }
+
+          // 3. Parse subheaders (### Header or #### Subheader)
+          if (line.startsWith("###") || line.startsWith("####")) {
+            const subtitle = line.replace(/^#{3,4}\s*/, "").replace(/═══/g, "").trim();
+            const isLevel4 = line.startsWith("####");
+            parsedContent.push(
+              <h4
+                key={i}
+                className={`${
+                  isLevel4 ? "text-xs font-semibold text-indigo-300 mt-3 mb-1.5" : "text-sm font-bold text-slate-100 mt-5 mb-2 uppercase tracking-wide border-b border-slate-800/60 pb-1.5"
+                }`}
+              >
                 {subtitle}
               </h4>
             );
             continue;
           }
 
-          // 3. Parse list items (e.g. * Item or - Item)
+          // 4. Parse list items (* Item or - Item)
           if (line.startsWith("*") || line.startsWith("-")) {
             const listText = line.replace(/^[*+-]\s*/, "").trim();
             parsedContent.push(
-              <div key={i} className="flex items-start gap-2 text-xs text-slate-300 ml-2 my-1.5 leading-relaxed">
-                <span className="text-indigo-400 mt-1 shrink-0">•</span>
+              <div key={i} className="flex items-start gap-2 text-xs text-slate-300 ml-1.5 my-1.5 leading-relaxed">
+                <span className="text-indigo-400 mt-0.5 shrink-0 font-bold">•</span>
                 <span className="flex-1">{parseInlineMarkdown(listText)}</span>
               </div>
             );
             continue;
           }
 
-          // 4. Parse plain paragraphs
+          // 5. Parse plain paragraphs
           if (line !== "") {
             parsedContent.push(
               <p key={i} className="text-xs text-slate-300 leading-relaxed my-2">
@@ -170,11 +231,12 @@ function renderCustomMarkdown(report: string): React.ReactNode {
             {/* Colored side indicators for setups */}
             {isLongSetup && <div className="absolute top-0 left-0 w-full h-1 bg-emerald-500" />}
             {isShortSetup && <div className="absolute top-0 left-0 w-full h-1 bg-rose-500" />}
-            {isRiskMgmt && <div className="absolute top-0 left-0 w-full h-1 bg-amber-500" />}
+            {isRiskMgmt && !isLongSetup && !isShortSetup && <div className="absolute top-0 left-0 w-full h-1 bg-amber-500" />}
             {isWarning && <div className="absolute top-0 left-0 w-full h-1 bg-rose-600 animate-pulse" />}
+            {isScore && <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500" />}
 
             {/* Header section */}
-            <div className="flex items-center gap-2.5 border-b border-slate-800 pb-3 mb-4">
+            <div className="flex items-center gap-2.5 border-b border-slate-800/80 pb-3 mb-4">
               {iconElement}
               <h3 className="text-base font-extrabold text-slate-100 tracking-wide uppercase">
                 {rawTitle}
