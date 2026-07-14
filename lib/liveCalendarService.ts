@@ -186,14 +186,31 @@ export async function fetchLiveEarningsFromFinnhub(from: string, to: string): Pr
   }
 
   try {
-    // International coverage is required for tech bellwethers such as ASML,
-    // TSM, Samsung and SK Hynix; without it Finnhub returns US-only results.
-    const url = `https://finnhub.io/api/v1/calendar/earnings?from=${from}&to=${to}&international=true&token=${apiKey}`;
-    const response = await axios.get<any>(url, { timeout: 10000 });
+    const baseUrl = `https://finnhub.io/api/v1/calendar/earnings?from=${from}&to=${to}&token=${apiKey}`;
+    // US earnings are available on Finnhub's free tier. Fetch them first so an
+    // unavailable international add-on never hides the whole earnings calendar.
+    const usResponse = await axios.get<any>(baseUrl, { timeout: 10000 });
+    if (usResponse.data?.error) {
+      throw new Error(`Finnhub earnings API: ${usResponse.data.error}`);
+    }
 
-    const rawList = response.data?.earningsCalendar || response.data || [];
-    if (!Array.isArray(rawList)) {
+    const usList = usResponse.data?.earningsCalendar || usResponse.data || [];
+    if (!Array.isArray(usList)) {
       return { events: [], status: "UNAVAILABLE", error: "Invalid Finnhub response format." };
+    }
+
+    let rawList = usList;
+    // International results are helpful for ASML and other semiconductor
+    // bellwethers, but they can require a higher Finnhub entitlement. Keep the
+    // already-successful US result when this optional request is rejected.
+    try {
+      const internationalResponse = await axios.get<any>(`${baseUrl}&international=true`, { timeout: 10000 });
+      const internationalList = internationalResponse.data?.earningsCalendar || internationalResponse.data || [];
+      if (Array.isArray(internationalList)) {
+        rawList = [...usList, ...internationalList];
+      }
+    } catch (internationalError: any) {
+      console.warn("Finnhub international earnings unavailable; continuing with US earnings:", internationalError.message);
     }
 
     const liveEvents: EarningsEvent[] = [];
@@ -269,10 +286,12 @@ export async function fetchLiveEarningsFromFinnhub(from: string, to: string): Pr
     return { events: liveEvents, status: "LIVE" };
   } catch (err: any) {
     console.error("Finnhub Live Earnings fetch failed:", err.message);
+    const statusCode = err.response?.status;
+    const providerMessage = err.response?.data?.error || err.message;
     return {
       events: [],
       status: "UNAVAILABLE",
-      error: `Live data unavailable: ${err.message}`,
+      error: `Finnhub earnings unavailable${statusCode ? ` (HTTP ${statusCode})` : ""}: ${String(providerMessage).slice(0, 180)}`,
     };
   }
 }
@@ -295,6 +314,7 @@ export async function getMergedCalendarEvents(
     fetchedAt: string;
     liveCount: number;
     fallbackCount: number;
+    issues: string[];
   };
 }> {
   const fromIsoDate = fromDate.toISOString().substring(0, 10);
@@ -462,6 +482,10 @@ export async function getMergedCalendarEvents(
       fetchedAt: fetchedAtIso,
       liveCount: earningsCount + economicCount,
       fallbackCount,
+      issues: [
+        liveEarningsResult.status === "UNAVAILABLE" ? liveEarningsResult.error : "",
+        liveEconomicResult.status === "UNAVAILABLE" ? liveEconomicResult.error : "",
+      ].filter(Boolean),
     },
   };
 }

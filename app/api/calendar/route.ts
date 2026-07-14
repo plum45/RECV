@@ -34,10 +34,14 @@ export async function GET(request: Request) {
 
     // If live API failed and no events available or production safety triggered
     if (status === "UNAVAILABLE") {
+      const providerDetail = sourceInfo.issues.join(" ");
+      const unavailableMessage = type === "earnings"
+        ? `Earnings calendar unavailable. ${providerDetail || "Verify FINNHUB_API_KEY on the server."}`
+        : `Live data unavailable at this time. ${providerDetail}`.trim();
       return NextResponse.json(
         {
           success: false,
-          message: "Live data unavailable at this time.",
+          message: unavailableMessage,
           total: 0,
           from: fromDate.toISOString(),
           to: toDate.toISOString(),
