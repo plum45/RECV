@@ -186,7 +186,9 @@ export async function fetchLiveEarningsFromFinnhub(from: string, to: string): Pr
   }
 
   try {
-    const url = `https://finnhub.io/api/v1/calendar/earnings?from=${from}&to=${to}&token=${apiKey}`;
+    // International coverage is required for tech bellwethers such as ASML,
+    // TSM, Samsung and SK Hynix; without it Finnhub returns US-only results.
+    const url = `https://finnhub.io/api/v1/calendar/earnings?from=${from}&to=${to}&international=true&token=${apiKey}`;
     const response = await axios.get<any>(url, { timeout: 10000 });
 
     const rawList = response.data?.earningsCalendar || response.data || [];
@@ -276,8 +278,8 @@ export async function fetchLiveEarningsFromFinnhub(from: string, to: string): Pr
 }
 
 /**
- * Returns verified live earnings events only. Fixture data must never be
- * presented as a real earnings schedule because its date can be stale.
+ * Merges live earnings with a live macro-event feed. Fixture data must never
+ * be presented as a real schedule because its date can be stale.
  */
 export async function getMergedCalendarEvents(
   fromDate: Date,
@@ -310,12 +312,23 @@ export async function getMergedCalendarEvents(
     };
   }
 
+  let liveEconomicResult = { events: [] as EconomicEvent[], status: "UNAVAILABLE" as EventStatus, error: "" };
+  if (!typeFilter || typeFilter === "all" || typeFilter === "economic") {
+    const res = await fetchLiveEconomicCalendar();
+    liveEconomicResult = {
+      events: res.events,
+      status: res.status,
+      error: res.error || "",
+    };
+  }
+
   // 2. Map and deduplicate keys
   // Key format: `type_symbolOrId_date`
   // 2. Map and deduplicate keys
   // Key format: `type_symbolOrId_date`
   const dedupeMap = new Map<string, GeneralCalendarEvent>();
-  let liveCount = 0;
+  let earningsCount = 0;
+  let economicCount = 0;
   let fallbackCount = 0;
 
   // Add Live Events first
@@ -332,7 +345,19 @@ export async function getMergedCalendarEvents(
     const dateKey = liveEv.announcedAt.substring(0, 10);
     const dedupeKey = `earnings_${normalizeSymbol(liveEv.symbol)}_${dateKey}_${liveEv.quarter || ""}`;
     dedupeMap.set(dedupeKey, liveEv);
-    liveCount++;
+    earningsCount++;
+  }
+
+  // Macro events remain relevant when a symbol filter is active: CPI, PPI,
+  // Fed and China data can move the entire technology sector, not one ticker.
+  for (const economicEvent of liveEconomicResult.events) {
+    const eventDate = new Date(economicEvent.announcedAt);
+    if (eventDate < fromDate || eventDate > toDate) continue;
+    if (importanceFilter && economicEvent.importance !== importanceFilter) continue;
+
+    const dedupeKey = `economic_${economicEvent.country}_${economicEvent.announcedAt}_${economicEvent.title}`;
+    dedupeMap.set(dedupeKey, economicEvent);
+    economicCount++;
   }
 
   // 3. Static entries use offsetDays() fixtures. They are useful while
@@ -415,7 +440,7 @@ export async function getMergedCalendarEvents(
   );
 
   const overallStatus: "LIVE" | "ESTIMATED" | "UNAVAILABLE" =
-    liveCount > 0
+    earningsCount + economicCount > 0
       ? "LIVE"
       : fallbackCount > 0
       ? "ESTIMATED"
@@ -425,13 +450,17 @@ export async function getMergedCalendarEvents(
     events: mergedList,
     status: overallStatus,
     sourceInfo: {
-      source: liveCount > 0
+      source: earningsCount > 0 && economicCount > 0
+        ? "Finnhub Live Earnings API + Forex Factory Weekly Calendar"
+        : earningsCount > 0
         ? "Finnhub Live Earnings API"
+        : economicCount > 0
+        ? "Forex Factory Weekly Calendar"
         : fallbackCount > 0
         ? "Development fixture calendar"
         : "Live calendar unavailable",
       fetchedAt: fetchedAtIso,
-      liveCount,
+      liveCount: earningsCount + economicCount,
       fallbackCount,
     },
   };

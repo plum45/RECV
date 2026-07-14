@@ -16,8 +16,9 @@ export async function GET(request: Request) {
   const limit = parseInt(searchParams.get("limit") || "50", 10);
 
   const now = new Date();
-  // Default: past 7 days to next 30 days if no range specified
-  const fromDate = from ? new Date(from) : new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  // Default to upcoming events. Users opening the calendar need the next
+  // catalyst first, not releases that have already passed.
+  const fromDate = from ? new Date(from) : now;
   const toDate = to ? new Date(to) : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
   const symbols = symbol ? symbol.split(",").map((s) => normalizeSymbol(s.trim())) : null;
