@@ -1,8 +1,9 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { NewsArticle } from "../types/news";
-import { Newspaper, ExternalLink, HelpCircle, AlertTriangle } from "lucide-react";
+import { Newspaper, ExternalLink, HelpCircle, AlertTriangle, Calendar } from "lucide-react";
 
 interface NewsPanelProps {
   news: NewsArticle[];
@@ -28,10 +29,19 @@ export default function NewsPanel({ news, loading, symbol, error, isStale }: New
   if (error && news.length === 0) {
     return (
       <div className="bg-slate-950 border border-slate-850 rounded-2xl p-6 shadow-xl space-y-4">
-        <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-          <Newspaper size={18} className="text-indigo-400" />
-          ข่าวสารล่าสุด & ปัจจัยข่าว {symbol && `(${symbol})`}
-        </h3>
+        <div className="flex justify-between items-center flex-wrap gap-2">
+          <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+            <Newspaper size={18} className="text-indigo-400" />
+            ข่าวสารล่าสุด & ปัจจัยข่าว {symbol && `(${symbol})`}
+          </h3>
+          <Link
+            href="/dashboard/calendar"
+            className="px-3 py-1.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+          >
+            <Calendar size={14} className="text-indigo-400" />
+            <span>ปฏิทินข่าว & อีเวนต์</span>
+          </Link>
+        </div>
         <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-2.5 text-xs text-rose-400 font-bold">
           <AlertTriangle size={16} className="shrink-0 mt-0.5" />
           <div>
@@ -96,12 +106,20 @@ export default function NewsPanel({ news, loading, symbol, error, isStale }: New
   return (
     <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4 relative overflow-hidden">
       
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-wrap gap-2">
         <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
           <Newspaper size={18} className="text-indigo-400" />
           ข่าวสารล่าสุด & ปัจจัยข่าว {symbol && `(${symbol})`}
         </h3>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link
+            href="/dashboard/calendar"
+            className="px-2.5 py-1 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+            title="ดูปฏิทินข่าวเศรษฐกิจและงบการเงิน"
+          >
+            <Calendar size={13} className="text-indigo-400" />
+            <span>ปฏิทินข่าว</span>
+          </Link>
           {isStale && (
             <span className="px-2 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-400 text-[9px] font-bold">
               ข่าวเก่า (Cached)

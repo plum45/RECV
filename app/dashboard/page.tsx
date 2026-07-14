@@ -17,7 +17,8 @@ import {
   Star, 
   Clock, 
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  Calendar
 } from "lucide-react";
 import MarketIndices from "../../components/MarketIndices";
 import Watchlist from "../../components/Watchlist";
@@ -293,8 +294,8 @@ export default function DashboardHome() {
           </div>
         </section>
 
-        {/* Quick actions grid (4 columns layout) */}
-        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Quick actions grid */}
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <Link href="/dashboard/invest" className="quick-action group">
             <span className="quick-action-icon bg-cyan-400/10 text-cyan-300"><Search size={19} /></span>
             <span><strong>ค้นหาหุ้น</strong><small>เริ่มจากบริษัทที่สนใจ</small></span>
@@ -304,6 +305,11 @@ export default function DashboardHome() {
             <span className="quick-action-icon bg-violet-400/10 text-violet-300"><BarChart3 size={19} /></span>
             <span><strong>วิเคราะห์เชิงลึก</strong><small>Bull / Base / Bear case</small></span>
             <ArrowUpRight className="ml-auto text-slate-600 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-violet-300" size={18} />
+          </Link>
+          <Link href="/dashboard/calendar" className="quick-action group">
+            <span className="quick-action-icon bg-rose-400/10 text-rose-300"><Calendar size={19} /></span>
+            <span><strong>ปฏิทินข่าว</strong><small>เศรษฐกิจ & งบการเงิน</small></span>
+            <ArrowUpRight className="ml-auto text-slate-600 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-rose-300" size={18} />
           </Link>
           <Link href="/dashboard/scanner" className="quick-action group">
             <span className="quick-action-icon bg-amber-400/10 text-amber-300"><Radar size={19} /></span>

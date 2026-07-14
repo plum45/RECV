@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Home, Search, BarChart2, Briefcase, Menu, X, Rocket, Zap, Sun, Moon, Bell, ShieldAlert, Sliders } from "lucide-react";
+import { Home, Search, BarChart2, Briefcase, Menu, X, Rocket, Zap, Sun, Moon, Bell, ShieldAlert, Sliders, Calendar } from "lucide-react";
 import { useTheme } from "next-themes";
 import MobileNavBar from "../../components/MobileNavBar";
 import { useAuth } from "../../contexts/AuthContext";
@@ -32,6 +32,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     { name: "หน้าแรก (Home)", path: "/dashboard", icon: Home },
     { name: "ค้นหาหุ้น (Invest)", path: "/dashboard/invest", icon: Search },
     { name: "วิเคราะห์ (Analyze)", path: "/dashboard/analyze", icon: BarChart2 },
+    { name: "ปฏิทินข่าว (Calendar)", path: "/dashboard/calendar", icon: Calendar },
     { name: "สแกนสัญญาณ (Scanner)", path: "/dashboard/scanner", icon: Zap },
     { name: "พอร์ต (Portfolio)", path: "/dashboard/analyze?tab=portfolio", icon: Briefcase },
     { name: "แผนการเทรด (Trading Plan)", path: "/dashboard/plan", icon: Sliders },
