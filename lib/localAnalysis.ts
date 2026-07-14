@@ -1,7 +1,6 @@
 import { TickerData, IndicatorData, SupportResistanceData, KlineData } from "../types/market";
 import { NewsArticle, SectorImpactCategory } from "../types/news";
 import { SentimentData } from "../types/analysis";
-import { CALENDAR_DATABASE } from "./calendarDb";
 import { PriceProjectionData } from "../types/projection";
 import { calculatePriceProjection } from "./priceProjection";
 
@@ -195,7 +194,9 @@ export function generateLocalReport(payload: LocalAnalysisPayload): string {
   let newsRiskLevel = "Low 🟢";
   let newsWarningSection = "";
 
-  const evList = payload.calendarEvents || CALENDAR_DATABASE;
+  // Event risk must come from the live calendar passed by the API. Falling
+  // back to local fixtures would make the trade report state invented dates.
+  const evList = payload.calendarEvents || [];
   const majorCalendarEvents = evList.filter(e => {
     if (e.type === "economic") {
       return e.country === "US" || e.title.toLowerCase().includes("tech") || e.title.toLowerCase().includes("semiconductor");
@@ -468,7 +469,7 @@ export function generateLocalReport(payload: LocalAnalysisPayload): string {
     indicators,
     supportResistance,
     news,
-    payload.calendarEvents || CALENDAR_DATABASE,
+    payload.calendarEvents || [],
     tradingStyle,
     timeframe,
     marketData.priceSource || "Finnhub API",

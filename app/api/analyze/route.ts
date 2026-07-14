@@ -10,7 +10,6 @@ import { buildAnalysisPrompt } from "../../../lib/prompt";
 import { checkRateLimit, getAiCache, setAiCache } from "../../../lib/aiCache";
 import { verifyFirebaseIdTokenDetailed } from "../../../lib/firebaseAdmin";
 import { calculatePriceProjection } from "../../../lib/priceProjection";
-import { CALENDAR_DATABASE } from "../../../lib/calendarDb";
 import { getMergedCalendarEvents } from "../../../lib/liveCalendarService";
 
 import { z } from "zod";

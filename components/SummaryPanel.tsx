@@ -72,8 +72,11 @@ export default function SummaryPanel({
   // Set timestamp on data load
   useEffect(() => {
     if (marketData && !loadingPrice) {
-      setFetchTimestamp(Date.now());
-      setMinutesElapsed(0);
+      const timer = window.setTimeout(() => {
+        setFetchTimestamp(Date.now());
+        setMinutesElapsed(0);
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
   }, [marketData, loadingPrice]);
 

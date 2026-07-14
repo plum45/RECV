@@ -2,6 +2,7 @@ import { TickerData, IndicatorData, SupportResistanceData } from "../types/marke
 import { NewsArticle } from "../types/news";
 import { SentimentData } from "../types/analysis";
 import { PriceProjectionData } from "../types/projection";
+import type { GeneralCalendarEvent } from "../types/calendar";
 
 interface PromptBuilderPayload {
   symbol: string;
@@ -13,6 +14,7 @@ interface PromptBuilderPayload {
   news: NewsArticle[];
   sentiment: SentimentData;
   priceProjection?: PriceProjectionData;
+  calendarEvents?: GeneralCalendarEvent[];
 }
 
 export function buildAnalysisPrompt(payload: PromptBuilderPayload): string {
@@ -25,6 +27,7 @@ export function buildAnalysisPrompt(payload: PromptBuilderPayload): string {
     supportResistance,
     news,
     sentiment,
+    calendarEvents,
   } = payload;
 
   const newsString = news.length > 0 
@@ -32,6 +35,15 @@ export function buildAnalysisPrompt(payload: PromptBuilderPayload): string {
     : "ไม่มีข่าวล่าสุดที่ดึงข้อมูลได้";
 
   const sentimentReasons = sentiment.reasons.map(r => `- ${r}`).join("\n");
+
+  const calendarString = calendarEvents?.length
+    ? calendarEvents
+        .map((event) => {
+          const label = event.type === "earnings" ? `${event.symbol} earnings` : event.title;
+          return `- ${label} | ${event.announcedAt} | ${event.status} | Source: ${event.source.source}`;
+        })
+        .join("\n")
+    : "No verified upcoming calendar events were available.";
 
   const supportString = supportResistance.supportZones
     .map(z => `- Zone: ${z.zone} | Score: ${z.score}/10 | Reasons: ${z.reasons.join(", ")}`)
@@ -94,6 +106,9 @@ ${resistanceString || "ไม่สามารถคำนวณแนวต้
 
 [4. ข้อมูลข่าวสารล่าสุด (Market News)]
 ${newsString}
+
+[Upcoming verified calendar events]
+${calendarString}
 
 [5. สภาพจิตวิทยาตลาดรวม (Market Sentiment)]
 - ดัชนีหลัก: ${sentiment.overallSentiment}

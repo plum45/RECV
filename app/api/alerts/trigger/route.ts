@@ -6,7 +6,6 @@ import { calculateSupportResistance } from "../../../../lib/supportResistance";
 import { getFirebaseAdminDb } from "../../../../lib/firebaseAdmin";
 import { getTelegramBotToken } from "../../../../lib/telegramConfig";
 import { calculateAlertOutcome, isWithinQuietHours, resolveSymbolAlertConfig } from "../../../../lib/alertUtils";
-import { CALENDAR_DATABASE, isTechScopeSymbol } from "../../../../lib/calendarDb";
 import { getMergedCalendarEvents } from "../../../../lib/liveCalendarService";
 import { normalizeSymbol, matchesAnySymbol } from "../../../../lib/symbolMapping";
 import type { EarningsEvent } from "../../../../types/calendar";

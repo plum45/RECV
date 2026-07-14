@@ -154,7 +154,10 @@ export default function DashboardHome() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      fetchDashboardSummary();
+      const timer = window.setTimeout(() => {
+        void fetchDashboardSummary();
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
   }, [user, authLoading]);
 

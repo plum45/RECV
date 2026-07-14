@@ -1,28 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
 import { auth, getAuthErrorMessage } from "../../../lib/firebase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() =>
+    typeof window === "undefined" ? "" : localStorage.getItem("rocket_last_email") || ""
+  );
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-
-  // Load last used email on mount
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedEmail = localStorage.getItem("rocket_last_email");
-      if (savedEmail) {
-        setEmail(savedEmail);
-      }
-    }
-  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

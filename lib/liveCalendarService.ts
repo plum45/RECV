@@ -1,6 +1,6 @@
 import axios from "axios";
 import { CALENDAR_DATABASE } from "./calendarDb";
-import { normalizeSymbol, areSymbolsEquivalent, matchesAnySymbol, SYMBOL_ALIAS_MAP } from "./symbolMapping";
+import { normalizeSymbol, matchesAnySymbol } from "./symbolMapping";
 import type { GeneralCalendarEvent, EarningsEvent, EventImportance, EventStatus } from "../types/calendar";
 
 // Cache structure for Finnhub earnings responses
@@ -13,6 +13,20 @@ interface CachedEarnings {
 
 let earningsCache: CachedEarnings | null = null;
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour cache to respect Finnhub rate limits
+
+function newYorkTimeToUtc(dateStr: string, hour: number, minute: number): Date {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const wallClockAsUtc = new Date(Date.UTC(year, month - 1, day, hour, minute, 0));
+  const zoneName = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    timeZoneName: "shortOffset",
+  }).formatToParts(wallClockAsUtc).find((part) => part.type === "timeZoneName")?.value || "GMT-5";
+  const match = zoneName.match(/^GMT([+-])(\d{1,2})(?::(\d{2}))?$/);
+  if (!match) return wallClockAsUtc;
+
+  const offsetMinutes = (Number(match[2]) * 60 + Number(match[3] || 0)) * (match[1] === "+" ? 1 : -1);
+  return new Date(wallClockAsUtc.getTime() - offsetMinutes * 60 * 1000);
+}
 
 // Tech & International target symbols scope
 const RELEVANT_TECH_SYMBOLS = new Set([
@@ -38,7 +52,7 @@ export function isRelevantTechSymbol(rawSymbol: string): boolean {
  */
 export async function fetchLiveEarningsFromFinnhub(from: string, to: string): Promise<{
   events: EarningsEvent[];
-  status: "LIVE" | "FALLBACK" | "UNAVAILABLE";
+  status: "LIVE" | "UNAVAILABLE";
   error?: string;
 }> {
   const apiKey = process.env.FINNHUB_API_KEY;
@@ -82,12 +96,16 @@ export async function fetchLiveEarningsFromFinnhub(from: string, to: string): Pr
       const dateStr = item.date || from;
       const hourStr = item.hour || ""; // "bmo" (before market open), "amc" (after market close), etc.
 
-      // Construct announcedAt ISO string roughly around announcement hour
+      // Finnhub supplies a date and sometimes BMO/AMC. Unknown times must be
+      // marked estimated rather than displayed as a confirmed local time.
       let announcedAtDate = new Date(`${dateStr}T12:00:00Z`);
+      let timeIsEstimated = true;
       if (hourStr.toLowerCase() === "bmo") {
-        announcedAtDate = new Date(`${dateStr}T13:30:00Z`); // ~8:30 AM EST -> 13:30 UTC
+        announcedAtDate = newYorkTimeToUtc(dateStr, 8, 30);
+        timeIsEstimated = false;
       } else if (hourStr.toLowerCase() === "amc") {
-        announcedAtDate = new Date(`${dateStr}T21:00:00Z`); // ~4:00 PM EST -> 21:00 UTC
+        announcedAtDate = newYorkTimeToUtc(dateStr, 16, 0);
+        timeIsEstimated = false;
       }
 
       const announcedAtIso = announcedAtDate.toISOString();
@@ -122,10 +140,10 @@ export async function fetchLiveEarningsFromFinnhub(from: string, to: string): Pr
           source: "Finnhub Earnings API",
           sourceUrl: `https://finnhub.io/api/v1/calendar/earnings?symbol=${normSym}`,
           fetchedAt: fetchedAtIso,
-          timezone: hourStr.toLowerCase() === "bmo" || hourStr.toLowerCase() === "amc" ? "EST" : "UTC",
+          timezone: timeIsEstimated ? "UTC (announcement time not supplied)" : "America/New_York",
           eventId: eventId,
         },
-        status: "LIVE",
+        status: timeIsEstimated ? "ESTIMATED" : "LIVE",
       });
     }
 
@@ -149,10 +167,8 @@ export async function fetchLiveEarningsFromFinnhub(from: string, to: string): Pr
 }
 
 /**
- * Merges Live Earnings from Finnhub with Static/Fallback events from `CALENDAR_DATABASE`.
- * - Deduplicates using `normalizeSymbol(symbol) + "_" + date (YYYY-MM-DD) + "_" + quarter`.
- * - If Live event overlaps with Static event, **Live event takes priority**.
- * - Sets static/fallback events to `status: "FALLBACK"` or `status: "UNAVAILABLE"`.
+ * Returns verified live earnings events only. Fixture data must never be
+ * presented as a real earnings schedule because its date can be stale.
  */
 export async function getMergedCalendarEvents(
   fromDate: Date,
@@ -162,7 +178,7 @@ export async function getMergedCalendarEvents(
   importanceFilter?: EventImportance | null
 ): Promise<{
   events: GeneralCalendarEvent[];
-  status: "LIVE" | "FALLBACK" | "UNAVAILABLE";
+  status: "LIVE" | "ESTIMATED" | "UNAVAILABLE";
   sourceInfo: {
     source: string;
     fetchedAt: string;
@@ -193,8 +209,6 @@ export async function getMergedCalendarEvents(
   let liveCount = 0;
   let fallbackCount = 0;
 
-  const isProduction = process.env.NODE_ENV === "production";
-
   // Add Live Events first
   for (const liveEv of liveEarningsResult.events) {
     const evDate = new Date(liveEv.announcedAt);
@@ -206,36 +220,16 @@ export async function getMergedCalendarEvents(
 
     if (importanceFilter && liveEv.importance !== importanceFilter) continue;
 
-    // Check with Investor Relations database (CALENDAR_DATABASE) when date is unconfirmed
-    const irMatch = CALENDAR_DATABASE.find(
-      (e) =>
-        e.type === "earnings" &&
-        normalizeSymbol(e.symbol) === normalizeSymbol(liveEv.symbol) &&
-        (e.quarter === liveEv.quarter || e.year === liveEv.year)
-    );
-
-    if (irMatch) {
-      // If we have a verified Investor Relations date, cross-reference and use it
-      liveEv.announcedAt = irMatch.announcedAt;
-      liveEv.timeThai = irMatch.timeThai;
-      liveEv.status = "LIVE";
-    } else {
-      liveEv.status = "LIVE";
-    }
-
     const dateKey = liveEv.announcedAt.substring(0, 10);
     const dedupeKey = `earnings_${normalizeSymbol(liveEv.symbol)}_${dateKey}_${liveEv.quarter || ""}`;
     dedupeMap.set(dedupeKey, liveEv);
     liveCount++;
   }
 
-  // 3. Add Static/Fallback Events from CALENDAR_DATABASE (Economic, Crypto, or missing Earnings)
-  for (const staticEv of CALENDAR_DATABASE) {
-    // If in Production, reject if it is mock/simulated (has offsetDays or no verified status)
-    if (isProduction && staticEv.status === "estimated") {
-      // In Production, do not use unverified mock events
-      continue;
-    }
+  // 3. Static entries use offsetDays() fixtures. They are useful while
+  // developing the UI, but never represent a verified production schedule.
+  if (process.env.NODE_ENV !== "production" && process.env.CALENDAR_ALLOW_FIXTURES === "true") {
+    for (const staticEv of CALENDAR_DATABASE) {
 
     const evDate = new Date(staticEv.announcedAt);
     if (evDate < fromDate || evDate > toDate) continue;
@@ -266,8 +260,8 @@ export async function getMergedCalendarEvents(
       dedupeKey = `earnings_${normSym}_${dateKey}_${(staticEv as EarningsEvent).quarter || ""}`;
     }
 
-    // If already populated by Live Event, skip static (Live takes precedence!)
-    if (dedupeMap.has(dedupeKey) && dedupeMap.get(dedupeKey)?.status === "LIVE") {
+    // A live date must win even when Finnhub did not supply BMO/AMC.
+    if (dedupeMap.has(dedupeKey)) {
       continue;
     }
 
@@ -304,6 +298,7 @@ export async function getMergedCalendarEvents(
 
     dedupeMap.set(dedupeKey, enrichedStatic);
     fallbackCount++;
+    }
   }
 
   const mergedList = Array.from(dedupeMap.values()).sort(
@@ -321,7 +316,11 @@ export async function getMergedCalendarEvents(
     events: mergedList,
     status: overallStatus,
     sourceInfo: {
-      source: liveCount > 0 ? "Finnhub Live API + Fallback Database" : "Static Fallback Calendar (Live Data Unavailable)",
+      source: liveCount > 0
+        ? "Finnhub Live Earnings API"
+        : fallbackCount > 0
+        ? "Development fixture calendar"
+        : "Live calendar unavailable",
       fetchedAt: fetchedAtIso,
       liveCount,
       fallbackCount,

@@ -151,9 +151,14 @@ export default function Watchlist() {
 
   // Fetch on symbols change
   useEffect(() => {
-    fetchQuotes(symbols);
-    const interval = setInterval(() => fetchQuotes(symbols), 30000);
-    return () => clearInterval(interval);
+    const initialFetch = window.setTimeout(() => {
+      void fetchQuotes(symbols);
+    }, 0);
+    const interval = window.setInterval(() => void fetchQuotes(symbols), 30000);
+    return () => {
+      window.clearTimeout(initialFetch);
+      window.clearInterval(interval);
+    };
   }, [symbols, fetchQuotes]);
 
   // ── Autocomplete Search ───
@@ -181,16 +186,21 @@ export default function Watchlist() {
   // Debounced search
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (searchQuery.length < 2) {
-      setSearchResults([]);
-      setShowDropdown(false);
-      return;
-    }
+    if (searchQuery.length < 2) return;
     debounceRef.current = setTimeout(() => performSearch(searchQuery), 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [searchQuery, performSearch]);
+
+  const handleSearchQueryChange = (query: string) => {
+    setSearchQuery(query);
+    if (query.length < 2) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      setHighlightIndex(-1);
+    }
+  };
 
   // Click outside to close dropdown
   useEffect(() => {
@@ -452,7 +462,7 @@ export default function Watchlist() {
             ref={inputRef}
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => handleSearchQueryChange(e.target.value)}
             onKeyDown={handleKeyDown}
             onFocus={() => {
               if (searchResults.length > 0) setShowDropdown(true);

@@ -239,6 +239,7 @@ export default function CalendarPage() {
   const [typeFilter, setTypeFilter] = useState<EventType>("all");
   const [impFilter, setImpFilter] = useState<Importance>("all");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fetchEvents = useCallback(async () => {
     setLoading(true);
@@ -249,17 +250,27 @@ export default function CalendarPage() {
       params.set("limit", "80");
       const res = await fetch(`/api/calendar?${params.toString()}`);
       const data = await res.json();
-      setEvents(data.events || []);
+      if (!res.ok || data.success === false) {
+        setEvents([]);
+        setErrorMessage(data.message || "ไม่สามารถโหลดปฏิทินข้อมูลสดได้ในขณะนี้");
+      } else {
+        setEvents(data.events || []);
+        setErrorMessage(null);
+      }
       setLastUpdated(new Date());
     } catch {
       setEvents([]);
+      setErrorMessage("ไม่สามารถเชื่อมต่อปฏิทินข้อมูลสดได้ในขณะนี้");
     } finally {
       setLoading(false);
     }
   }, [typeFilter, impFilter]);
 
   useEffect(() => {
-    fetchEvents();
+    const timer = window.setTimeout(() => {
+      void fetchEvents();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [fetchEvents]);
 
   const grouped = groupByDay(events);
@@ -383,6 +394,7 @@ export default function CalendarPage() {
         ) : sortedDays.length === 0 ? (
           <div className="text-center py-20 text-slate-500">
             <Calendar size={40} className="mx-auto mb-3 opacity-30" />
+            {errorMessage && <p className="mb-2 font-bold text-amber-400">{errorMessage}</p>}
             <p className="font-bold">ไม่พบเหตุการณ์ตามเงื่อนไขที่เลือก</p>
           </div>
         ) : (

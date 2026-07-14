@@ -67,14 +67,17 @@ export default function CalendarRiskBadge({ symbol }: CalendarRiskBadgeProps) {
 
   useEffect(() => {
     if (!symbol) return;
-    setLoading(true);
-    fetch(`/api/calendar/impact?symbol=${encodeURIComponent(symbol)}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setEvents(data.events || []);
-      })
-      .catch(() => setEvents([]))
-      .finally(() => setLoading(false));
+    const timer = window.setTimeout(() => {
+      setLoading(true);
+      fetch(`/api/calendar/impact?symbol=${encodeURIComponent(symbol)}`)
+        .then((r) => r.json())
+        .then((data) => {
+          setEvents(data.events || []);
+        })
+        .catch(() => setEvents([]))
+        .finally(() => setLoading(false));
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [symbol]);
 
   if (loading || events.length === 0) return null;

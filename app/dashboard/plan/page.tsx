@@ -54,7 +54,10 @@ export default function TradingPlanPage() {
   const { user, loading: authLoading } = useAuth();
   
   // Form Inputs
-  const [symbol, setSymbol] = useState("NVDA");
+  const [symbol, setSymbol] = useState(() => {
+    if (typeof window === "undefined") return "NVDA";
+    return new URLSearchParams(window.location.search).get("symbol")?.toUpperCase() || "NVDA";
+  });
   const [tradingStyle, setTradingStyle] = useState<"day" | "swing" | "position">("swing");
   const [timeframe, setTimeframe] = useState("1H");
   const [direction, setDirection] = useState<"long" | "short" | "wait">("long");
@@ -69,27 +72,10 @@ export default function TradingPlanPage() {
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
   const [telegramSuccess, setTelegramSuccess] = useState<string | null>(null);
 
-  // Auto-adjust timeframe recommendations on trading style change
-  useEffect(() => {
-    if (tradingStyle === "day") {
-      setTimeframe("15m");
-    } else if (tradingStyle === "swing") {
-      setTimeframe("1H");
-    } else if (tradingStyle === "position") {
-      setTimeframe("1D");
-    }
-  }, [tradingStyle]);
-
-  // Load URL parameter if present
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const urlSym = params.get("symbol");
-      if (urlSym) {
-        setSymbol(urlSym.toUpperCase());
-      }
-    }
-  }, []);
+  const handleTradingStyleChange = (style: "day" | "swing" | "position") => {
+    setTradingStyle(style);
+    setTimeframe(style === "day" ? "15m" : style === "position" ? "1D" : "1H");
+  };
 
   // Fetch saved plans
   const fetchPlans = async () => {
@@ -112,7 +98,10 @@ export default function TradingPlanPage() {
 
   useEffect(() => {
     if (user && !authLoading) {
-      fetchPlans();
+      const timer = window.setTimeout(() => {
+        void fetchPlans();
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
   }, [user, authLoading]);
 
@@ -287,7 +276,7 @@ Risk/Reward Ratio: 1:${plan.riskReward || 0}
               </label>
               <select
                 value={tradingStyle}
-                onChange={(e) => setTradingStyle(e.target.value as any)}
+                onChange={(e) => handleTradingStyleChange(e.target.value as "day" | "swing" | "position")}
                 className="w-full bg-slate-950 border border-slate-850 text-slate-200 text-xs font-semibold rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 cursor-pointer"
               >
                 <option value="day">Day Trade (ถอยเร็ว / เทรดระยะสั้น)</option>

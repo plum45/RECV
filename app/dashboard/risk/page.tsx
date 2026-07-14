@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useMemo, useState } from "react";
 import { 
   ShieldAlert, 
   TrendingUp, 
@@ -31,35 +31,8 @@ export default function RiskCalculatorPage() {
   // Quick asset presets
   const [presetType, setPresetType] = useState<"custom" | "stock" | "crypto">("stock");
 
-  // Calculations
-  const [actualRiskAmount, setActualRiskAmount] = useState<number>(0);
-  const [slDiff, setSlDiff] = useState<number>(0);
-  const [slPercent, setSlPercent] = useState<number>(0);
-  const [tpDiff, setTpDiff] = useState<number>(0);
-  const [tpPercent, setTpPercent] = useState<number>(0);
-  const [positionUnits, setPositionUnits] = useState<number>(0);
-  const [positionValue, setPositionValue] = useState<number>(0);
-  const [riskRewardRatio, setRiskRewardRatio] = useState<number>(0);
-  const [targetProfit, setTargetProfit] = useState<number>(0);
-  const [targetLoss, setTargetLoss] = useState<number>(0);
-  const [isSlTooWide, setIsSlTooWide] = useState<boolean>(false);
-
-  // Apply presets when selected
-  useEffect(() => {
-    if (presetType === "stock") {
-      setRiskPercent(1);
-      setMaxSlPercent(8);
-    } else if (presetType === "crypto") {
-      setRiskPercent(2);
-      setMaxSlPercent(15);
-    }
-  }, [presetType]);
-
-  // Recalculate metrics on input changes
-  useEffect(() => {
+  const calculations = useMemo(() => {
     const riskAmt = capital * (riskPercent / 100);
-    setActualRiskAmount(riskAmt);
-
     let slDistance = 0;
     let tpDistance = 0;
 
@@ -71,33 +44,49 @@ export default function RiskCalculatorPage() {
       tpDistance = Math.max(0, entryPrice - takeProfit);
     }
 
-    setSlDiff(slDistance);
-    setTpDiff(tpDistance);
-
     const slPct = entryPrice > 0 ? (slDistance / entryPrice) * 100 : 0;
     const tpPct = entryPrice > 0 ? (tpDistance / entryPrice) * 100 : 0;
-    setSlPercent(slPct);
-    setTpPercent(tpPct);
-
-    // Position sizing: units = Risk Amount / Stop Loss distance
-    let units = 0;
-    if (slDistance > 0) {
-      units = riskAmt / slDistance;
-    }
-    setPositionUnits(units);
-    setPositionValue(units * entryPrice);
-
-    // Risk / Reward Ratio
+    const positionUnits = slDistance > 0 ? riskAmt / slDistance : 0;
     const rr = slDistance > 0 ? tpDistance / slDistance : 0;
-    setRiskRewardRatio(rr);
-
-    // Target profit & loss
-    setTargetProfit(units * tpDistance);
-    setTargetLoss(units * slDistance);
-
-    // Warning when Stop Loss is wider than threshold
-    setIsSlTooWide(slPct > maxSlPercent);
+    return {
+      actualRiskAmount: riskAmt,
+      slDiff: slDistance,
+      slPercent: slPct,
+      tpDiff: tpDistance,
+      tpPercent: tpPct,
+      positionUnits,
+      positionValue: positionUnits * entryPrice,
+      riskRewardRatio: rr,
+      targetProfit: positionUnits * tpDistance,
+      targetLoss: positionUnits * slDistance,
+      isSlTooWide: slPct > maxSlPercent,
+    };
   }, [capital, riskPercent, entryPrice, stopLoss, takeProfit, tradeType, maxSlPercent]);
+
+  const {
+    actualRiskAmount,
+    slDiff,
+    slPercent,
+    tpDiff,
+    tpPercent,
+    positionUnits,
+    positionValue,
+    riskRewardRatio,
+    targetProfit,
+    targetLoss,
+    isSlTooWide,
+  } = calculations;
+
+  const applyPreset = (type: "custom" | "stock" | "crypto") => {
+    setPresetType(type);
+    if (type === "stock") {
+      setRiskPercent(1);
+      setMaxSlPercent(8);
+    } else if (type === "crypto") {
+      setRiskPercent(2);
+      setMaxSlPercent(15);
+    }
+  };
 
   // Reset helper
   const handleReset = () => {
@@ -221,7 +210,7 @@ export default function RiskCalculatorPage() {
               <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
                 <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 px-2">Preset:</span>
                 <button
-                  onClick={() => setPresetType("stock")}
+                  onClick={() => applyPreset("stock")}
                   className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
                     presetType === "stock"
                       ? "bg-slate-800 text-indigo-300 font-bold border border-slate-700/50"
@@ -231,7 +220,7 @@ export default function RiskCalculatorPage() {
                   หุ้นไทย/เทศ (1% Risk)
                 </button>
                 <button
-                  onClick={() => setPresetType("crypto")}
+                  onClick={() => applyPreset("crypto")}
                   className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
                     presetType === "crypto"
                       ? "bg-slate-800 text-indigo-300 font-bold border border-slate-700/50"
@@ -241,7 +230,7 @@ export default function RiskCalculatorPage() {
                   Crypto (2% Risk)
                 </button>
                 <button
-                  onClick={() => setPresetType("custom")}
+                  onClick={() => applyPreset("custom")}
                   className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
                     presetType === "custom"
                       ? "bg-slate-800 text-indigo-300 font-bold border border-slate-700/50"

@@ -16,6 +16,18 @@ const INTL_TECH_SYMBOLS = new Set([
   "SAMSUNG", "HYNIX", "SKHYNIX", "MEDIATEK", "SONY",
 ]);
 
+const COMPANY_SEARCH_NAMES: Record<string, string> = {
+  ASML: "ASML Holding",
+  TSM: "Taiwan Semiconductor TSMC",
+  "005930": "Samsung Electronics",
+  "000660": "SK Hynix",
+  SAP: "SAP SE",
+  SIE: "Siemens AG",
+  NVDA: "NVIDIA",
+  AMD: "Advanced Micro Devices",
+  AVGO: "Broadcom",
+};
+
 function classifySectorImpact(
   title: string,
   symbol: string
@@ -255,7 +267,8 @@ function buildSearchQuery(symbol: string): string {
 
   if (isTechStock(norm)) {
     // International or US tech: query by ticker and company keyword
-    return `${alias} stock company news`;
+    const companyName = COMPANY_SEARCH_NAMES[norm] || alias;
+    return `${companyName} ${norm} stock company news`;
   }
 
   return `${alias} stock market news`;

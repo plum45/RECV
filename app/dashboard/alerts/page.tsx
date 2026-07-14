@@ -75,6 +75,7 @@ export default function AlertCenterPage() {
   const [sendingTest, setSendingTest] = useState(false);
   const [newSymbolInput, setNewSymbolInput] = useState("");
   const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
 
   const getSafeIdToken = async (forceRefresh = false): Promise<string | null> => {
     if (typeof getIdToken === "function") {
@@ -162,9 +163,17 @@ export default function AlertCenterPage() {
 
   useEffect(() => {
     if (user) {
-      loadData();
+      const timer = window.setTimeout(() => {
+        void loadData();
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
   }, [user]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setCurrentTime(Date.now()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   // Save Settings logic
   const handleSaveSettings = async () => {
@@ -301,7 +310,7 @@ export default function AlertCenterPage() {
     const log = historyLogs.find((l) => l.symbol.toUpperCase() === sym.toUpperCase());
     if (!log) return { status: "Ready", timeRemaining: 0, text: "พร้อมส่ง (Ready)" };
 
-    const timeDiffMinutes = Math.floor((Date.now() - log.sentAt) / 60000);
+    const timeDiffMinutes = Math.floor((currentTime - log.sentAt) / 60000);
     const timeRemaining = cooldownMinutes - timeDiffMinutes;
 
     if (timeRemaining > 0) {

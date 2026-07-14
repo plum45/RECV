@@ -50,7 +50,7 @@ export default function MobileNavBar({ setActiveTab }: MobileNavBarProps) {
     if (item.id === "watchlist") {
       if (pathname === "/dashboard") {
         setCurrentHash("#watchlist");
-        window.location.hash = "watchlist";
+        window.history.pushState(null, "", "#watchlist");
         const el = document.getElementById("watchlist");
         if (el) {
           el.scrollIntoView({ behavior: "smooth", block: "start" });
