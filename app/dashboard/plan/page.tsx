@@ -24,7 +24,8 @@ import {
 import LoadingState from "../../../components/LoadingState";
 import CalendarRiskBadge from "../../../components/CalendarRiskBadge";
 import { db } from "../../../lib/firebase";
-import { collection, query, orderBy, getDocs, addDoc, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import { collection, query, orderBy, getDocs, addDoc, deleteDoc, doc, updateDoc, setDoc } from "firebase/firestore";
+import { getRecommendedTimeframe, getStoredTradingStyle, storeTradingStyle, type TradingStyle } from "../../../lib/tradingStyle";
 
 interface TradingPlan {
   id?: string;
@@ -58,8 +59,8 @@ export default function TradingPlanPage() {
     if (typeof window === "undefined") return "NVDA";
     return new URLSearchParams(window.location.search).get("symbol")?.toUpperCase() || "NVDA";
   });
-  const [tradingStyle, setTradingStyle] = useState<"day" | "swing" | "position">("swing");
-  const [timeframe, setTimeframe] = useState("1H");
+  const [tradingStyle, setTradingStyle] = useState<TradingStyle>(() => getStoredTradingStyle());
+  const [timeframe, setTimeframe] = useState(() => getRecommendedTimeframe(getStoredTradingStyle()));
   const [direction, setDirection] = useState<"long" | "short" | "wait">("long");
   const [capital, setCapital] = useState<number>(10000);
   const [riskPercent, setRiskPercent] = useState<number>(1);
@@ -72,9 +73,17 @@ export default function TradingPlanPage() {
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
   const [telegramSuccess, setTelegramSuccess] = useState<string | null>(null);
 
-  const handleTradingStyleChange = (style: "day" | "swing" | "position") => {
+  const handleTradingStyleChange = (style: TradingStyle) => {
+    const recommendedTimeframe = getRecommendedTimeframe(style);
+    storeTradingStyle(style);
     setTradingStyle(style);
-    setTimeframe(style === "day" ? "15m" : style === "position" ? "1D" : "1H");
+    setTimeframe(recommendedTimeframe);
+    if (user) {
+      void setDoc(doc(db, "users", user.uid), {
+        tradingStyle: style,
+        timeframe: recommendedTimeframe,
+      }, { merge: true });
+    }
   };
 
   // Fetch saved plans
@@ -276,7 +285,7 @@ Risk/Reward Ratio: 1:${plan.riskReward || 0}
               </label>
               <select
                 value={tradingStyle}
-                onChange={(e) => handleTradingStyleChange(e.target.value as "day" | "swing" | "position")}
+                onChange={(e) => handleTradingStyleChange(e.target.value as TradingStyle)}
                 className="w-full bg-slate-950 border border-slate-850 text-slate-200 text-xs font-semibold rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 cursor-pointer"
               >
                 <option value="day">Day Trade (ถอยเร็ว / เทรดระยะสั้น)</option>

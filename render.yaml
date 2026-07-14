@@ -1,0 +1,12 @@
+services:
+  - type: cron
+    name: rocket-alert-scanner
+    runtime: node
+    buildCommand: npm ci
+    startCommand: node scripts/trigger-alerts.mjs
+    schedule: "*/15 * * * *"
+    envVars:
+      - key: ALERT_TRIGGER_URL
+        sync: false
+      - key: ALERT_CRON_SECRET
+        sync: false

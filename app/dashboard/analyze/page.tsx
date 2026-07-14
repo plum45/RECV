@@ -23,6 +23,7 @@ import { useAuth } from "../../../contexts/AuthContext";
 import { useRouter, useSearchParams } from "next/navigation";
 import { db, auth } from "../../../lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
+import { getRecommendedTimeframe, getStoredTradingStyle, isTradingStyle, storeTradingStyle, type TradingStyle } from "../../../lib/tradingStyle";
 
 interface MarqueeTicker {
   symbol: string;
@@ -76,8 +77,8 @@ function AnalyzePageContent() {
     }
     return "";
   });
-  const [timeframe, setTimeframe] = useState("1H");
-  const [tradingStyle, setTradingStyle] = useState("swing");
+  const [tradingStyle, setTradingStyle] = useState<TradingStyle>(() => getStoredTradingStyle());
+  const [timeframe, setTimeframe] = useState(() => getRecommendedTimeframe(getStoredTradingStyle()));
   const [riskPercent, setRiskPercent] = useState("1%");
   const [analysisMode, setAnalysisMode] = useState("Analyze Both Long & Short");
   const [accountSize, setAccountSize] = useState(10000);
@@ -191,8 +192,13 @@ function AnalyzePageContent() {
               setSymbol("NVDA"); // 3. Tertiary fallback
               setAnalyzedSymbol("NVDA");
             }
-            if (data.timeframe) setTimeframe(data.timeframe);
-            if (data.tradingStyle) setTradingStyle(data.tradingStyle);
+            const storedStyle = getStoredTradingStyle();
+            const hasStoredStyle = typeof window !== "undefined" && window.localStorage.getItem("rocket_trading_style") !== null;
+            const savedStyle = isTradingStyle(data.tradingStyle) ? data.tradingStyle : null;
+            const activeStyle = hasStoredStyle ? storedStyle : (savedStyle || storedStyle);
+            setTradingStyle(activeStyle);
+            setTimeframe(hasStoredStyle ? getRecommendedTimeframe(activeStyle) : (data.timeframe || getRecommendedTimeframe(activeStyle)));
+            if (!hasStoredStyle && savedStyle) storeTradingStyle(savedStyle);
             if (data.riskPercent) setRiskPercent(data.riskPercent);
             if (data.analysisMode) setAnalysisMode(data.analysisMode);
           } else {
@@ -229,6 +235,12 @@ function AnalyzePageContent() {
     const timer = setTimeout(savePrefs, 1000);
     return () => clearTimeout(timer);
   }, [symbol, timeframe, tradingStyle, riskPercent, analysisMode, user, isSymbolInitialized]);
+
+  const handleTradingStyleChange = (style: TradingStyle) => {
+    storeTradingStyle(style);
+    setTradingStyle(style);
+    setTimeframe(getRecommendedTimeframe(style));
+  };
 
   // Auth Protection
   useEffect(() => {
@@ -715,18 +727,7 @@ function AnalyzePageContent() {
                 </label>
                 <select
                   value={tradingStyle}
-                  onChange={(e) => {
-                    const style = e.target.value;
-                    setTradingStyle(style);
-                    // Auto adjust recommended timeframe
-                    if (style === "day") {
-                      setTimeframe("15m");
-                    } else if (style === "swing") {
-                      setTimeframe("1H");
-                    } else if (style === "position") {
-                      setTimeframe("1D");
-                    }
-                  }}
+                  onChange={(e) => handleTradingStyleChange(e.target.value as TradingStyle)}
                   aria-label="เลือกสไตล์การเทรด"
                   className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs font-semibold rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 cursor-pointer"
                 >

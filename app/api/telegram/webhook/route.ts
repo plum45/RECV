@@ -79,17 +79,7 @@ export async function POST(request: Request) {
       const alertSettingsDoc = await alertSettingsRef.get();
       let alertSettingsData = alertSettingsDoc.exists ? alertSettingsDoc.data() : null;
       if (!alertSettingsData) {
-        alertSettingsData = {
-          enabled: true,
-          symbols: ["BTC-USD", "ETH-USD", "SOL-USD"],
-          rsiEnabled: true,
-          macdEnabled: true,
-          srFlipEnabled: true,
-          supportEnabled: true,
-          cooldownMinutes: 120,
-          quietHours: { enabled: false, start: "22:00", end: "06:00" },
-          configs: {},
-        };
+        alertSettingsData = normalizeAlertSettings({}, now);
         await alertSettingsRef.set(alertSettingsData);
       }
       const normalizedAlertSettings = normalizeAlertSettings(alertSettingsData);

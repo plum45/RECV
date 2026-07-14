@@ -34,7 +34,7 @@ export interface AlertOutcome {
   result: string;
 }
 
-const DEFAULT_SYMBOLS = ["BTC-USD", "ETH-USD", "SOL-USD"];
+const DEFAULT_SYMBOLS = ["NVDA", "AAPL", "MSFT", "AMD", "GOOGL", "META", "TSM", "ASML", "BTC-USD", "ETH-USD", "SOL-USD"];
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 function normalizeSymbols(symbols: unknown): string[] {
@@ -97,9 +97,9 @@ export function normalizeAlertSettings(input: unknown, updatedAt?: number): Aler
     macdEnabled: data.macdEnabled !== undefined ? Boolean(data.macdEnabled) : true,
     srFlipEnabled: data.srFlipEnabled !== undefined ? Boolean(data.srFlipEnabled) : true,
     supportEnabled: data.supportEnabled !== undefined ? Boolean(data.supportEnabled) : true,
-    cooldownMinutes: typeof data.cooldownMinutes === "number" && data.cooldownMinutes >= 15
+    cooldownMinutes: typeof data.cooldownMinutes === "number" && data.cooldownMinutes >= 5
       ? data.cooldownMinutes
-      : 120,
+      : 30,
     quietHours: normalizeQuietHours(data.quietHours),
     configs: normalizeConfigs(data.configs),
     ...(updatedAt !== undefined ? { updatedAt } : {}),

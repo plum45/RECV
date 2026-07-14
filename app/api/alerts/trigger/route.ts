@@ -156,7 +156,7 @@ async function triggerAlerts(request: Request) {
             configs: sub.configs || {},
           }, symbol);
 
-          const cooldownMinutes = Math.max(15, typeof sub.cooldownMinutes === "number" ? sub.cooldownMinutes : 120);
+          const cooldownMinutes = Math.max(5, typeof sub.cooldownMinutes === "number" ? sub.cooldownMinutes : 30);
           const cooldownMs = cooldownMinutes * 60 * 1000;
 
           // Fetch user's alert history & state lock for this symbol
@@ -193,19 +193,27 @@ async function triggerAlerts(request: Request) {
 
           // --- MACD Crossover Trigger ---
           if (symbolConfig.macdEnabled) {
-            if (macd.crossover === "bullish") {
+            // Persist the MACD side as well as the candle crossover. That lets a
+            // scheduled scan catch a crossover that happened between two runs.
+            const macdSide = macd.macdLine >= macd.signalLine ? "bullish" : "bearish";
+            const hasChangedSide = Boolean(stateData.macdSide) && stateData.macdSide !== macdSide;
+            const bullishSignal = macd.crossover === "bullish" || (hasChangedSide && macdSide === "bullish");
+            const bearishSignal = macd.crossover === "bearish" || (hasChangedSide && macdSide === "bearish");
+
+            if (bullishSignal) {
               if (stateData.lastMacdCrossover !== "bullish" && (!stateData.lastMacdAlertTime || now - stateData.lastMacdAlertTime > cooldownMs)) {
                 triggeredMessages.push(`🚀 MACD เกิดสัญญาณ Bullish Crossover (สัญญาณซื้อ/เปลี่ยนแนวโน้มเป็นขาขึ้น)`);
                 newState.lastMacdCrossover = "bullish";
                 newState.lastMacdAlertTime = now;
               }
-            } else if (macd.crossover === "bearish") {
+            } else if (bearishSignal) {
               if (stateData.lastMacdCrossover !== "bearish" && (!stateData.lastMacdAlertTime || now - stateData.lastMacdAlertTime > cooldownMs)) {
                 triggeredMessages.push(`📉 MACD เกิดสัญญาณ Bearish Crossover (สัญญาณขาย/เปลี่ยนแนวโน้มเป็นขาลง)`);
                 newState.lastMacdCrossover = "bearish";
                 newState.lastMacdAlertTime = now;
               }
             }
+            newState.macdSide = macdSide;
           }
 
           // --- S/R Flip Zone Trigger ---

@@ -25,6 +25,18 @@ export async function GET(request: Request) {
     
     const finalAlertSettings = normalizeAlertSettings(alertSettingsData);
 
+    // Repair subscriptions created before the multi-user scanner existed or after
+    // an interrupted settings save. A connected user should not have to reopen and
+    // manually save the advanced form before receiving cloud alerts.
+    if (telegramData?.enabled && telegramData?.chatId && finalAlertSettings.enabled) {
+      await db.collection("activeAlertSubscriptions").doc(uid).set({
+        uid,
+        chatId: telegramData.chatId,
+        ...finalAlertSettings,
+        updatedAt: Date.now(),
+      }, { merge: true });
+    }
+
     return NextResponse.json({
       success: true,
       telegram: telegramData,
@@ -64,9 +76,9 @@ export async function POST(request: Request) {
 
     if (action === "toggle_telegram") {
       const { enabled } = body;
-      await db.collection("users").doc(uid).collection("settings").doc("telegram").update({
+      await db.collection("users").doc(uid).collection("settings").doc("telegram").set({
         enabled: Boolean(enabled),
-      });
+      }, { merge: true });
       if (!enabled) {
         await db.collection("activeAlertSubscriptions").doc(uid).delete().catch(() => {});
       } else {

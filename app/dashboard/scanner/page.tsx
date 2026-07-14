@@ -1071,7 +1071,7 @@ export default function ScannerPage() {
             </button>
             {user && telegramStatus?.enabled && (
               <span className="text-[11px] text-slate-500 font-medium">
-                * ระบบตรวจสอบความเคลื่อนไหวทุกชั่วโมงบน Cloud
+                * ระบบตรวจสอบความเคลื่อนไหวทุก 15 นาทีบน Cloud
               </span>
             )}
           </div>
@@ -1087,7 +1087,7 @@ export default function ScannerPage() {
             ระบบแจ้งเตือนอัตโนมัติ 24 ชั่วโมง (Multi-User Cloud Alert)
           </h3>
           <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-            ผู้ใช้แต่ละท่านสามารถเชื่อมต่อ Telegram ได้อย่างเป็นส่วนตัวผ่านบัญชี Firebase Auth ระบบจะรัน Cron Job บน Render (<code className="text-indigo-300 font-mono">app/api/alerts/trigger</code>) เพื่อสแกนตลาดทุกชั่วโมงและแจ้งเตือนเข้าห้องแช็ต Telegram ของคุณทันทีเมื่อพบคอนฟลูเอนซ์สำคัญ ไม่ต้องเปิดหน้าเว็บทิ้งไว้
+            ผู้ใช้แต่ละท่านสามารถเชื่อมต่อ Telegram ได้อย่างเป็นส่วนตัวผ่านบัญชี Firebase Auth ระบบจะรัน Cron Job บน Render (<code className="text-indigo-300 font-mono">app/api/alerts/trigger</code>) เพื่อสแกนตลาดทุก 15 นาทีและแจ้งเตือนเข้าห้องแช็ต Telegram ของคุณทันทีเมื่อพบคอนฟลูเอนซ์สำคัญ ไม่ต้องเปิดหน้าเว็บทิ้งไว้
           </p>
         </div>
       </section>
@@ -1136,7 +1136,7 @@ export default function ScannerPage() {
               <div>
                 <label className="text-xs text-slate-400 font-bold block mb-2">สัญลักษณ์ที่เฝ้าระวัง (Symbols)</label>
                 <div className="flex flex-wrap gap-2">
-                  {["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "NVDA", "TSLA", "AAPL", "MSFT"].map((sym) => {
+                  {["NVDA", "AAPL", "MSFT", "AMD", "GOOGL", "META", "TSM", "ASML", "BTC-USD", "ETH-USD", "SOL-USD"].map((sym) => {
                     const isSelected = telegramAlertSettings.symbols.includes(sym);
                     return (
                       <button
@@ -1194,7 +1194,7 @@ export default function ScannerPage() {
               <div>
                 <label className="text-xs text-slate-400 font-bold block mb-1">ระยะเวลาพักแจ้งเตือนซ้ำ (Cooldown - นาที)</label>
                 <div className="flex gap-2">
-                  {[60, 120, 240, 360].map((mins) => (
+                  {[15, 30, 60, 120].map((mins) => (
                     <button
                       key={mins}
                       onClick={() => setTelegramAlertSettings({ ...telegramAlertSettings, cooldownMinutes: mins })}
@@ -1204,7 +1204,7 @@ export default function ScannerPage() {
                           : "bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700"
                       }`}
                     >
-                      {mins / 60} ชั่วโมง ({mins} น.)
+                      {mins < 60 ? `${mins} นาที` : `${mins / 60} ชั่วโมง (${mins} น.)`}
                     </button>
                   ))}
                 </div>
