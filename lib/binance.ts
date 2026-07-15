@@ -96,11 +96,18 @@ async function getSpotMetalsDailyKlines(symbol: string, limit: number): Promise<
   const klines = points
     .map((point: { d?: string; c?: number; h?: number; l?: number }, index: number) => {
       const close = Number(point.c);
-      const high = Number(point.h);
-      const low = Number(point.l);
+      const reportedHigh = Number(point.h);
+      const reportedLow = Number(point.l);
       const open = index > 0 ? Number(points[index - 1]?.c) : close;
       const openTime = Date.parse(`${String(point.d || "").trim()}T00:00:00.000Z`);
-      if (![open, high, low, close, openTime].every(Number.isFinite) || low > high) return null;
+      if (![open, reportedHigh, reportedLow, close, openTime].every(Number.isFinite)) return null;
+
+      // XAUS history supplies close/high/low but no daily open. We derive the
+      // open from the previous close. On a gap day that derived open may sit
+      // just outside the reported intraday range, so expand the bounds (and
+      // also tolerate a provider high/low inversion) before indicators run.
+      const high = Math.max(reportedHigh, reportedLow, open, close);
+      const low = Math.min(reportedHigh, reportedLow, open, close);
       return {
         openTime,
         open,
