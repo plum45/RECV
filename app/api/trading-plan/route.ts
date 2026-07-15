@@ -13,7 +13,7 @@ export const runtime = "nodejs";
 
 const planRequestSchema = z.object({
   symbol: z.string().min(1),
-  tradingStyle: z.enum(["day", "swing", "position"]),
+  tradingStyle: z.enum(["scalping", "day", "swing", "position"]),
   timeframe: z.string().min(1),
   direction: z.enum(["long", "short", "wait"]),
   capital: z.number().positive(),
@@ -21,6 +21,11 @@ const planRequestSchema = z.object({
 });
 
 const styleMeta = {
+  scalping: {
+    holdingPeriod: "1–30 นาที (Scalping)",
+    slFactor: 0.65,
+    desc: "Scalping: ใช้ 1H กรองทิศทาง, 15m ดูโครงสร้าง/VWAP และรอ 5m liquidity sweep กับแท่งยืนยันก่อนเข้า ไม่ถือข้ามข่าวแรง",
+  },
   day: {
     holdingPeriod: "ภายในวัน (Intraday)",
     slFactor: 1.0,
@@ -91,7 +96,7 @@ export async function POST(request: Request) {
     const anchoredVwap = indicators.anchoredVwap?.value || 0;
     const vwapBand = Math.max(
       atr * 0.35,
-      price * (tradingStyle === "day" ? 0.0015 : tradingStyle === "position" ? 0.006 : 0.003)
+      price * (tradingStyle === "scalping" ? 0.0007 : tradingStyle === "day" ? 0.0015 : tradingStyle === "position" ? 0.006 : 0.003)
     );
     const vwapLabel = indicators.vwapDetails.type === "session" ? "Session VWAP" : "Rolling VWAP";
     const sessionVwapBias = sessionVwap > 0
@@ -174,10 +179,10 @@ export async function POST(request: Request) {
     let entryApproach = "Adaptive ATR entry band";
     const fallbackEntryHalfWidth = Math.max(
       atr * 0.35,
-      price * (tradingStyle === "day" ? 0.0015 : tradingStyle === "position" ? 0.005 : 0.003)
+      price * (tradingStyle === "scalping" ? 0.0007 : tradingStyle === "day" ? 0.0015 : tradingStyle === "position" ? 0.005 : 0.003)
     );
     const technicalStopBuffer = assetProfile.isPreciousMetal
-      ? Math.max(atr * 0.65, price * 0.0015)
+      ? Math.max(atr * (tradingStyle === "scalping" ? 0.4 : 0.65), price * (tradingStyle === "scalping" ? 0.0007 : 0.0015))
       : Math.max(atr * 0.35, price * 0.0015);
 
     if (direction === "long") {

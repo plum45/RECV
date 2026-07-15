@@ -16,9 +16,10 @@ import LoadingState from "../../../components/LoadingState";
 
 import SRChart from "../../../components/SRChart";
 import SummaryPanel from "../../../components/SummaryPanel";
+import MultiTimeframePanel from "../../../components/MultiTimeframePanel";
 import { TickerData, IndicatorData, SupportResistanceData, KlineData } from "../../../types/market";
 import { NewsArticle } from "../../../types/news";
-import { SentimentData } from "../../../types/analysis";
+import { SentimentData, MultiTimeframeAnalysis } from "../../../types/analysis";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useRouter, useSearchParams } from "next/navigation";
 import { db, auth } from "../../../lib/firebase";
@@ -129,6 +130,7 @@ function AnalyzePageContent() {
   const [supportResistance, setSupportResistance] = useState<SupportResistanceData | null>(null);
   const [news, setNews] = useState<NewsArticle[]>([]);
   const [sentiment, setSentiment] = useState<SentimentData | null>(null);
+  const [multiTimeframe, setMultiTimeframe] = useState<MultiTimeframeAnalysis | null>(null);
 
   // Watchlist State
   const [isInWatchlist, setIsInWatchlist] = useState(false);
@@ -527,6 +529,7 @@ function AnalyzePageContent() {
       setSupportResistance(data.supportResistance);
       setNews(data.news);
       setSentiment(data.sentiment);
+      setMultiTimeframe(data.multiTimeframe || null);
       setAnalysisReport(data.analysis);
       setAnalyzedSymbol(symbol);
 
@@ -727,6 +730,7 @@ function AnalyzePageContent() {
             isPriceStale={isPriceStale}
           />
         )}
+        <MultiTimeframePanel data={multiTimeframe} />
         {/* Configuration Selectors Bar */}
         {symbol && (
           <div className="bg-slate-900/60 border border-slate-800/80 backdrop-blur-md rounded-3xl p-4 lg:p-5 shadow-xl flex flex-col gap-4 relative z-20">
@@ -742,11 +746,13 @@ function AnalyzePageContent() {
                   aria-label="เลือกสไตล์การเทรด"
                   className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs font-semibold rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 cursor-pointer"
                 >
+                  <option value="scalping">Scalping (1–30 นาที / 1H → 15m → 5m)</option>
                   <option value="day">Day Trade (เก็งกำไรระยะสั้น / Minutes to Intraday)</option>
                   <option value="swing">Swing Trade (แนะนำ / เก็งกำไรส่วนต่างรอบ / Days to Weeks)</option>
                   <option value="position">Position Trade (เก็งกำไรตามทิศทางแนวโน้มใหญ่ / Weeks to Months)</option>
                 </select>
                 <p className="text-[10px] text-slate-500 font-medium">
+                  {tradingStyle === "scalping" && "Scalping: 1–30 นาที • แนะนำ: 5m • ใช้ 1H กรองทิศทาง, 15m ดู VWAP/โครงสร้าง, 5m รอ sweep และแท่งยืนยัน • หลีกเลี่ยงช่วงข่าวแรง"}
                   {tradingStyle === "day" && "ระยะถือครอง: นาทีถึงภายในวัน • แนะนำ: 5m, 15m, 1H • เน้น RSI/MACD/Vol และรับ-ต้านระยะสั้น"}
                   {tradingStyle === "swing" && "ระยะถือครอง: 3–20 วันโดยประมาณ • แนะนำ: 4H, 1D • เน้น EMA 20/50, โครงสร้าง และ ATR"}
                   {tradingStyle === "position" && "ระยะถือครอง: หลายสัปดาห์ถึงหลายเดือน • แนะนำ: 1D • เน้น EMA 50/200, Fibonacci และเทรนด์หลัก"}

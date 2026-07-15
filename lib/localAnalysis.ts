@@ -373,7 +373,7 @@ export function generateLocalReport(payload: LocalAnalysisPayload): string {
   const shortTechStrength = shortConfirmCount >= 6 ? "Strong ⭐⭐⭐" : shortConfirmCount >= 4 ? "Moderate ⭐⭐" : "Weak ⭐";
 
   // ── STOP LOSS, TAKE PROFIT & R:R VALIDATION ─────────────────────────────
-  let slFactor = tradingStyle === "day" ? 1.1 : tradingStyle === "position" ? 2.5 : 1.6;
+  let slFactor = tradingStyle === "scalping" ? 0.7 : tradingStyle === "day" ? 1.1 : tradingStyle === "position" ? 2.5 : 1.6;
   const slBuffer = atr14 * slFactor;
 
   // Long Math Guards
@@ -536,7 +536,7 @@ ${conflictAlert}${newsWarningSection}
 | ฟิลด์ | ข้อมูล |
 | :--- | :--- |
 | Symbol | **${symbol}** · Timeframe: **${timeframe}** |
-| Trading Style | **${tradingStyle === "day" ? "Day Trade" : tradingStyle === "position" ? "Position Trade" : "Swing Trade"}** |
+| Trading Style | **${tradingStyle === "scalping" ? "Scalping" : tradingStyle === "day" ? "Day Trade" : tradingStyle === "position" ? "Position Trade" : "Swing Trade"}** |
 | ราคาปัจจุบัน | **$${fmt(price)}** |
 | ความสดใหม่ข้อมูล | **สถานะ: LIVE** (${marketData.priceSource || "Direct API"}) · ${marketData.isDelayed ? "⚠️ Delayed 15m" : "⚡ Real-time"} |
 | อัปเดต | ${new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })} |

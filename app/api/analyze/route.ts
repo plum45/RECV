@@ -12,6 +12,8 @@ import { verifyFirebaseIdTokenDetailed } from "../../../lib/firebaseAdmin";
 import { calculatePriceProjection } from "../../../lib/priceProjection";
 import { getMergedCalendarEvents } from "../../../lib/liveCalendarService";
 import { getAssetProfile } from "../../../lib/assetProfile";
+import type { IndicatorData } from "../../../types/market";
+import type { MultiTimeframeAnalysis, MultiTimeframeBias, MultiTimeframeSnapshot } from "../../../types/analysis";
 
 import { z } from "zod";
 
@@ -20,9 +22,10 @@ export const runtime = "nodejs";
 const analyzeInputSchema = z.object({
   symbol: z.string().default("NVDA"),
   timeframe: z.string().default("1H"),
-  tradingStyle: z.enum(["day", "swing", "position"])
+  tradingStyle: z.enum(["scalping", "day", "swing", "position"])
     .or(z.string().transform((val) => {
       const lower = val.toLowerCase();
+      if (lower.includes("scalp")) return "scalping" as const;
       if (lower.includes("day")) return "day" as const;
       if (lower.includes("position")) return "position" as const;
       return "swing" as const;
@@ -37,6 +40,11 @@ const analyzeInputSchema = z.object({
 });
 
 const styleMeta = {
+  scalping: {
+    holdingPeriod: "1–30 นาที (Scalping)",
+    recommendedTimeframes: ["5m", "15m", "1H"],
+    styleReason: "ใช้ 1H กรองทิศทาง, 15m ดูโครงสร้างและ Session VWAP, 5m รอ liquidity sweep พร้อมแท่งยืนยัน; ปิดความเสี่ยงก่อนข่าวแรงและไม่ถือข้ามช่วงข่าว",
+  },
   day: {
     holdingPeriod: "นาทีถึงภายในวัน (Minutes to Intraday)",
     recommendedTimeframes: ["5m", "15m", "1H"],
@@ -53,6 +61,62 @@ const styleMeta = {
     styleReason: "เน้นทิศทางตามเทรนด์ภาพใหญ่ระดับมหภาคด้วยเส้น EMA 50/200, Fibonacci และแนวรับ/แนวต้านระยะยาว"
   }
 };
+
+function getMultiTimeframeBias(indicators: IndicatorData, price: number): MultiTimeframeBias {
+  const structure = indicators.marketStructure.type;
+  const priceAction = indicators.priceAction?.bias || "neutral";
+  const smartMoneyBias = indicators.smartMoney?.bos || "none";
+
+  if (smartMoneyBias === "bullish" || (structure === "uptrend" && priceAction === "bullish" && price >= indicators.vwap)) return "bullish";
+  if (smartMoneyBias === "bearish" || (structure === "downtrend" && priceAction === "bearish" && price <= indicators.vwap)) return "bearish";
+  return "neutral";
+}
+
+async function getPreciousMetalsMultiTimeframe(
+  symbol: string,
+  currentPrice: number,
+  selectedTimeframe: string,
+  tradingStyle: string,
+  primaryKlines: Awaited<ReturnType<typeof getKlines>>,
+  primaryIndicators: IndicatorData,
+  assetProfile: ReturnType<typeof getAssetProfile>
+): Promise<MultiTimeframeAnalysis> {
+  const isScalping = tradingStyle === "scalping";
+  const frames: Array<"1D" | "4H" | "1H" | "15m" | "5m"> = isScalping
+    ? ["1H", "15m", "5m"]
+    : ["1D", "4H", "1H"];
+  const selected = selectedTimeframe.toUpperCase();
+  const results = await Promise.allSettled(frames.map(async (frame) => {
+    const isPrimary = frame === selected;
+    const klines = isPrimary ? primaryKlines : await getKlines(symbol, frame, 450);
+    const indicators = isPrimary ? primaryIndicators : calculateIndicators(klines, assetProfile);
+    const snapshot: MultiTimeframeSnapshot = {
+      timeframe: frame,
+      status: "available",
+      bias: getMultiTimeframeBias(indicators, currentPrice),
+      structure: indicators.marketStructure.type,
+      priceAction: indicators.priceAction?.confirmation || "none",
+      bos: indicators.smartMoney?.bos || "none",
+      rsi: Number(indicators.rsi14.toFixed(1)),
+    };
+    return snapshot;
+  }));
+
+  const snapshots = results.map((result, index): MultiTimeframeSnapshot => (
+    result.status === "fulfilled"
+      ? result.value
+      : { timeframe: frames[index], status: "unavailable" }
+  ));
+  const available = snapshots.filter((snapshot) => snapshot.status === "available" && snapshot.bias !== "neutral");
+  const bullish = available.filter((snapshot) => snapshot.bias === "bullish").length;
+  const bearish = available.filter((snapshot) => snapshot.bias === "bearish").length;
+  const directionalBias: MultiTimeframeBias = bullish === bearish ? "neutral" : bullish > bearish ? "bullish" : "bearish";
+  const alignment = available.length < 2
+    ? "insufficient"
+    : (bullish === available.length || bearish === available.length) ? "aligned" : "mixed";
+
+  return { mode: isScalping ? "scalping" : "top_down", alignment, directionalBias, executionTimeframe: selectedTimeframe, snapshots };
+}
 
 export async function POST(request: Request) {
   try {
@@ -106,6 +170,13 @@ export async function POST(request: Request) {
       timeframe,
       assetProfile.assetClass
     );
+
+    // Metals use a top-down decision gate: 1D establishes the broader bias,
+    // 4H confirms market structure, and 1H validates the entry context. A
+    // missing secondary feed never invalidates the primary chart analysis.
+    const multiTimeframe = assetProfile.isPreciousMetal
+      ? await getPreciousMetalsMultiTimeframe(symbol, marketData.currentPrice, timeframe, tradingStyle, klines, indicators, assetProfile)
+      : undefined;
 
     // 5. Gather news
     const news = await fetchNews(symbol);
@@ -230,6 +301,7 @@ export async function POST(request: Request) {
       news,
       sentiment,
       priceProjection,
+      multiTimeframe,
       analysis: reportText,
     };
 

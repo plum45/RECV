@@ -30,7 +30,7 @@ import { getRecommendedTimeframe, getStoredTradingStyle, storeTradingStyle, type
 interface TradingPlan {
   id?: string;
   symbol: string;
-  tradingStyle: "day" | "swing" | "position";
+  tradingStyle: TradingStyle;
   direction: "long" | "short" | "wait";
   timeframe: string;
   entryApproach?: string;
@@ -292,6 +292,7 @@ Risk/Reward Ratio: 1:${plan.riskReward || 0}
                 onChange={(e) => handleTradingStyleChange(e.target.value as TradingStyle)}
                 className="w-full bg-slate-950 border border-slate-850 text-slate-200 text-xs font-semibold rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 cursor-pointer"
               >
+                <option value="scalping">Scalping (1–30 นาที / 1H → 15m → 5m)</option>
                 <option value="day">Day Trade (ถอยเร็ว / เทรดระยะสั้น)</option>
                 <option value="swing">Swing Trade (เก็งกำไรในกรอบแนวโน้ม)</option>
                 <option value="position">Position Trade (เก็งกำไรโครงสร้างใหญ่)</option>

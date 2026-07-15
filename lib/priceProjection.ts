@@ -35,7 +35,11 @@ export function calculatePriceProjection(
   const styleLower = (tradingStyle || "").toLowerCase();
   const tfLower = (timeframe || "").toLowerCase();
 
-  if (styleLower.includes("day") || styleLower.includes("scalp") || ["1m", "5m", "15m", "30m", "1h"].includes(tfLower)) {
+  if (styleLower.includes("scalp")) {
+    timeHorizon = "5–60 นาที (Scalping)";
+    atrScale = 0.8;
+    zoneBufferPct = 0.002;
+  } else if (styleLower.includes("day") || ["1m", "5m", "15m", "30m", "1h"].includes(tfLower)) {
     timeHorizon = "1-3 วัน (Day Trade / Intraday)";
     atrScale = 1.2;
     zoneBufferPct = 0.004; // 0.4%

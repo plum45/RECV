@@ -1,4 +1,4 @@
-export const TRADING_STYLES = ["day", "swing", "position"] as const;
+export const TRADING_STYLES = ["scalping", "day", "swing", "position"] as const;
 
 export type TradingStyle = (typeof TRADING_STYLES)[number];
 
@@ -21,6 +21,7 @@ export function storeTradingStyle(style: TradingStyle): void {
 }
 
 export function getRecommendedTimeframe(style: TradingStyle): string {
+  if (style === "scalping") return "5m";
   if (style === "day") return "15m";
   if (style === "position") return "1D";
   return "1H";

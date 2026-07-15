@@ -62,8 +62,9 @@ export function buildAnalysisPrompt(payload: PromptBuilderPayload): string {
 - Event Risk: ${payload.priceProjection.eventRisk.level} (${payload.priceProjection.eventRisk.warningMessage || "Low"})`
     : "คำนวณจาก Confluence S/R & Pivot";
 
-  const styleName = tradingStyle === "day" ? "Day Trade" : tradingStyle === "position" ? "Position Trade" : "Swing Trade";
+  const styleName = tradingStyle === "scalping" ? "Scalping" : tradingStyle === "day" ? "Day Trade" : tradingStyle === "position" ? "Position Trade" : "Swing Trade";
   const styleDescription = 
+    tradingStyle === "scalping" ? "Scalping (ถือ 1–30 นาที: ใช้ 1H กรองทิศทาง, 15m ยืนยันโครงสร้างและ VWAP, 5m รอ liquidity sweep กับแท่งยืนยัน; ใช้ Stop Loss แคบตาม ATR และงดเปิดก่อนข่าวแรง)" :
     tradingStyle === "day" ? "Day Trade (สไตล์เก็งกำไรระยะสั้น: ระยะถือครอง นาทีถึงภายในวัน, ไทม์เฟรมแนะนำ: 5m, 15m, 1H. เน้นวิเคราะห์ RSI, MACD, Volume และแนวรับ/แนวต้านระยะสั้น, กำหนดจุด Stop Loss แคบเพื่อรักษาเงินทุน)" :
     tradingStyle === "position" ? "Position Trade (สไตล์เก็งกำไรระยะยาว: ระยะถือครอง หลายสัปดาห์ถึงหลายเดือน, ไทม์เฟรมแนะนำ: 1D และ 1W. เน้นวิเคราะห์ EMA 50/200, โครงสร้าง Trend ภาพใหญ่ระยะยาว, ระดับ Fibonacci และแนวรับ/แนวต้านระยะยาวเป็นหลัก โดยไม่ให้น้ำหนักกับสัญญาณ RSI ความผันผวนย่อยระยะสั้น, กำหนด Stop Loss และ Take Profit กว้างเพื่อถือทนความผันผวน)" :
     "Swing Trade (สไตล์เก็งกำไรรอบกลาง: ระยะถือครอง หลายวันถึงหลายสัปดาห์ เช่น 3–20 วัน, ไทม์เฟรมแนะนำ: 4H, 1D. เน้นวิเคราะห์ EMA 20/50, โครงสร้างตลาด Market Structure, RSI, MACD และแนวรับ/แนวต้านที่สดใหม่, ใช้ ATR ในการกำหนด Stop Loss ระยะปลอดภัย)";
