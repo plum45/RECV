@@ -33,6 +33,7 @@ interface TradingPlan {
   tradingStyle: "day" | "swing" | "position";
   direction: "long" | "short" | "wait";
   timeframe: string;
+  entryApproach?: string;
   entryLow?: number;
   entryHigh?: number;
   stopLoss?: number;
@@ -205,6 +206,7 @@ export default function TradingPlanPage() {
 ทิศทาง: ${plan.direction.toUpperCase()}
 กรอบเวลา: ${plan.timeframe}
 จุดเข้าซื้อ: ${plan.entryLow ? `$${plan.entryLow} - $${plan.entryHigh}` : "N/A"}
+วิธีเข้า: ${plan.entryApproach || "N/A"}
 Stop Loss: ${plan.stopLoss ? `$${plan.stopLoss}` : "N/A"}
 Take Profit: ${plan.takeProfit1 ? `TP1: $${plan.takeProfit1} | TP2: $${plan.takeProfit2} | TP3: $${plan.takeProfit3}` : "N/A"}
 Risk/Reward Ratio: 1:${plan.riskReward || 0}
@@ -439,6 +441,9 @@ Risk/Reward Ratio: 1:${plan.riskReward || 0}
                   <span className="text-base font-black text-white font-mono">
                     {generatedPlan.entryLow ? `$${generatedPlan.entryLow} - $${generatedPlan.entryHigh}` : "N/A"}
                   </span>
+                  {generatedPlan.entryApproach && (
+                    <span className="block text-[10px] text-cyan-300 leading-relaxed">{generatedPlan.entryApproach}</span>
+                  )}
                 </div>
 
                 <div className="bg-slate-950 border border-slate-850 p-3.5 rounded-2xl space-y-1">

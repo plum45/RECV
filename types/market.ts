@@ -158,6 +158,9 @@ export interface SupportResistanceZone {
   components?: ZoneComponents;
   ageString?: string;
   distancePercent?: number;
+  /** Nearest actionable level or broader market-structure level. */
+  role?: "nearest" | "structural" | "secondary";
+  timeframe?: string;
 }
 
 export interface SupportResistanceData {

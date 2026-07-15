@@ -332,6 +332,16 @@ export function SupportResistanceZonesPanel({ supportResistance }: { supportResi
                   </div>
                   {/* Status & Quant Badges */}
                   <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    {sz.role === "nearest" && (
+                      <span className="bg-cyan-950/90 text-cyan-300 border border-cyan-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                        Nearest / จุดเฝ้าดู
+                      </span>
+                    )}
+                    {sz.role === "structural" && (
+                      <span className="bg-violet-950/90 text-violet-300 border border-violet-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                        Structural / แนวหลัก
+                      </span>
+                    )}
                     {sz.freshness === "fresh" && (
                       <span className="bg-emerald-950/90 text-emerald-300 border border-emerald-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
                         ⚡ Fresh
@@ -407,6 +417,16 @@ export function SupportResistanceZonesPanel({ supportResistance }: { supportResi
                   </div>
                   {/* Status & Quant Badges */}
                   <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    {rz.role === "nearest" && (
+                      <span className="bg-cyan-950/90 text-cyan-300 border border-cyan-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                        Nearest / จุดเฝ้าดู
+                      </span>
+                    )}
+                    {rz.role === "structural" && (
+                      <span className="bg-violet-950/90 text-violet-300 border border-violet-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                        Structural / แนวหลัก
+                      </span>
+                    )}
                     {rz.freshness === "fresh" && (
                       <span className="bg-emerald-950/90 text-emerald-300 border border-emerald-700/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
                         ⚡ Fresh

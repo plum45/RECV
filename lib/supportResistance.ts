@@ -18,6 +18,34 @@ interface CandidatePoint {
   age?: number;
 }
 
+interface TimeframeProfile {
+  historyBars: number;
+  swingWindow: number;
+  clusterAtrMultiplier: number;
+  minClusterPercent: number;
+  maxClusterPercent: number;
+  minZoneHalfWidthPercent: number;
+  minSeparationAtrMultiplier: number;
+  minSeparationPercent: number;
+  freshBars: number;
+  recentBars: number;
+  agedBars: number;
+}
+
+function getTimeframeProfile(timeframe: string, availableBars: number): TimeframeProfile {
+  const profiles: Record<string, TimeframeProfile> = {
+    "5m": { historyBars: 360, swingWindow: 6, clusterAtrMultiplier: 0.55, minClusterPercent: 0.0015, maxClusterPercent: 0.006, minZoneHalfWidthPercent: 0.001, minSeparationAtrMultiplier: 1.0, minSeparationPercent: 0.003, freshBars: 96, recentBars: 216, agedBars: 360 },
+    "15m": { historyBars: 480, swingWindow: 8, clusterAtrMultiplier: 0.6, minClusterPercent: 0.002, maxClusterPercent: 0.008, minZoneHalfWidthPercent: 0.0015, minSeparationAtrMultiplier: 1.05, minSeparationPercent: 0.004, freshBars: 80, recentBars: 192, agedBars: 360 },
+    "1h": { historyBars: 420, swingWindow: 10, clusterAtrMultiplier: 0.65, minClusterPercent: 0.003, maxClusterPercent: 0.012, minZoneHalfWidthPercent: 0.002, minSeparationAtrMultiplier: 1.1, minSeparationPercent: 0.005, freshBars: 72, recentBars: 168, agedBars: 300 },
+    "4h": { historyBars: 360, swingWindow: 12, clusterAtrMultiplier: 0.7, minClusterPercent: 0.004, maxClusterPercent: 0.018, minZoneHalfWidthPercent: 0.003, minSeparationAtrMultiplier: 1.2, minSeparationPercent: 0.007, freshBars: 60, recentBars: 140, agedBars: 260 },
+    "1d": { historyBars: 300, swingWindow: 14, clusterAtrMultiplier: 0.75, minClusterPercent: 0.006, maxClusterPercent: 0.03, minZoneHalfWidthPercent: 0.004, minSeparationAtrMultiplier: 1.3, minSeparationPercent: 0.01, freshBars: 45, recentBars: 120, agedBars: 220 },
+    "1w": { historyBars: 208, swingWindow: 10, clusterAtrMultiplier: 0.8, minClusterPercent: 0.012, maxClusterPercent: 0.05, minZoneHalfWidthPercent: 0.008, minSeparationAtrMultiplier: 1.4, minSeparationPercent: 0.018, freshBars: 12, recentBars: 36, agedBars: 96 },
+  };
+
+  const profile = profiles[timeframe.toLowerCase()] || profiles["1h"];
+  return { ...profile, historyBars: Math.min(profile.historyBars, availableBars) };
+}
+
 interface GroupScoreResult {
   score: number;
   reasons: string[];
@@ -42,7 +70,8 @@ function calculateGroupScore(
   currentPrice: number,
   threshold: number,
   avgVolume: number,
-  timeframe = "1H"
+  timeframe = "1H",
+  profile = getTimeframeProfile(timeframe, klines.length)
 ): GroupScoreResult {
   const reasons: string[] = [];
   let baseScore = 0;
@@ -116,15 +145,15 @@ function calculateGroupScore(
   }
 
   let freshness: ZoneFreshness = "historical";
-  if (avgAgeBars <= 80) {
+  if (avgAgeBars <= profile.freshBars) {
     freshness = "fresh";
     freshnessScore = 1.0;
     reasons.push(`โซนสดใหม่ (เฉลี่ย ${ageString} ที่ผ่านมา)`);
-  } else if (avgAgeBars <= 200) {
+  } else if (avgAgeBars <= profile.recentBars) {
     freshness = "recent";
     freshnessScore = 0.0;
     reasons.push(`โซนระยะกลาง (เฉลี่ย ${ageString})`);
-  } else if (avgAgeBars <= 350) {
+  } else if (avgAgeBars <= profile.agedBars) {
     freshness = "aged";
     freshnessScore = -1.0;
     reasons.push(`โซนเก่า (เฉลี่ย ${ageString})`);
@@ -178,8 +207,9 @@ function calculateGroupScore(
   let failedReactions = 0;
   let lastTouchAge: number | null = null;
 
-  const touchLower = Math.min(minVal, mid * 0.9985);
-  const touchUpper = Math.max(maxVal, mid * 1.0015);
+  const reactionPadding = Math.max(threshold * 0.25, indicators.atr14 * 0.15);
+  const touchLower = Math.min(minVal, mid - reactionPadding);
+  const touchUpper = Math.max(maxVal, mid + reactionPadding);
   const searchStartIndex = nearby.reduce((minIdx, c) => Math.min(minIdx, c.index ?? 0), klines.length - 1);
 
   let lastTouchIdx = -10;
@@ -196,13 +226,13 @@ function calculateGroupScore(
       if (zoneType === "support") {
         if (bar.close >= touchLower && nextBar && nextBar.close > bar.close) {
           successfulReactions++;
-        } else if (bar.close < touchLower * 0.998) {
+        } else if (bar.close < touchLower - reactionPadding * 0.5) {
           failedReactions++;
         }
       } else {
         if (bar.close <= touchUpper && nextBar && nextBar.close < bar.close) {
           successfulReactions++;
-        } else if (bar.close > touchUpper * 1.002) {
+        } else if (bar.close > touchUpper + reactionPadding * 0.5) {
           failedReactions++;
         }
       }
@@ -314,10 +344,11 @@ export function calculateSupportResistance(
 
   const len = klines.length;
   const candidates: CandidatePoint[] = [];
+  const profile = getTimeframeProfile(timeframe, len);
 
   let minPrice = Infinity;
   let maxPrice = -Infinity;
-  const historyLookback = Math.max(0, len - 450);
+  const historyLookback = Math.max(0, len - profile.historyBars);
   for (let i = historyLookback; i < len; i++) {
     if (klines[i].low < minPrice) minPrice = klines[i].low;
     if (klines[i].high > maxPrice) maxPrice = klines[i].high;
@@ -325,8 +356,8 @@ export function calculateSupportResistance(
 
   const avgVolume = klines.reduce((sum, k) => sum + k.volume, 0) / len;
 
-  // 1. Detect Swing Highs and Swing Lows (W = 12)
-  const W = 12;
+  // 1. Detect swing points using a window calibrated to the selected timeframe.
+  const W = profile.swingWindow;
   for (let i = Math.max(W, historyLookback); i < len - W; i++) {
     const currentHigh = klines[i].high;
     const currentLow = klines[i].low;
@@ -435,19 +466,23 @@ export function calculateSupportResistance(
 
   // 4. Neighborhood density assessment
   const atrThreshold = indicators.atr14 > 0
-    ? Math.min(currentPrice * 0.015, Math.max(currentPrice * 0.006, indicators.atr14 * 0.75))
-    : currentPrice * 0.010;
+    ? Math.min(
+      currentPrice * profile.maxClusterPercent,
+      Math.max(currentPrice * profile.minClusterPercent, indicators.atr14 * profile.clusterAtrMultiplier)
+    )
+    : currentPrice * ((profile.minClusterPercent + profile.maxClusterPercent) / 2);
   const threshold = atrThreshold;
 
   const rawZones = candidates.map((c) => {
     const nearby = candidates.filter((other) => Math.abs(other.price - c.price) <= threshold);
-    const groupRes = calculateGroupScore(nearby, klines, indicators, currentPrice, threshold, avgVolume, timeframe);
+    const groupRes = calculateGroupScore(nearby, klines, indicators, currentPrice, threshold, avgVolume, timeframe, profile);
 
     let lower = groupRes._minVal;
     let upper = groupRes._maxVal;
     if (lower === upper) {
-      lower = lower * 0.995;
-      upper = upper * 1.005;
+      const halfWidth = Math.max(currentPrice * profile.minZoneHalfWidthPercent, indicators.atr14 * 0.3);
+      lower = Math.max(0, lower - halfWidth);
+      upper = upper + halfWidth;
     }
 
     const type: "support" | "resistance" = groupRes._mid < currentPrice ? "support" : "resistance";
@@ -476,6 +511,7 @@ export function calculateSupportResistance(
       components: groupRes.components,
       ageString: groupRes.ageString,
       distancePercent: Number(distancePercent.toFixed(2)),
+      timeframe,
       _mid: groupRes._mid,
     };
 
@@ -483,7 +519,10 @@ export function calculateSupportResistance(
   });
 
   // 5. Non-Maximum Suppression (NMS)
-  const minSeparation = currentPrice * 0.018;
+  const minSeparation = Math.max(
+    currentPrice * profile.minSeparationPercent,
+    indicators.atr14 * profile.minSeparationAtrMultiplier
+  );
   const selectedZones: typeof rawZones = [];
   const sortedRawZones = [...rawZones].sort((a, b) => b.score - a.score);
 
@@ -496,37 +535,38 @@ export function calculateSupportResistance(
     }
   }
 
-  // 6. Proximity filter: Filter out zones that are closer than 0.5% to the current price
-  const filteredZones = selectedZones.filter((z) => {
-    return z.distancePercent !== undefined && z.distancePercent >= 0.5;
-  });
+  const selectZones = (zones: typeof rawZones) => {
+    const viable = zones.filter((zone) => zone.status !== "broken");
+    const pool = viable.length > 0 ? viable : zones;
+    const byDistance = [...pool].sort((a, b) => (a.distancePercent || 0) - (b.distancePercent || 0));
+    const byStructure = [...pool].sort((a, b) => {
+      const aBonus = (a.strength === "major" ? 2 : a.strength === "strong" ? 1 : 0) + (a.freshness === "fresh" ? 1 : 0);
+      const bBonus = (b.strength === "major" ? 2 : b.strength === "strong" ? 1 : 0) + (b.freshness === "fresh" ? 1 : 0);
+      return (b.score + bBonus) - (a.score + aBonus);
+    });
 
-  const supportZonesRaw = filteredZones.filter((z) => z.type === "support");
-  const resistanceZonesRaw = filteredZones.filter((z) => z.type === "resistance");
+    const selected: Array<(typeof rawZones)[number] & { role: "nearest" | "structural" | "secondary" }> = [];
+    const add = (zone: (typeof rawZones)[number] | undefined, role: "nearest" | "structural" | "secondary") => {
+      if (zone && !selected.some((item) => Math.abs(item._mid - zone._mid) < minSeparation / 2)) {
+        selected.push({ ...zone, role });
+      }
+    };
 
-  const topSupports = supportZonesRaw
-    .sort((a, b) => {
-      const aBonus = (a.freshness === "fresh" ? 1.5 : 0) + (a.status === "active" ? 1 : 0);
-      const bBonus = (b.freshness === "fresh" ? 1.5 : 0) + (b.status === "active" ? 1 : 0);
-      return (b.score + bBonus) - (a.score + aBonus) || b._mid - a._mid;
-    })
-    .slice(0, 3);
+    add(byDistance[0], "nearest");
+    add(byStructure[0], "structural");
+    for (const zone of byStructure) {
+      if (selected.length >= 3) break;
+      add(zone, "secondary");
+    }
 
-  const supportZones: SupportResistanceZone[] = topSupports
-    .sort((a, b) => b._mid - a._mid)
-    .map(({ _mid, ...rest }) => rest);
+    return selected;
+  };
 
-  const topResistances = resistanceZonesRaw
-    .sort((a, b) => {
-      const aBonus = (a.freshness === "fresh" ? 1.5 : 0) + (a.status === "active" ? 1 : 0);
-      const bBonus = (b.freshness === "fresh" ? 1.5 : 0) + (b.status === "active" ? 1 : 0);
-      return (b.score + bBonus) - (a.score + aBonus) || a._mid - b._mid;
-    })
-    .slice(0, 3);
+  const topSupports = selectZones(selectedZones.filter((z) => z.type === "support"));
+  const topResistances = selectZones(selectedZones.filter((z) => z.type === "resistance"));
 
-  const resistanceZones: SupportResistanceZone[] = topResistances
-    .sort((a, b) => a._mid - b._mid)
-    .map(({ _mid, ...rest }) => rest);
+  const supportZones: SupportResistanceZone[] = topSupports.map(({ _mid, ...rest }) => rest);
+  const resistanceZones: SupportResistanceZone[] = topResistances.map(({ _mid, ...rest }) => rest);
 
   return {
     supportZones,

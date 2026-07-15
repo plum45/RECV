@@ -86,21 +86,27 @@ export async function POST(request: Request) {
     const atr = indicators.atr14 || price * 0.02;
     const slBuffer = atr * styleMeta[tradingStyle].slFactor;
 
-    // Get Support/Resistance levels midpoint
-    const parseSRMid = (zone: string | undefined): number => {
-      if (!zone) return 0;
+    const parseSRRange = (zone: string | undefined): { low: number; high: number; mid: number } | null => {
+      if (!zone) return null;
       const parts = zone.replace(/,/g, "").split("-");
-      if (parts.length === 2) return (parseFloat(parts[0]) + parseFloat(parts[1])) / 2;
-      return 0;
+      if (parts.length !== 2) return null;
+      const low = parseFloat(parts[0]);
+      const high = parseFloat(parts[1]);
+      if (!Number.isFinite(low) || !Number.isFinite(high) || low <= 0 || high <= 0) return null;
+      return { low: Math.min(low, high), high: Math.max(low, high), mid: (low + high) / 2 };
     };
 
     const { supportZones, resistanceZones } = supportResistance;
     const { fibonacci: fib } = indicators;
 
-    const sup1 = parseSRMid(supportZones[0]?.zone) || fib.r618 || price * 0.97;
-    const sup2 = parseSRMid(supportZones[1]?.zone) || fib.r786 || price * 0.94;
-    const res1 = parseSRMid(resistanceZones[0]?.zone) || fib.r236 || price * 1.03;
-    const res2 = parseSRMid(resistanceZones[1]?.zone) || fib.ext127 || price * 1.06;
+    const nearestSupport = supportZones.find((zone) => zone.role === "nearest") || supportZones[0];
+    const structuralSupport = supportZones.find((zone) => zone.role === "structural") || supportZones[1];
+    const nearestResistance = resistanceZones.find((zone) => zone.role === "nearest") || resistanceZones[0];
+    const structuralResistance = resistanceZones.find((zone) => zone.role === "structural") || resistanceZones[1];
+    const supportEntryZone = parseSRRange(nearestSupport?.zone);
+    const structuralSupportZone = parseSRRange(structuralSupport?.zone);
+    const resistanceEntryZone = parseSRRange(nearestResistance?.zone);
+    const structuralResistanceZone = parseSRRange(structuralResistance?.zone);
 
     let entryLow = 0;
     let entryHigh = 0;
@@ -110,26 +116,44 @@ export async function POST(request: Request) {
     let takeProfit3 = 0;
     let riskReward = 0;
     let positionSize = 0;
+    let entryApproach = "Adaptive ATR entry band";
+    const fallbackEntryHalfWidth = Math.max(
+      atr * 0.35,
+      price * (tradingStyle === "day" ? 0.0015 : tradingStyle === "position" ? 0.005 : 0.003)
+    );
+    const technicalStopBuffer = Math.max(atr * 0.35, price * 0.0015);
 
     if (direction === "long") {
-      const entryMid = price; // Buy around market
-      entryLow = entryMid * 0.995;
-      entryHigh = entryMid * 1.005;
-      stopLoss = Math.max(sup1 - (atr * 0.5), entryMid - slBuffer);
-      takeProfit1 = res1 > entryMid ? res1 : entryMid + slBuffer * 1.5;
-      takeProfit2 = res2 > takeProfit1 ? res2 : entryMid + slBuffer * 2.5;
+      if (supportEntryZone) {
+        entryLow = supportEntryZone.low;
+        entryHigh = supportEntryZone.high;
+        entryApproach = `Wait for nearest support zone ${nearestSupport?.zone}${nearestSupport?.distancePercent !== undefined ? ` (${nearestSupport.distancePercent}% away)` : ""}`;
+      } else {
+        entryLow = price - fallbackEntryHalfWidth;
+        entryHigh = price + fallbackEntryHalfWidth;
+      }
+      const entryMid = (entryLow + entryHigh) / 2;
+      stopLoss = supportEntryZone ? supportEntryZone.low - technicalStopBuffer : entryMid - slBuffer;
+      takeProfit1 = resistanceEntryZone && resistanceEntryZone.low > entryMid ? resistanceEntryZone.low : entryMid + Math.max(atr, slBuffer * 1.5);
+      takeProfit2 = structuralResistanceZone && structuralResistanceZone.low > takeProfit1 ? structuralResistanceZone.low : entryMid + Math.max(atr * 2, slBuffer * 2.5);
       takeProfit3 = fib.ext161 > takeProfit2 ? fib.ext161 : takeProfit2 + slBuffer * 1.5;
 
       const riskPerUnit = entryMid - stopLoss;
       riskReward = riskPerUnit > 0 ? (takeProfit2 - entryMid) / riskPerUnit : 0;
       positionSize = riskPerUnit > 0 ? (capital * (risk / 100)) / riskPerUnit : 0;
     } else if (direction === "short") {
-      const entryMid = price;
-      entryLow = entryMid * 0.995;
-      entryHigh = entryMid * 1.005;
-      stopLoss = entryMid + slBuffer;
-      takeProfit1 = sup1 < entryMid ? sup1 : entryMid - slBuffer * 1.5;
-      takeProfit2 = sup2 < takeProfit1 ? sup2 : entryMid - slBuffer * 2.5;
+      if (resistanceEntryZone) {
+        entryLow = resistanceEntryZone.low;
+        entryHigh = resistanceEntryZone.high;
+        entryApproach = `Wait for nearest resistance zone ${nearestResistance?.zone}${nearestResistance?.distancePercent !== undefined ? ` (${nearestResistance.distancePercent}% away)` : ""}`;
+      } else {
+        entryLow = price - fallbackEntryHalfWidth;
+        entryHigh = price + fallbackEntryHalfWidth;
+      }
+      const entryMid = (entryLow + entryHigh) / 2;
+      stopLoss = resistanceEntryZone ? resistanceEntryZone.high + technicalStopBuffer : entryMid + slBuffer;
+      takeProfit1 = supportEntryZone && supportEntryZone.high < entryMid ? supportEntryZone.high : entryMid - Math.max(atr, slBuffer * 1.5);
+      takeProfit2 = structuralSupportZone && structuralSupportZone.high < takeProfit1 ? structuralSupportZone.high : entryMid - Math.max(atr * 2, slBuffer * 2.5);
       takeProfit3 = fib.r786 < takeProfit2 ? fib.r786 : takeProfit2 - slBuffer * 1.5;
 
       const riskPerUnit = stopLoss - entryMid;
@@ -141,7 +165,7 @@ export async function POST(request: Request) {
     let holdingPeriod = styleMeta[tradingStyle].holdingPeriod;
     let invalidation = direction === "long" ? `ราคาปิดต่ำกว่าแนวรับ Stop Loss ที่ $${stopLoss.toFixed(2)}` : direction === "short" ? `ราคาทะลุผ่านกรอบ Stop Loss ด้านบนที่ $${stopLoss.toFixed(2)}` : "สัญญาณไม่ชัดเจน ไม่ควรเปิดออเดอร์";
     let confidence = 50;
-    let reasoning = "วิเคราะห์ตามเงื่อนไขเทคนิคัลเครื่องมือดัชนีชี้วัด EMA, RSI, MACD และวอลุ่มหนาแน่นสอดคล้องกัน";
+    let reasoning = `${entryApproach}. วิเคราะห์ตามเงื่อนไขเทคนิคัลเครื่องมือดัชนีชี้วัด EMA, RSI, MACD และวอลุ่มหนาแน่นสอดคล้องกัน`;
 
     const hasApiKey = process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== "your_openai_api_key";
     if (hasApiKey && direction !== "wait") {
@@ -151,6 +175,7 @@ Price: ${price}
 Style: ${tradingStyle}
 Direction: ${direction}
 Entry: $${entryLow.toFixed(2)} - $${entryHigh.toFixed(2)}
+Entry approach: ${entryApproach}
 Stop Loss: $${stopLoss.toFixed(2)}
 Take Profit 1: $${takeProfit1.toFixed(2)}
 Take Profit 2: $${takeProfit2.toFixed(2)}
@@ -182,6 +207,7 @@ Respond ONLY with a JSON object in this exact format:
       tradingStyle,
       direction,
       timeframe,
+      entryApproach: direction === "wait" ? undefined : entryApproach,
       entryLow: direction === "wait" ? undefined : parseFloat(entryLow.toFixed(4)),
       entryHigh: direction === "wait" ? undefined : parseFloat(entryHigh.toFixed(4)),
       stopLoss: direction === "wait" ? undefined : parseFloat(stopLoss.toFixed(4)),
