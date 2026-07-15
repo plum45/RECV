@@ -120,7 +120,7 @@ const symbolGroups = [
   {
     group: "Precious Metals (ทองและเงิน)",
     stocks: [
-      { value: "XAUUSD=X", label: "Gold Spot / ทองคำ (XAUUSD)" },
+      { value: "XAUUSD", label: "Gold Spot / ทองคำ (XAUUSD)" },
       { value: "SI=F", label: "Silver Futures / เงิน (SI=F)" },
     ],
   },

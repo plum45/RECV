@@ -20,7 +20,7 @@ export interface AssetProfile {
   macroDrivers: string[];
 }
 
-const PRECIOUS_METAL_SYMBOLS = new Set(["GC=F", "SI=F", "XAUUSD=X", "XAGUSD=X"]);
+const PRECIOUS_METAL_SYMBOLS = new Set(["GC=F", "SI=F", "XAUUSD", "XAGUSD", "XAUUSD=X", "XAGUSD=X"]);
 
 const defaultProfile: AssetProfile = {
   assetClass: "equity",
@@ -61,4 +61,3 @@ export function getAssetProfile(symbol: string): AssetProfile {
   if (normalized.endsWith("-USD")) return cryptoProfile;
   return defaultProfile;
 }
-

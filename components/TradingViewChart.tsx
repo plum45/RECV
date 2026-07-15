@@ -33,6 +33,9 @@ function resolveTvSymbol(symbol: string): string {
   const metalsSymbols: Record<string, string> = {
     "GC=F": "COMEX:GC1!",
     "SI=F": "COMEX:SI1!",
+    XAUUSD: "OANDA:XAUUSD",
+    XAGUSD: "OANDA:XAGUSD",
+    // Keep old bookmarked Yahoo-style URLs working.
     "XAUUSD=X": "OANDA:XAUUSD",
     "XAGUSD=X": "OANDA:XAGUSD",
   };

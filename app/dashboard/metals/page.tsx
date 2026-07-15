@@ -8,7 +8,7 @@ import type { TickerData } from "../../../types/market";
 import { getAssetProfile } from "../../../lib/assetProfile";
 
 const metals = [
-  { symbol: "XAUUSD=X", name: "XAUUSD", thaiName: "ทองคำ Spot", accent: "amber" },
+  { symbol: "XAUUSD", name: "XAUUSD", thaiName: "ทองคำ Spot", accent: "amber" },
   { symbol: "SI=F", name: "Silver", thaiName: "เงิน", accent: "slate" },
 ] as const;
 
@@ -44,7 +44,7 @@ export default function PreciousMetalsPage() {
     };
   }, [refresh]);
 
-  const profile = getAssetProfile("XAUUSD=X");
+  const profile = getAssetProfile("XAUUSD");
 
   return (
     <div className="min-h-full bg-[#090d16] p-4 pb-24 text-slate-100 sm:p-6 lg:p-8">
@@ -99,7 +99,7 @@ export default function PreciousMetalsPage() {
                 </p>
                 <p className="mt-1 text-xs text-slate-500">{quote?.priceSource || (loading ? "กำลังดึงราคา" : "รอข้อมูลราคา")}</p>
                 <div className="mt-6 grid grid-cols-2 gap-3">
-                  <Link href={`/dashboard/analyze?symbol=${encodeURIComponent(symbol)}&timeframe=4H`} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-white px-3 py-2.5 text-xs font-black text-slate-950 transition hover:bg-slate-200">
+                  <Link href={`/dashboard/analyze?symbol=${encodeURIComponent(symbol)}&timeframe=1D`} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-white px-3 py-2.5 text-xs font-black text-slate-950 transition hover:bg-slate-200">
                     <BarChart3 size={14} /> วิเคราะห์
                   </Link>
                   <Link href={`/dashboard/plan?symbol=${encodeURIComponent(symbol)}`} className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-xs font-bold text-slate-200 transition hover:border-slate-500">

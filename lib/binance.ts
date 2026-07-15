@@ -8,6 +8,11 @@ export function normalizeSymbol(symbol: string): string {
   // Support Thai stock suffix mapping or clean up double dots
   clean = clean.replace(/\.+/g, ".");
 
+  // XAUUSD/XAGUSD are the public symbols used throughout the product. Yahoo's
+  // provider suffix is added only at the network boundary below.
+  if (clean === "XAUUSD=X") return "XAUUSD";
+  if (clean === "XAGUSD=X") return "XAGUSD";
+
   // Check if it's a known crypto ticker and normalize to BASE-USD
   // e.g. BTCUSDT -> BTC-USD, btc-usd -> BTC-USD, BTC -> BTC-USD
   const cryptoMatch = clean.match(/^(BTC|ETH|SOL|BNB|ADA|XRP|DOT|DOGE|LTC|LINK)(USDT|-USD|USD)?$/);
@@ -26,6 +31,91 @@ const YF_HEADERS = {
   "Cache-Control": "no-cache",
   "Pragma": "no-cache"
 };
+
+const SPOT_METALS = new Set(["XAUUSD", "XAGUSD"]);
+
+function toYahooSymbol(symbol: string): string {
+  if (symbol === "XAUUSD") return "XAUUSD=X";
+  if (symbol === "XAGUSD") return "XAGUSD=X";
+  return symbol;
+}
+
+/**
+ * Independent, keyless spot-metals fallback. Yahoo can rate-limit server IPs;
+ * do not let that take the whole XAU/XAG analysis page down.
+ */
+async function getSpotMetalsTicker(symbol: string): Promise<TickerData> {
+  const response = await axios.get<any>("https://xaus.com/api/v1/spot", {
+    timeout: 4500,
+    headers: { Accept: "application/json" },
+  });
+  const data = response.data;
+  const isGold = symbol === "XAUUSD";
+  const price = isGold ? Number(data?.xau?.price ?? data?.spot_usd_oz) : Number(data?.silver_usd_oz);
+  if (!Number.isFinite(price) || price <= 0) {
+    throw new Error(`Invalid spot-metals response for ${symbol}`);
+  }
+
+  const dayRange = data?.ranges?.day || {};
+  const high = Number(dayRange.high);
+  const low = Number(dayRange.low);
+  return {
+    symbol,
+    currentPrice: price,
+    high24h: Number.isFinite(high) && high > 0 ? high : price,
+    low24h: Number.isFinite(low) && low > 0 ? low : price,
+    volume24h: 0,
+    change24h: 0,
+    regularPrice: price,
+    regularChange: 0,
+    regularChangePercent: 0,
+    preMarketPrice: null,
+    preMarketChange: null,
+    preMarketChangePercent: null,
+    postMarketPrice: null,
+    postMarketChange: null,
+    postMarketChangePercent: null,
+    previousClose: null,
+    marketState: "REGULAR",
+    priceSource: "XAUS Spot API",
+    priceTimestamp: data?.price_as_of || data?.updated_at || new Date().toISOString(),
+    isDelayed: Boolean(data?.stale),
+  };
+}
+
+async function getSpotMetalsDailyKlines(symbol: string, limit: number): Promise<KlineData[]> {
+  const response = await axios.get<any>("https://xaus.com/api/v1/history", {
+    timeout: 7000,
+    headers: { Accept: "application/json" },
+  });
+  const points = response.data?.points;
+  if (symbol !== "XAUUSD" || !Array.isArray(points) || points.length < 50) {
+    throw new Error(`Insufficient spot-metals history for ${symbol}`);
+  }
+
+  const klines = points
+    .map((point: { d?: string; c?: number; h?: number; l?: number }, index: number) => {
+      const close = Number(point.c);
+      const high = Number(point.h);
+      const low = Number(point.l);
+      const open = index > 0 ? Number(points[index - 1]?.c) : close;
+      const openTime = Date.parse(`${String(point.d || "").trim()}T00:00:00.000Z`);
+      if (![open, high, low, close, openTime].every(Number.isFinite) || low > high) return null;
+      return {
+        openTime,
+        open,
+        high,
+        low,
+        close,
+        volume: 0,
+        closeTime: openTime + 24 * 60 * 60 * 1000,
+      } satisfies KlineData;
+    })
+    .filter((item: KlineData | null): item is KlineData => item !== null);
+
+  if (klines.length < 50) throw new Error(`Invalid spot-metals history for ${symbol}`);
+  return klines.slice(-limit);
+}
 
 function getBaselinePrice(symbol: string): number {
   const sym = symbol.toUpperCase().trim();
@@ -191,7 +281,17 @@ export async function getKlines(
 ): Promise<KlineData[]> {
   const cleanSymbol = symbol.toUpperCase().trim();
   const finnhubKey = process.env.FINNHUB_API_KEY;
-  const yahooOnlySymbol = ["XAUUSD=X", "XAGUSD=X"].includes(cleanSymbol);
+  const yahooOnlySymbol = SPOT_METALS.has(cleanSymbol);
+
+  // The Spot Metals API supplies reliable daily XAUUSD candles without Yahoo's
+  // IP rate limits. Intraday stays with the configured market-data provider.
+  if (cleanSymbol === "XAUUSD" && interval.toLowerCase() === "1d") {
+    try {
+      return await getSpotMetalsDailyKlines(cleanSymbol, limit);
+    } catch (err: any) {
+      console.warn(`Spot-metals daily history fetch failed for ${cleanSymbol}, falling back to Yahoo Finance:`, err.message);
+    }
+  }
 
   // 1. Try Finnhub first if API key is configured
   if (finnhubKey && !yahooOnlySymbol) {
@@ -236,7 +336,8 @@ export async function getKlines(
   // 2. Fallback to Yahoo Finance
   try {
     const { yfInterval, range } = mapTimeframeToYf(interval);
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${cleanSymbol}?interval=${yfInterval}&range=${range}`;
+    const sourceSymbol = toYahooSymbol(cleanSymbol);
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sourceSymbol}?interval=${yfInterval}&range=${range}`;
     const response = await axios.get<any>(url, { headers: YF_HEADERS, timeout: 4500 });
 
     const result = response.data?.chart?.result?.[0];
@@ -282,7 +383,15 @@ export async function getKlines(
 export async function getTicker(symbol: string): Promise<TickerData> {
   const cleanSymbol = symbol.toUpperCase().trim();
   const finnhubKey = process.env.FINNHUB_API_KEY;
-  const yahooOnlySymbol = ["XAUUSD=X", "XAGUSD=X"].includes(cleanSymbol);
+  const yahooOnlySymbol = SPOT_METALS.has(cleanSymbol);
+
+  if (yahooOnlySymbol) {
+    try {
+      return await getSpotMetalsTicker(cleanSymbol);
+    } catch (err: any) {
+      console.warn(`Spot-metals ticker fetch failed for ${cleanSymbol}, falling back to Yahoo Finance:`, err.message);
+    }
+  }
 
   // 1. Try Finnhub first if API key is configured
   if (finnhubKey && !yahooOnlySymbol) {
@@ -331,7 +440,8 @@ export async function getTicker(symbol: string): Promise<TickerData> {
 
   // 2. Fallback to Yahoo Finance
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${cleanSymbol}?interval=1d&range=5d`;
+    const sourceSymbol = toYahooSymbol(cleanSymbol);
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sourceSymbol}?interval=1d&range=5d`;
     const response = await axios.get<any>(url, { headers: YF_HEADERS, timeout: 4000 });
 
     const result = response.data?.chart?.result?.[0];

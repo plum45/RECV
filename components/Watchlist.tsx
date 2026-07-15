@@ -24,6 +24,13 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 // ─── Helpers ──────────────────────────────────────────────────
 const STORAGE_KEY = "rocket_watchlist";
 
+function canonicalizeWatchlistSymbol(symbol: string): string {
+  const normalized = symbol.trim().toUpperCase();
+  if (normalized === "XAUUSD=X") return "XAUUSD";
+  if (normalized === "XAGUSD=X") return "XAGUSD";
+  return normalized;
+}
+
 function loadSymbolsFromStorage(): string[] {
   if (typeof window === "undefined") return [];
   try {
@@ -31,7 +38,9 @@ function loadSymbolsFromStorage(): string[] {
     if (!saved) return [];
     const parsed = JSON.parse(saved);
     return Array.isArray(parsed)
-      ? parsed.filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+      ? Array.from(new Set(parsed
+        .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+        .map(canonicalizeWatchlistSymbol)))
       : [];
   } catch {
     return [];
@@ -82,7 +91,9 @@ export default function Watchlist() {
           if (Array.isArray(data.watchlist) && data.watchlist.length > 0) {
             // Merge Firebase watchlist with local (union, no duplicates)
             setSymbols((prev) => {
-              const merged = Array.from(new Set([...prev, ...data.watchlist]));
+              const merged = Array.from(new Set([...prev, ...data.watchlist]
+                .filter((symbol): symbol is string => typeof symbol === "string")
+                .map(canonicalizeWatchlistSymbol)));
               saveSymbolsToStorage(merged);
               return merged;
             });

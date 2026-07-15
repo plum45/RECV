@@ -55,6 +55,13 @@ export const SYMBOL_ALIAS_MAP: Record<string, string> = {
   "DOGEUSDT": "DOGE",
   "ADAUSDT": "ADA",
   "AVAXUSDT": "AVAX",
+
+  // Precious metals: retain compatibility with the Yahoo provider notation,
+  // but expose the universally recognised spot symbols in the app.
+  "XAUUSD=X": "XAUUSD",
+  "XAUUSD": "XAUUSD",
+  "XAGUSD=X": "XAGUSD",
+  "XAGUSD": "XAGUSD",
 };
 
 /**
