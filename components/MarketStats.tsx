@@ -64,6 +64,9 @@ export default function MarketStats({
     volumeColor = "text-amber-400 font-bold animate-pulse";
   }
 
+  const vwapLabel = indicators.vwapDetails.type === "session" ? "Session VWAP" : "Rolling VWAP";
+  const vwapIsBullish = indicators.vwap > 0 && displayPrice.price >= indicators.vwap;
+
   const compactNumber = new Intl.NumberFormat("en-US", {
     notation: "compact",
     maximumFractionDigits: 1,
@@ -243,6 +246,20 @@ export default function MarketStats({
                   <span className="text-slate-400 text-xs sm:text-sm">ATR (14)</span>
                   <span className="text-slate-100 font-semibold">{indicators.atr14.toFixed(2)}</span>
                 </div>
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b border-slate-800 pb-2.5 gap-1 min-w-0">
+                  <span className="text-slate-400 text-xs sm:text-sm">{vwapLabel}</span>
+                  <span className={`text-xs sm:text-sm font-semibold ${vwapIsBullish ? "text-emerald-400" : "text-rose-400"}`}>
+                    ${indicators.vwap.toFixed(2)} · {vwapIsBullish ? "Above" : "Below"}
+                  </span>
+                </div>
+                {indicators.anchoredVwap && (
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b border-slate-800 pb-2.5 gap-1 min-w-0">
+                    <span className="text-slate-400 text-xs sm:text-sm">Anchored VWAP</span>
+                    <span className={`text-xs sm:text-sm font-semibold ${displayPrice.price >= indicators.anchoredVwap.value ? "text-cyan-300" : "text-amber-300"}`}>
+                      ${indicators.anchoredVwap.value.toFixed(2)} · {indicators.anchoredVwap.anchorType.replace("_", " ")}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center min-w-0">
                   <span className="text-slate-400 text-xs sm:text-sm">Volume Analysis</span>
                   <span className={`text-xs sm:text-sm font-semibold ${volumeColor}`}>{volumeSpikeLabel}</span>

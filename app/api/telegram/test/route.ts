@@ -30,6 +30,10 @@ export async function POST(request: Request) {
 
     const token = getTelegramBotToken();
     if (!token) {
+      await db.collection("users").doc(uid).collection("settings").doc("telegram").set({
+        lastDeliveryError: "Server configuration missing TELEGRAM_BOT_TOKEN",
+        lastDeliveryErrorAt: Date.now(),
+      }, { merge: true });
       return NextResponse.json({ success: false, message: "Server configuration missing TELEGRAM_BOT_TOKEN" }, { status: 500 });
     }
 
@@ -53,8 +57,19 @@ export async function POST(request: Request) {
         });
       }
 
+      await db.collection("users").doc(uid).collection("settings").doc("telegram").set({
+        lastDeliveryError: String(errMsg || "Telegram delivery failed"),
+        lastDeliveryErrorAt: Date.now(),
+      }, { merge: true });
+
       return NextResponse.json({ success: false, message: `ส่งข้อความทดสอบล้มเหลว: ${errMsg}` }, { status: 500 });
     }
+
+    await db.collection("users").doc(uid).collection("settings").doc("telegram").set({
+      lastDeliveryAt: Date.now(),
+      lastDeliveryError: null,
+      lastDeliveryErrorAt: null,
+    }, { merge: true });
 
     return NextResponse.json({ success: true, message: "ส่งข้อความทดสอบสำเร็จ!" });
   } catch (error: any) {

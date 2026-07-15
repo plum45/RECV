@@ -502,6 +502,26 @@ export default function SRChart({ klines, indicators, supportResistance, current
               />
             )}
 
+            {/* === VWAP context lines === */}
+            {indicators.vwap > 0 && (
+              <ReferenceLine
+                y={indicators.vwap}
+                stroke="#22d3ee"
+                strokeWidth={1.4}
+                strokeDasharray="6 3"
+                strokeOpacity={0.8}
+              />
+            )}
+            {indicators.anchoredVwap?.value && (
+              <ReferenceLine
+                y={indicators.anchoredVwap.value}
+                stroke="#fbbf24"
+                strokeWidth={1.2}
+                strokeDasharray="2 3"
+                strokeOpacity={0.75}
+              />
+            )}
+
             {/* === Current Price Line === */}
             {currentPrice && (
               <ReferenceLine
@@ -560,6 +580,16 @@ export default function SRChart({ klines, indicators, supportResistance, current
             <div className="w-5 h-1 bg-purple-500 rounded-full opacity-60" />
             <span>EMA 50</span>
           </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-5 h-1 bg-cyan-400 rounded-full opacity-80" style={{ border: "1px dashed #22d3ee" }} />
+            <span>{indicators.vwapDetails.type === "session" ? "Session VWAP" : "Rolling VWAP"}</span>
+          </div>
+          {indicators.anchoredVwap && (
+            <div className="flex items-center gap-1.5">
+              <div className="w-5 h-1 bg-amber-400 rounded-full opacity-80" style={{ border: "1px dashed #fbbf24" }} />
+              <span>Anchored VWAP</span>
+            </div>
+          )}
           <div className="flex items-center gap-1.5">
             <div className="w-5 h-1 bg-slate-500 rounded-full opacity-60" style={{ border: "1px dotted #64748b" }} />
             <span>Fibonacci Levels</span>

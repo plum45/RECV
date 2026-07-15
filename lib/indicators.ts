@@ -280,19 +280,38 @@ export function calculateIndicators(klines: KlineData[]): IndicatorData {
     periodName: `Last ${lookbackBars} Bars`,
   };
 
-  // ── 11. VWAP (Intraday vs. Rolling VWAP) ────────────────────────────
-  const vwapSlice = klines.slice(Math.max(0, len - 50));
-  let cumTPV = 0, cumVol = 0;
-  for (const k of vwapSlice) {
-    const tp = (k.high + k.low + k.close) / 3;
-    cumTPV += tp * k.volume;
-    cumVol += k.volume;
-  }
-  const vwap = safeDiv(cumTPV, cumVol, closes[len - 1]);
+  // ── 11. VWAP ─────────────────────────────────────────────────────────
+  // Intraday VWAP must reset at the start of the latest session. A fixed
+  // "last 50 bars" calculation mixes sessions and is not a true VWAP.
+  const intervalMs = len >= 2
+    ? Math.max(0, klines[len - 1].openTime - klines[len - 2].openTime)
+    : 0;
+  // Session VWAP is meaningful on 5m/15m/1h execution charts. 4h and higher
+  // use a rolling VWAP while Anchored VWAP carries the swing context.
+  const isIntraday = intervalMs > 0 && intervalMs <= 60 * 60 * 1000;
+  const latestSessionKey = Math.floor(klines[len - 1].openTime / (24 * 60 * 60 * 1000));
+  const vwapSlice = isIntraday
+    ? klines.filter((k) => Math.floor(k.openTime / (24 * 60 * 60 * 1000)) === latestSessionKey)
+    : klines.slice(Math.max(0, len - 50));
+
+  const calculateVwap = (candles: KlineData[], fallback: number) => {
+    let totalPriceVolume = 0;
+    let totalVolume = 0;
+    for (const candle of candles) {
+      const typicalPrice = (candle.high + candle.low + candle.close) / 3;
+      const volume = Math.max(0, candle.volume);
+      totalPriceVolume += typicalPrice * volume;
+      totalVolume += volume;
+    }
+    return safeDiv(totalPriceVolume, totalVolume, fallback);
+  };
+
+  const vwap = calculateVwap(vwapSlice, closes[len - 1]);
   const vwapDetails = {
-    type: "intraday" as const,
+    type: (isIntraday ? "session" : "rolling") as "session" | "rolling",
     value: vwap,
     length: vwapSlice.length,
+    sessionStart: isIntraday ? vwapSlice[0]?.openTime ?? null : null,
   };
 
   // ── 12. Market Structure (HH/HL/LH/LL + Break of Structure) ──────────
@@ -339,6 +358,54 @@ export function calculateIndicators(klines: KlineData[]): IndicatorData {
     breakOfStructure,
   };
 
+  // Anchored VWAP: use the most recent confirmed swing in the direction that
+  // matters now. It is useful for swing/position context without pretending
+  // that a daily VWAP has the same meaning on a daily chart.
+  const anchorWindow = Math.min(120, len);
+  const anchorStart = Math.max(0, len - anchorWindow);
+  const anchorSwingWindow = 3;
+  const preferredAnchorType = curPrice >= vwap ? "swing_low" : "swing_high";
+  let anchorIndex = Math.max(anchorStart, len - 50);
+  let anchorType: "swing_low" | "swing_high" | "rolling" = "rolling";
+
+  const findLatestSwing = (kind: "swing_low" | "swing_high") => {
+    for (let i = len - 1 - anchorSwingWindow; i >= anchorStart + anchorSwingWindow; i--) {
+      let isSwing = true;
+      for (let j = i - anchorSwingWindow; j <= i + anchorSwingWindow; j++) {
+        if (j === i) continue;
+        if (kind === "swing_low" && klines[j].low <= klines[i].low) {
+          isSwing = false;
+          break;
+        }
+        if (kind === "swing_high" && klines[j].high >= klines[i].high) {
+          isSwing = false;
+          break;
+        }
+      }
+      if (isSwing) return i;
+    }
+    return -1;
+  };
+
+  const preferredAnchor = findLatestSwing(preferredAnchorType);
+  const alternativeType = preferredAnchorType === "swing_low" ? "swing_high" : "swing_low";
+  const alternativeAnchor = preferredAnchor === -1 ? findLatestSwing(alternativeType) : -1;
+  if (preferredAnchor >= 0) {
+    anchorIndex = preferredAnchor;
+    anchorType = preferredAnchorType;
+  } else if (alternativeAnchor >= 0) {
+    anchorIndex = alternativeAnchor;
+    anchorType = alternativeType;
+  }
+
+  const anchoredSlice = klines.slice(anchorIndex);
+  const anchoredVwap = {
+    value: calculateVwap(anchoredSlice, vwap),
+    anchorOpenTime: klines[anchorIndex].openTime,
+    anchorType,
+    length: anchoredSlice.length,
+  };
+
   return {
     ema20, ema50, ema200,
     rsi14,
@@ -354,6 +421,7 @@ export function calculateIndicators(klines: KlineData[]): IndicatorData {
     fibonacciDetails,
     vwap,
     vwapDetails,
+    anchoredVwap,
     marketStructure,
   };
 }

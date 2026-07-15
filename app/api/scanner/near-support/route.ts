@@ -35,7 +35,8 @@ async function scanSupport(symbols: string[]) {
         const supportResistance = calculateSupportResistance(
           klines,
           indicators,
-          ticker.currentPrice
+          ticker.currentPrice,
+          timeframe
         );
 
         // Filter for high-impact support zones (score >= 3)

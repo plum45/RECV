@@ -94,6 +94,8 @@ ${styleDescription}
 - RSI (14): ${indicators.rsi14}
 - MACD Line: ${indicators.macd.macdLine} | Signal Line: ${indicators.macd.signalLine} | Histogram: ${indicators.macd.histogram}
 - ATR (14): ${indicators.atr14}
+- ${indicators.vwapDetails.type === "session" ? "Session VWAP" : "Rolling VWAP"}: ${indicators.vwap}
+- Anchored VWAP: ${indicators.anchoredVwap ? `${indicators.anchoredVwap.value} (anchored at ${indicators.anchoredVwap.anchorType.replace("_", " ")})` : "N/A"}
 - Pivot Point: P=${indicators.pivot.p}, S1=${indicators.pivot.s1}, S2=${indicators.pivot.s2}, S3=${indicators.pivot.s3}, R1=${indicators.pivot.r1}, R2=${indicators.pivot.r2}, R3=${indicators.pivot.r3}
 - Volume Analysis: ปริมาณปัจจุบัน=${indicators.volumeAnalysis.currentVolume}, ค่าเฉลี่ย 20 แท่ง=${indicators.volumeAnalysis.avgVolume20}, อัตราส่วนปริมาณ=${indicators.volumeAnalysis.volumeRatio.toFixed(2)}x, สัญญาณ Volume Spike: ${indicators.volumeAnalysis.isVolumeSpike ? "ใช่" : "ไม่ใช่"}
 

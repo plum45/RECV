@@ -85,6 +85,22 @@ export async function POST(request: Request) {
     const price = marketData.currentPrice;
     const atr = indicators.atr14 || price * 0.02;
     const slBuffer = atr * styleMeta[tradingStyle].slFactor;
+    const sessionVwap = indicators.vwap;
+    const anchoredVwap = indicators.anchoredVwap?.value || 0;
+    const vwapBand = Math.max(
+      atr * 0.35,
+      price * (tradingStyle === "day" ? 0.0015 : tradingStyle === "position" ? 0.006 : 0.003)
+    );
+    const vwapLabel = indicators.vwapDetails.type === "session" ? "Session VWAP" : "Rolling VWAP";
+    const sessionVwapBias = sessionVwap > 0
+      ? price >= sessionVwap - vwapBand ? "bullish" : "bearish"
+      : "neutral";
+    const anchoredVwapBias = anchoredVwap > 0
+      ? price >= anchoredVwap - vwapBand ? "bullish" : "bearish"
+      : "neutral";
+    const vwapContext = sessionVwap > 0
+      ? `${vwapLabel} $${sessionVwap.toFixed(2)} (${sessionVwapBias === "bullish" ? "price holding above" : "price below"})${anchoredVwap > 0 ? ` | Anchored VWAP $${anchoredVwap.toFixed(2)} (${anchoredVwapBias === "bullish" ? "above" : "below"})` : ""}`
+      : "VWAP unavailable";
 
     const parseSRRange = (zone: string | undefined): { low: number; high: number; mid: number } | null => {
       if (!zone) return null;
@@ -133,6 +149,12 @@ export async function POST(request: Request) {
         entryHigh = price + fallbackEntryHalfWidth;
       }
       const entryMid = (entryLow + entryHigh) / 2;
+      const hasVwapConfluence = sessionVwap > 0 && Math.abs(entryMid - sessionVwap) <= vwapBand;
+      if (sessionVwapBias === "bearish") {
+        entryApproach += `; wait for a close back above ${vwapLabel} before opening Long`;
+      } else if (hasVwapConfluence) {
+        entryApproach += `; ${vwapLabel} confluence at the entry zone`;
+      }
       stopLoss = supportEntryZone ? supportEntryZone.low - technicalStopBuffer : entryMid - slBuffer;
       takeProfit1 = resistanceEntryZone && resistanceEntryZone.low > entryMid ? resistanceEntryZone.low : entryMid + Math.max(atr, slBuffer * 1.5);
       takeProfit2 = structuralResistanceZone && structuralResistanceZone.low > takeProfit1 ? structuralResistanceZone.low : entryMid + Math.max(atr * 2, slBuffer * 2.5);
@@ -151,6 +173,12 @@ export async function POST(request: Request) {
         entryHigh = price + fallbackEntryHalfWidth;
       }
       const entryMid = (entryLow + entryHigh) / 2;
+      const hasVwapConfluence = sessionVwap > 0 && Math.abs(entryMid - sessionVwap) <= vwapBand;
+      if (sessionVwapBias === "bullish") {
+        entryApproach += `; wait for a close back below ${vwapLabel} before opening Short`;
+      } else if (hasVwapConfluence) {
+        entryApproach += `; ${vwapLabel} confluence at the entry zone`;
+      }
       stopLoss = resistanceEntryZone ? resistanceEntryZone.high + technicalStopBuffer : entryMid + slBuffer;
       takeProfit1 = supportEntryZone && supportEntryZone.high < entryMid ? supportEntryZone.high : entryMid - Math.max(atr, slBuffer * 1.5);
       takeProfit2 = structuralSupportZone && structuralSupportZone.high < takeProfit1 ? structuralSupportZone.high : entryMid - Math.max(atr * 2, slBuffer * 2.5);
@@ -165,7 +193,7 @@ export async function POST(request: Request) {
     let holdingPeriod = styleMeta[tradingStyle].holdingPeriod;
     let invalidation = direction === "long" ? `ราคาปิดต่ำกว่าแนวรับ Stop Loss ที่ $${stopLoss.toFixed(2)}` : direction === "short" ? `ราคาทะลุผ่านกรอบ Stop Loss ด้านบนที่ $${stopLoss.toFixed(2)}` : "สัญญาณไม่ชัดเจน ไม่ควรเปิดออเดอร์";
     let confidence = 50;
-    let reasoning = `${entryApproach}. วิเคราะห์ตามเงื่อนไขเทคนิคัลเครื่องมือดัชนีชี้วัด EMA, RSI, MACD และวอลุ่มหนาแน่นสอดคล้องกัน`;
+    let reasoning = `${entryApproach}. ${vwapContext}. วิเคราะห์ตามเงื่อนไขเทคนิคัลเครื่องมือดัชนีชี้วัด EMA, RSI, MACD และวอลุ่มหนาแน่นสอดคล้องกัน`;
 
     const hasApiKey = process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== "your_openai_api_key";
     if (hasApiKey && direction !== "wait") {
@@ -182,6 +210,8 @@ Take Profit 2: $${takeProfit2.toFixed(2)}
 Take Profit 3: $${takeProfit3.toFixed(2)}
 RSI: ${indicators.rsi14.toFixed(1)}
 MACD: Histogram=${indicators.macd.histogram.toFixed(2)}, Crossover=${indicators.macd.crossover}
+${vwapLabel}: ${sessionVwap.toFixed(2)} (${sessionVwapBias})
+Anchored VWAP: ${anchoredVwap > 0 ? `${anchoredVwap.toFixed(2)} (${anchoredVwapBias})` : "unavailable"}
 Market Structure: ${indicators.marketStructure.type}
 
 Respond ONLY with a JSON object in this exact format:
@@ -208,6 +238,7 @@ Respond ONLY with a JSON object in this exact format:
       direction,
       timeframe,
       entryApproach: direction === "wait" ? undefined : entryApproach,
+      vwapContext,
       entryLow: direction === "wait" ? undefined : parseFloat(entryLow.toFixed(4)),
       entryHigh: direction === "wait" ? undefined : parseFloat(entryHigh.toFixed(4)),
       stopLoss: direction === "wait" ? undefined : parseFloat(stopLoss.toFixed(4)),

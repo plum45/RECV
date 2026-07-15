@@ -178,6 +178,16 @@ function calculateGroupScore(
     confluenceScore += 2.0;
   }
 
+  const vwapLevels: string[] = [];
+  if (indicators.vwap > 0 && Math.abs(indicators.vwap - mid) <= threshold) {
+    vwapLevels.push("Session VWAP");
+    confluenceScore += 1.25;
+  }
+  if (indicators.anchoredVwap?.value && Math.abs(indicators.anchoredVwap.value - mid) <= threshold) {
+    vwapLevels.push(`Anchored VWAP (${indicators.anchoredVwap.anchorType.replace("_", " ")})`);
+    confluenceScore += 1.5;
+  }
+
   const pivots: string[] = [];
   const p = indicators.pivot;
   if (Math.abs(p.r1 - mid) <= threshold) { pivots.push("Pivot R1"); confluenceScore += 1.0; }
@@ -196,6 +206,7 @@ function calculateGroupScore(
   if (fvgs > 0) reasons.push(`มีช่องว่างราคา Fair Value Gap (FVG)`);
   if (obs > 0) reasons.push(`มีบล็อกออเดอร์สำคัญ (Order Block)`);
   if (emas.length > 0) reasons.push(`แนว EMA Confluence: ${emas.join(", ")}`);
+  if (vwapLevels.length > 0) reasons.push(`แนว VWAP Confluence: ${vwapLevels.join(", ")}`);
   if (pivots.length > 0) reasons.push(`ระดับ Pivot: ${pivots.join(", ")}`);
   if (roundNumber) reasons.push("แนวระดับราคาจิตวิทยา (เลขกลม)");
 

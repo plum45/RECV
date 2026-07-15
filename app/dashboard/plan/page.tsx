@@ -34,6 +34,7 @@ interface TradingPlan {
   direction: "long" | "short" | "wait";
   timeframe: string;
   entryApproach?: string;
+  vwapContext?: string;
   entryLow?: number;
   entryHigh?: number;
   stopLoss?: number;
@@ -207,6 +208,7 @@ export default function TradingPlanPage() {
 กรอบเวลา: ${plan.timeframe}
 จุดเข้าซื้อ: ${plan.entryLow ? `$${plan.entryLow} - $${plan.entryHigh}` : "N/A"}
 วิธีเข้า: ${plan.entryApproach || "N/A"}
+VWAP: ${plan.vwapContext || "N/A"}
 Stop Loss: ${plan.stopLoss ? `$${plan.stopLoss}` : "N/A"}
 Take Profit: ${plan.takeProfit1 ? `TP1: $${plan.takeProfit1} | TP2: $${plan.takeProfit2} | TP3: $${plan.takeProfit3}` : "N/A"}
 Risk/Reward Ratio: 1:${plan.riskReward || 0}
@@ -443,6 +445,9 @@ Risk/Reward Ratio: 1:${plan.riskReward || 0}
                   </span>
                   {generatedPlan.entryApproach && (
                     <span className="block text-[10px] text-cyan-300 leading-relaxed">{generatedPlan.entryApproach}</span>
+                  )}
+                  {generatedPlan.vwapContext && (
+                    <span className="block text-[10px] text-amber-300 leading-relaxed">{generatedPlan.vwapContext}</span>
                   )}
                 </div>
 

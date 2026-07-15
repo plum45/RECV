@@ -48,7 +48,8 @@ export async function POST(request: Request) {
       const supportResistance = calculateSupportResistance(
         klines,
         indicators,
-        ticker.currentPrice
+        ticker.currentPrice,
+        tf
       );
 
       const price = ticker.currentPrice;

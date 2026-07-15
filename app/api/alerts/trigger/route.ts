@@ -21,6 +21,8 @@ export async function POST(request: Request) {
 }
 
 async function triggerAlerts(request: Request) {
+  const startedAt = Date.now();
+  let scannerStatusRef: any = null;
   try {
     const cronSecret = process.env.ALERT_CRON_SECRET;
     const authHeader = request.headers.get("authorization");
@@ -31,6 +33,14 @@ async function triggerAlerts(request: Request) {
     }
 
     const db = getFirebaseAdminDb();
+    scannerStatusRef = db?.collection("systemStatus").doc("alertScanner") || null;
+    if (scannerStatusRef) {
+      await scannerStatusRef.set({
+        status: "running",
+        startedAt,
+        lastError: null,
+      }, { merge: true });
+    }
     const activeSubscribers: any[] = [];
 
     // Load active subscribers from Firestore
@@ -55,6 +65,18 @@ async function triggerAlerts(request: Request) {
     const legacyLineUserId = process.env.LINE_USER_ID;
 
     if (activeSubscribers.length === 0 && (!legacyTgToken || !legacyTgChatId) && (!legacyLineToken || !legacyLineUserId)) {
+      if (scannerStatusRef) {
+        await scannerStatusRef.set({
+          status: "ok",
+          startedAt,
+          completedAt: Date.now(),
+          subscriberCount: 0,
+          scannedSymbols: [],
+          deliveredCount: 0,
+          message: "No active subscribers configured.",
+          lastError: null,
+        }, { merge: true });
+      }
       return NextResponse.json({
         success: true,
         message: "No active Telegram subscribers or legacy alert configuration found.",
@@ -86,12 +108,15 @@ async function triggerAlerts(request: Request) {
       try {
         const ticker = await getTicker(symbol);
         symbolPrices[symbol] = ticker.currentPrice;
-        const isCrypto = symbol.toUpperCase().endsWith("-USD");
-        const timeframe = isCrypto ? "4H" : "1D";
+        // The scanner itself runs every 15 minutes, so an execution timeframe
+        // is required for RSI/MACD alerts to be timely. 4H/1D made a crossover
+        // alert wait for a large candle to close and was the main reason alerts
+        // appeared inactive.
+        const timeframe = process.env.ALERT_TIMEFRAME || "15m";
         const klines = await getKlines(symbol, timeframe, 450);
 
         const indicators = calculateIndicators(klines);
-        const supportResistance = calculateSupportResistance(klines, indicators, ticker.currentPrice);
+        const supportResistance = calculateSupportResistance(klines, indicators, ticker.currentPrice, timeframe);
         const price = ticker.currentPrice;
         const { rsi14, macd } = indicators;
 
@@ -470,18 +495,12 @@ async function triggerAlerts(request: Request) {
 
               // Send Telegram Notification
               if (chatId && tgEnabled) {
-                const token = getTelegramBotToken();
-                if (token) {
-                  try {
-                    await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
-                      chat_id: chatId,
-                      text: `🔔 *[Trading Plan Alert]*\n\n${triggerMsg}`,
-                      parse_mode: "Markdown"
-                    });
-                  } catch (tgErr) {
-                    console.error("Failed to send plan update to Telegram:", tgErr);
-                  }
-                }
+                await sendUserTelegramMessage(
+                  userId,
+                  chatId,
+                  `🔔 *[Trading Plan Alert]*\n\n${triggerMsg}`,
+                  db
+                );
               }
             }
           }
@@ -489,6 +508,20 @@ async function triggerAlerts(request: Request) {
       } catch (err: any) {
         console.error("Failed to scan and trigger trading plans:", err.message);
       }
+    }
+
+    const deliveredCount = Object.values(alertsSentCount).reduce((total, count) => total + count, 0);
+    if (scannerStatusRef) {
+      await scannerStatusRef.set({
+        status: "ok",
+        startedAt,
+        completedAt: Date.now(),
+        subscriberCount: activeSubscribers.length,
+        scannedSymbols: symbolsToScan,
+        deliveredCount,
+        message: `Scanned ${symbolsToScan.length} symbols.`,
+        lastError: null,
+      }, { merge: true });
     }
 
     return NextResponse.json({
@@ -499,6 +532,14 @@ async function triggerAlerts(request: Request) {
     });
   } catch (error: any) {
     console.error("Alert trigger root error:", error.message);
+    if (scannerStatusRef) {
+      await scannerStatusRef.set({
+        status: "error",
+        startedAt,
+        completedAt: Date.now(),
+        lastError: error.message || "Unknown alert scanner error",
+      }, { merge: true }).catch(() => {});
+    }
     return NextResponse.json({ success: false, error: "Failed to execute alert triggers", message: error.message }, { status: 500 });
   }
 }
@@ -613,14 +654,36 @@ async function processEarningsCountdownAlerts(
 
 async function sendUserTelegramMessage(uid: string, chatId: string, text: string, db: any): Promise<boolean> {
   const token = getTelegramBotToken();
-  if (!token) return false;
+  const telegramSettingsRef = db?.collection("users").doc(uid).collection("settings").doc("telegram");
+  if (!token) {
+    if (telegramSettingsRef) {
+      await telegramSettingsRef.set({
+        lastDeliveryError: "Server configuration missing TELEGRAM_BOT_TOKEN",
+        lastDeliveryErrorAt: Date.now(),
+      }, { merge: true }).catch(() => {});
+    }
+    return false;
+  }
   try {
     const url = `https://api.telegram.org/bot${token}/sendMessage`;
     await axios.post(url, { chat_id: chatId, text }, { timeout: 8000 });
+    if (telegramSettingsRef) {
+      await telegramSettingsRef.set({
+        lastDeliveryAt: Date.now(),
+        lastDeliveryError: null,
+        lastDeliveryErrorAt: null,
+      }, { merge: true }).catch(() => {});
+    }
     return true;
   } catch (err: any) {
     const errMsg = err?.response?.data?.description || err.message;
     console.error(`Failed to deliver Telegram alert to uid ${uid} (${chatId}):`, errMsg);
+    if (telegramSettingsRef) {
+      await telegramSettingsRef.set({
+        lastDeliveryError: String(errMsg || "Telegram delivery failed"),
+        lastDeliveryErrorAt: Date.now(),
+      }, { merge: true }).catch(() => {});
+    }
 
     // Disable telegram for this user if bot is blocked or user deactivated
     if (typeof errMsg === "string" && (errMsg.includes("bot was blocked") || errMsg.includes("user is deactivated") || errMsg.includes("chat not found"))) {

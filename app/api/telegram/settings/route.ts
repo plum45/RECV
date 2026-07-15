@@ -19,6 +19,7 @@ export async function GET(request: Request) {
 
     const telegramDoc = await db.collection("users").doc(uid).collection("settings").doc("telegram").get();
     const alertSettingsDoc = await db.collection("users").doc(uid).collection("settings").doc("alertSettings").get();
+    const scannerStatusDoc = await db.collection("systemStatus").doc("alertScanner").get();
 
     const telegramData = telegramDoc.exists ? telegramDoc.data() : { enabled: false, chatId: null };
     const alertSettingsData = alertSettingsDoc.exists ? alertSettingsDoc.data() || {} : {};
@@ -41,6 +42,7 @@ export async function GET(request: Request) {
       success: true,
       telegram: telegramData,
       alertSettings: finalAlertSettings,
+      scannerStatus: scannerStatusDoc.exists ? scannerStatusDoc.data() : null,
     });
   } catch (error: any) {
     console.error("Get settings error:", error.message);

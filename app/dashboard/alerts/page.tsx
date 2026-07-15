@@ -51,6 +51,17 @@ interface AlertLog {
   status: "Pending" | "Completed";
 }
 
+interface ScannerStatus {
+  status: "running" | "ok" | "error";
+  startedAt?: number;
+  completedAt?: number;
+  subscriberCount?: number;
+  scannedSymbols?: string[];
+  deliveredCount?: number;
+  message?: string;
+  lastError?: string | null;
+}
+
 export default function AlertCenterPage() {
   const { user, loading: authLoading, getIdToken } = useAuth();
   const router = useRouter();
@@ -68,6 +79,8 @@ export default function AlertCenterPage() {
   // Telegram connection details
   const [telegramUsername, setTelegramUsername] = useState<string | null>(null);
   const [isTelegramConnected, setIsTelegramConnected] = useState(false);
+  const [telegramDeliveryError, setTelegramDeliveryError] = useState<string | null>(null);
+  const [scannerStatus, setScannerStatus] = useState<ScannerStatus | null>(null);
 
   // UI state
   const [loading, setLoading] = useState(true);
@@ -119,13 +132,14 @@ export default function AlertCenterPage() {
         setQuietHours(alertSettings.quietHours || { enabled: false, start: "22:00", end: "06:00" });
         setConfigs(alertSettings.configs || {});
         
-        // Telegram state from backend
-        if (alertSettings.chatId) {
-          setIsTelegramConnected(true);
-          setTelegramUsername(alertSettings.username || "@rocket_trading_bot User");
-        } else {
-          setIsTelegramConnected(false);
-        }
+        // Telegram metadata lives in the dedicated telegram document, not in
+        // alertSettings. Reading the wrong document made the UI lie about the
+        // connection state.
+        const telegram = settingsRes.data.telegram || {};
+        setIsTelegramConnected(Boolean(telegram.enabled && telegram.chatId));
+        setTelegramUsername(telegram.username || telegram.firstName || null);
+        setTelegramDeliveryError(telegram.lastDeliveryError || null);
+        setScannerStatus(settingsRes.data.scannerStatus || null);
       }
 
       // 2. Fetch history logs
@@ -135,27 +149,12 @@ export default function AlertCenterPage() {
       }
     } catch (err: any) {
       console.error("Failed to load Alert Center data:", err.message);
-      // Mock logs for UX demo if API not fully configured on Render
-      setIsTelegramConnected(true);
-      setTelegramUsername("@invest_rocket_user");
-      setHistoryLogs([
-        {
-          id: "1",
-          symbol: "BTCUSDT",
-          priceAtTrigger: 67200,
-          triggeredMessages: ["RSI เข้าเขต Oversold ต่ำกว่า 30.0 (30m)"],
-          sentAt: Date.now() - 45 * 60000, // 45 mins ago
-          status: "Completed"
-        },
-        {
-          id: "2",
-          symbol: "NVDA",
-          priceAtTrigger: 121.5,
-          triggeredMessages: ["ราคาชนขอบแนวรับสำคัญหนาแน่น 120.0 บาท"],
-          sentAt: Date.now() - 3 * 3600000, // 3 hours ago
-          status: "Completed"
-        }
-      ]);
+      setIsTelegramConnected(false);
+      setTelegramUsername(null);
+      setTelegramDeliveryError(null);
+      setScannerStatus(null);
+      setHistoryLogs([]);
+      setStatusMsg({ type: "error", text: err.response?.data?.message || "ไม่สามารถโหลดสถานะการแจ้งเตือนจริงได้" });
     } finally {
       setLoading(false);
     }
@@ -241,15 +240,16 @@ export default function AlertCenterPage() {
       const res = await axios.post("/api/telegram/test", {}, { headers });
       if (res.data?.success) {
         setStatusMsg({ type: "success", text: "ส่งข้อความทดสอบเข้า Telegram ของคุณสำเร็จแล้ว!" });
+        await loadData();
       } else {
         throw new Error(res.data?.message || "การส่งขัดข้อง");
       }
     } catch (err: any) {
-      // Simulate success if webhook mode/telegram bot is bypassed locally
-      setStatusMsg({ 
-        type: "success", 
-        text: "จำลองส่งสัญญาณทดสอบ: [iVES Alert Test] ระบบเชื่อมต่อสัญญาณเรียบร้อยดี!" 
+      setStatusMsg({
+        type: "error",
+        text: err.response?.data?.message || err.message || "ส่งข้อความทดสอบไม่สำเร็จ",
       });
+      await loadData();
     } finally {
       setSendingTest(false);
     }
@@ -420,6 +420,32 @@ export default function AlertCenterPage() {
           )}
         </div>
       </section>
+
+      {(scannerStatus || telegramDeliveryError) && (
+        <section className={`mb-6 p-4 rounded-2xl border text-xs ${
+          telegramDeliveryError || scannerStatus?.status === "error"
+            ? "bg-rose-500/10 border-rose-500/20 text-rose-300"
+            : scannerStatus?.status === "running"
+              ? "bg-amber-500/10 border-amber-500/20 text-amber-200"
+              : "bg-cyan-500/10 border-cyan-500/20 text-cyan-100"
+        }`}>
+          <div className="flex items-center gap-2 font-black uppercase tracking-wider">
+            {telegramDeliveryError || scannerStatus?.status === "error" ? <AlertTriangle size={15} /> : <ShieldCheck size={15} />}
+            <span>สถานะระบบส่งแจ้งเตือนจริง</span>
+          </div>
+          {scannerStatus && (
+            <p className="mt-2 leading-relaxed">
+              Cron: <b>{scannerStatus.status === "ok" ? "ทำงานล่าสุดสำเร็จ" : scannerStatus.status === "running" ? "กำลังสแกน" : "พบข้อผิดพลาด"}</b>
+              {scannerStatus.completedAt ? ` · ล่าสุด ${formatDate(scannerStatus.completedAt)}` : ""}
+              {typeof scannerStatus.deliveredCount === "number" ? ` · ส่งแล้ว ${scannerStatus.deliveredCount} รายการ` : ""}
+              {scannerStatus.lastError ? ` · ${scannerStatus.lastError}` : ""}
+            </p>
+          )}
+          {telegramDeliveryError && (
+            <p className="mt-2 leading-relaxed">Telegram ส่งไม่สำเร็จล่าสุด: {telegramDeliveryError}</p>
+          )}
+        </section>
+      )}
 
       {/* Alert Status Info Banner */}
       {statusMsg && (

@@ -362,7 +362,8 @@ function AnalyzePageContent() {
         const computedSR = calculateSupportResistance(
           klinesRes.data,
           computedIndicators,
-          tickerRes.data.currentPrice
+          tickerRes.data.currentPrice,
+          tgtTf
         );
         setSupportResistance(computedSR);
       }

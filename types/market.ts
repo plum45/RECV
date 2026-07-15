@@ -111,10 +111,18 @@ export interface IndicatorData {
     lookbackBars: number;
     periodName: string;
   };
-  vwap: number; // Volume Weighted Average Price (intraday)
+  /** Session VWAP for intraday data, or rolling VWAP for higher timeframes. */
+  vwap: number;
   vwapDetails: {
-    type: "intraday" | "rolling";
+    type: "session" | "rolling" | "intraday";
     value: number;
+    length: number;
+    sessionStart?: number | null;
+  };
+  anchoredVwap?: {
+    value: number;
+    anchorOpenTime: number;
+    anchorType: "swing_low" | "swing_high" | "rolling";
     length: number;
   };
   marketStructure: {
