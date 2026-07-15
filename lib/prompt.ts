@@ -1,6 +1,6 @@
 import { TickerData, IndicatorData, SupportResistanceData } from "../types/market";
 import { NewsArticle } from "../types/news";
-import { SentimentData } from "../types/analysis";
+import { SentimentData, GoldPlaybookData } from "../types/analysis";
 import { PriceProjectionData } from "../types/projection";
 import type { GeneralCalendarEvent } from "../types/calendar";
 
@@ -15,6 +15,7 @@ interface PromptBuilderPayload {
   sentiment: SentimentData;
   priceProjection?: PriceProjectionData;
   calendarEvents?: GeneralCalendarEvent[];
+  goldPlaybook?: GoldPlaybookData;
 }
 
 export function buildAnalysisPrompt(payload: PromptBuilderPayload): string {
@@ -62,6 +63,16 @@ export function buildAnalysisPrompt(payload: PromptBuilderPayload): string {
 - Event Risk: ${payload.priceProjection.eventRisk.level} (${payload.priceProjection.eventRisk.warningMessage || "Low"})`
     : "คำนวณจาก Confluence S/R & Pivot";
 
+  const goldPlaybookString = payload.goldPlaybook
+    ? `- Trade state: ${payload.goldPlaybook.tradeState}
+- Quality score: ${payload.goldPlaybook.qualityScore}/100
+- Active session: ${payload.goldPlaybook.activeSession}
+- Setup: ${payload.goldPlaybook.setup}
+- Regime: ${payload.goldPlaybook.marketRegime}; Bias: ${payload.goldPlaybook.directionalBias}
+- Macro risk: ${payload.goldPlaybook.macroRisk ? "YES — do not open a new trade" : "not detected"}
+- Guidance: ${payload.goldPlaybook.guidance}`
+    : "Not a precious-metals analysis.";
+
   const styleName = tradingStyle === "scalping" ? "Scalping" : tradingStyle === "day" ? "Day Trade" : tradingStyle === "position" ? "Position Trade" : "Swing Trade";
   const styleDescription = 
     tradingStyle === "scalping" ? "Scalping (ถือ 1–30 นาที: ใช้ 1H กรองทิศทาง, 15m ยืนยันโครงสร้างและ VWAP, 5m รอ liquidity sweep กับแท่งยืนยัน; ใช้ Stop Loss แคบตาม ATR และงดเปิดก่อนข่าวแรง)" :
@@ -101,6 +112,9 @@ ${styleDescription}
 - Volume Analysis: ปริมาณปัจจุบัน=${indicators.volumeAnalysis.currentVolume}, ค่าเฉลี่ย 20 แท่ง=${indicators.volumeAnalysis.avgVolume20}, อัตราส่วนปริมาณ=${indicators.volumeAnalysis.volumeRatio.toFixed(2)}x, สัญญาณ Volume Spike: ${indicators.volumeAnalysis.isVolumeSpike ? "ใช่" : "ไม่ใช่"}
 - Price Action: bias=${indicators.priceAction?.bias || "unavailable"}, confirmation=${indicators.priceAction?.confirmation || "unavailable"}, patterns=${indicators.priceAction?.patterns.join(", ") || "none"}, liquidity sweep=${indicators.priceAction?.liquiditySweep || "none"}
 - Smart Money: BOS=${indicators.smartMoney?.bos || "unavailable"}, MSS=${indicators.smartMoney?.mss || "unavailable"}, setup=${indicators.smartMoney?.setup || "none"}, demand=${indicators.smartMoney?.demandZone ? `${indicators.smartMoney.demandZone.low}-${indicators.smartMoney.demandZone.high}` : "none"}, supply=${indicators.smartMoney?.supplyZone ? `${indicators.smartMoney.supplyZone.low}-${indicators.smartMoney.supplyZone.high}` : "none"}
+
+[Gold execution playbook — enforce when present]
+${goldPlaybookString}
 
 [3. แนวรับ-แนวต้านหลักที่คำนวณแบบสถิติ (Clustered Zones)]
 แนวรับ (Support Zones):

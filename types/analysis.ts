@@ -38,6 +38,20 @@ export interface MultiTimeframeAnalysis {
   snapshots: MultiTimeframeSnapshot[];
 }
 
+export interface GoldPlaybookData {
+  activeSession: "asia" | "london" | "new_york" | "london_new_york_overlap" | "off_peak";
+  marketRegime: "trend" | "range";
+  tradeState: "ready" | "wait" | "avoid";
+  directionalBias: MultiTimeframeBias;
+  setup: "asia_high_sweep_reclaim" | "asia_low_sweep_reclaim" | "vwap_continuation" | "range_no_trade" | "wait_for_confirmation";
+  qualityScore: number;
+  asiaRange?: { low: number; high: number; date: string };
+  londonRange?: { low: number; high: number; date: string };
+  macroRisk: boolean;
+  checklist: Array<{ label: string; passed: boolean }>;
+  guidance: string;
+}
+
 export interface AnalyzeResponse {
   symbol: string;
   timeframe: string;
@@ -55,5 +69,6 @@ export interface AnalyzeResponse {
   sentiment: SentimentData;
   priceProjection?: PriceProjectionData;
   multiTimeframe?: MultiTimeframeAnalysis;
+  goldPlaybook?: GoldPlaybookData;
   analysis: string; // Markdown text in Thai
 }

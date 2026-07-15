@@ -12,6 +12,7 @@ import { verifyFirebaseIdTokenDetailed } from "../../../lib/firebaseAdmin";
 import { calculatePriceProjection } from "../../../lib/priceProjection";
 import { getMergedCalendarEvents } from "../../../lib/liveCalendarService";
 import { getAssetProfile } from "../../../lib/assetProfile";
+import { buildGoldPlaybook } from "../../../lib/goldPlaybook";
 import type { IndicatorData } from "../../../types/market";
 import type { MultiTimeframeAnalysis, MultiTimeframeBias, MultiTimeframeSnapshot } from "../../../types/analysis";
 
@@ -192,6 +193,16 @@ export async function POST(request: Request) {
       symbol ? [symbol] : null
     );
 
+    const goldPlaybook = assetProfile.isPreciousMetal
+      ? buildGoldPlaybook(
+          klines,
+          indicators,
+          marketData.currentPrice,
+          news.map((item) => item.title),
+          mergedCalendarEvents.map((event) => event.type === "earnings" ? `${event.symbol} ${event.eventTypeName}` : event.title)
+        )
+      : undefined;
+
     // 6.5 Calculate Price Projection Matrix (Quant Engine)
     const priceProjection = calculatePriceProjection(
       symbol,
@@ -231,6 +242,7 @@ export async function POST(request: Request) {
             sentiment,
             priceProjection,
             calendarEvents: mergedCalendarEvents,
+            goldPlaybook,
           });
           reportText = await generateAnalysisReport(prompt);
           setAiCache(cacheKey, reportText, 180); // Cache for 3 minutes to save tokens & speed up requests
@@ -255,6 +267,7 @@ export async function POST(request: Request) {
             slippagePercent: parsedInput.slippagePercent,
             priceProjection,
             calendarEvents: mergedCalendarEvents,
+            goldPlaybook,
           });
           analysisSource = "Local Quant Engine (Fallback)";
         }
@@ -278,6 +291,7 @@ export async function POST(request: Request) {
         slippagePercent: parsedInput.slippagePercent,
         priceProjection,
         calendarEvents: mergedCalendarEvents,
+        goldPlaybook,
       });
     }
 
@@ -302,6 +316,7 @@ export async function POST(request: Request) {
       sentiment,
       priceProjection,
       multiTimeframe,
+      goldPlaybook,
       analysis: reportText,
     };
 

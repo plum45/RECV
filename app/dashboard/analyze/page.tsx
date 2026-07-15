@@ -17,9 +17,10 @@ import LoadingState from "../../../components/LoadingState";
 import SRChart from "../../../components/SRChart";
 import SummaryPanel from "../../../components/SummaryPanel";
 import MultiTimeframePanel from "../../../components/MultiTimeframePanel";
+import GoldPlaybookPanel from "../../../components/GoldPlaybookPanel";
 import { TickerData, IndicatorData, SupportResistanceData, KlineData } from "../../../types/market";
 import { NewsArticle } from "../../../types/news";
-import { SentimentData, MultiTimeframeAnalysis } from "../../../types/analysis";
+import { SentimentData, MultiTimeframeAnalysis, GoldPlaybookData } from "../../../types/analysis";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useRouter, useSearchParams } from "next/navigation";
 import { db, auth } from "../../../lib/firebase";
@@ -131,6 +132,7 @@ function AnalyzePageContent() {
   const [news, setNews] = useState<NewsArticle[]>([]);
   const [sentiment, setSentiment] = useState<SentimentData | null>(null);
   const [multiTimeframe, setMultiTimeframe] = useState<MultiTimeframeAnalysis | null>(null);
+  const [goldPlaybook, setGoldPlaybook] = useState<GoldPlaybookData | null>(null);
 
   // Watchlist State
   const [isInWatchlist, setIsInWatchlist] = useState(false);
@@ -530,6 +532,7 @@ function AnalyzePageContent() {
       setNews(data.news);
       setSentiment(data.sentiment);
       setMultiTimeframe(data.multiTimeframe || null);
+      setGoldPlaybook(data.goldPlaybook || null);
       setAnalysisReport(data.analysis);
       setAnalyzedSymbol(symbol);
 
@@ -731,6 +734,7 @@ function AnalyzePageContent() {
           />
         )}
         <MultiTimeframePanel data={multiTimeframe} />
+        <GoldPlaybookPanel data={goldPlaybook} />
         {/* Configuration Selectors Bar */}
         {symbol && (
           <div className="bg-slate-900/60 border border-slate-800/80 backdrop-blur-md rounded-3xl p-4 lg:p-5 shadow-xl flex flex-col gap-4 relative z-20">

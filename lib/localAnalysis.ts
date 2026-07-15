@@ -1,6 +1,6 @@
 import { TickerData, IndicatorData, SupportResistanceData, KlineData } from "../types/market";
 import { NewsArticle, SectorImpactCategory } from "../types/news";
-import { SentimentData } from "../types/analysis";
+import { SentimentData, GoldPlaybookData } from "../types/analysis";
 import { PriceProjectionData } from "../types/projection";
 import { calculatePriceProjection } from "./priceProjection";
 
@@ -17,6 +17,7 @@ interface LocalAnalysisPayload {
   klines?: KlineData[];
   priceProjection?: PriceProjectionData;
   calendarEvents?: any[];
+  goldPlaybook?: GoldPlaybookData;
   // Advanced position size settings
   accountSize?: number;
   riskPercent?: number;
@@ -528,6 +529,18 @@ export function generateLocalReport(payload: LocalAnalysisPayload): string {
 > ⚠️ ระบบ Price Projection นี้แสดง Scenario และช่วงราคาที่อาจเป็นไปได้ตามสูตรคณิตศาสตร์และ Confluence ของแนวรับ-แนวต้าน ไม่ใช่การฟันธงหรือการรับประกันราคาในอนาคต กรุณาปฏิบัติตามจุด Invalidation และรอยืนยัน Volume ทุกครั้ง
 `;
 
+  const goldPlaybookSection = payload.goldPlaybook ? `
+## Gold Execution Playbook
+| Filter | Status |
+| :--- | :--- |
+| Trade state | **${payload.goldPlaybook.tradeState.toUpperCase()}** (${payload.goldPlaybook.qualityScore}/100) |
+| Session | ${payload.goldPlaybook.activeSession} |
+| Setup | ${payload.goldPlaybook.setup} |
+| Macro risk | ${payload.goldPlaybook.macroRisk ? "Detected — avoid opening a new trade" : "Not detected"} |
+
+${payload.goldPlaybook.guidance}
+` : "";
+
   return `# 📊 Rocket AI · ${symbol} Technical Analysis Report
 
 ${conflictAlert}${newsWarningSection}
@@ -540,6 +553,8 @@ ${conflictAlert}${newsWarningSection}
 | ราคาปัจจุบัน | **$${fmt(price)}** |
 | ความสดใหม่ข้อมูล | **สถานะ: LIVE** (${marketData.priceSource || "Direct API"}) · ${marketData.isDelayed ? "⚠️ Delayed 15m" : "⚡ Real-time"} |
 | อัปเดต | ${new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })} |
+
+${goldPlaybookSection}
 
 ---
 
