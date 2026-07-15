@@ -36,6 +36,7 @@ function AnalyzePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlSymbol = searchParams.get("symbol");
+  const urlTimeframe = searchParams.get("timeframe");
   const abortControllerRef = useRef<AbortController | null>(null);
   const activeRequestSymbolRef = useRef("");
 
@@ -78,7 +79,7 @@ function AnalyzePageContent() {
     return "";
   });
   const [tradingStyle, setTradingStyle] = useState<TradingStyle>(() => getStoredTradingStyle());
-  const [timeframe, setTimeframe] = useState(() => getRecommendedTimeframe(getStoredTradingStyle()));
+  const [timeframe, setTimeframe] = useState(() => urlTimeframe || getRecommendedTimeframe(getStoredTradingStyle()));
   const [riskPercent, setRiskPercent] = useState("1%");
   const [analysisMode, setAnalysisMode] = useState("Analyze Both Long & Short");
   const [accountSize, setAccountSize] = useState(10000);
@@ -103,6 +104,12 @@ function AnalyzePageContent() {
       setIsSymbolInitialized(true);
     }
   }, [urlSymbol]);
+
+  useEffect(() => {
+    if (["5m", "15m", "1H", "4H", "1D"].includes(urlTimeframe || "")) {
+      setTimeframe(urlTimeframe as string);
+    }
+  }, [urlTimeframe]);
 
   // ซิงค์สเตทกลับไปยัง URL คิวรีพารามิเตอร์ (เฉพาะหลัง Initialize แล้วและ symbol ไม่เป็นค่าว่าง)
   useEffect(() => {
@@ -355,15 +362,18 @@ function AnalyzePageContent() {
         
         const { calculateIndicators } = await import("../../../lib/indicators");
         const { calculateSupportResistance } = await import("../../../lib/supportResistance");
+        const { getAssetProfile } = await import("../../../lib/assetProfile");
+        const assetProfile = getAssetProfile(tgtSymbol);
 
-        const computedIndicators = calculateIndicators(klinesRes.data);
+        const computedIndicators = calculateIndicators(klinesRes.data, assetProfile);
         setIndicators(computedIndicators);
 
         const computedSR = calculateSupportResistance(
           klinesRes.data,
           computedIndicators,
           tickerRes.data.currentPrice,
-          tgtTf
+          tgtTf,
+          assetProfile.assetClass
         );
         setSupportResistance(computedSR);
       }

@@ -8,10 +8,11 @@ import {
   ZoneStatus,
   ZoneComponents,
 } from "../types/market";
+import type { AssetClass } from "./assetProfile";
 
 interface CandidatePoint {
   price: number;
-  type: "swing_high" | "swing_low" | "fvg" | "orderblock" | "round_number";
+  type: "swing_high" | "swing_low" | "fvg" | "orderblock" | "round_number" | "buy_side_liquidity" | "sell_side_liquidity";
   name: string;
   volume?: number;
   index?: number;
@@ -32,7 +33,11 @@ interface TimeframeProfile {
   agedBars: number;
 }
 
-function getTimeframeProfile(timeframe: string, availableBars: number): TimeframeProfile {
+function getTimeframeProfile(
+  timeframe: string,
+  availableBars: number,
+  assetClass: AssetClass = "equity"
+): TimeframeProfile {
   const profiles: Record<string, TimeframeProfile> = {
     "5m": { historyBars: 360, swingWindow: 6, clusterAtrMultiplier: 0.55, minClusterPercent: 0.0015, maxClusterPercent: 0.006, minZoneHalfWidthPercent: 0.001, minSeparationAtrMultiplier: 1.0, minSeparationPercent: 0.003, freshBars: 96, recentBars: 216, agedBars: 360 },
     "15m": { historyBars: 480, swingWindow: 8, clusterAtrMultiplier: 0.6, minClusterPercent: 0.002, maxClusterPercent: 0.008, minZoneHalfWidthPercent: 0.0015, minSeparationAtrMultiplier: 1.05, minSeparationPercent: 0.004, freshBars: 80, recentBars: 192, agedBars: 360 },
@@ -43,7 +48,20 @@ function getTimeframeProfile(timeframe: string, availableBars: number): Timefram
   };
 
   const profile = profiles[timeframe.toLowerCase()] || profiles["1h"];
-  return { ...profile, historyBars: Math.min(profile.historyBars, availableBars) };
+  const metalAdjusted = assetClass === "precious_metal"
+    ? {
+        ...profile,
+        // Metals routinely sweep a narrow level before reacting. Use a wider
+        // ATR-based cluster and require a slightly more meaningful separation.
+        swingWindow: profile.swingWindow + 2,
+        clusterAtrMultiplier: profile.clusterAtrMultiplier * 1.15,
+        maxClusterPercent: profile.maxClusterPercent * 1.2,
+        minZoneHalfWidthPercent: profile.minZoneHalfWidthPercent * 1.15,
+        minSeparationAtrMultiplier: profile.minSeparationAtrMultiplier * 1.15,
+        minSeparationPercent: profile.minSeparationPercent * 1.15,
+      }
+    : profile;
+  return { ...metalAdjusted, historyBars: Math.min(metalAdjusted.historyBars, availableBars) };
 }
 
 interface GroupScoreResult {
@@ -58,6 +76,7 @@ interface GroupScoreResult {
   lastTouchAge: number | null;
   components: ZoneComponents;
   ageString: string;
+  liquidity?: "buy_side" | "sell_side" | "mixed";
   _mid: number;
   _minVal: number;
   _maxVal: number;
@@ -86,6 +105,8 @@ function calculateGroupScore(
   let roundNumber = false;
   let fvgs = 0;
   let obs = 0;
+  let buySideLiquidity = 0;
+  let sellSideLiquidity = 0;
 
   nearby.forEach((c) => {
     if (c.type === "swing_high") {
@@ -111,6 +132,12 @@ function calculateGroupScore(
     } else if (c.type === "orderblock") {
       obs++;
       baseScore += 2.5;
+    } else if (c.type === "buy_side_liquidity") {
+      buySideLiquidity++;
+      baseScore += 2.25;
+    } else if (c.type === "sell_side_liquidity") {
+      sellSideLiquidity++;
+      baseScore += 2.25;
     }
   });
 
@@ -205,6 +232,8 @@ function calculateGroupScore(
   if (swingLows > 0) reasons.push(`ทดสอบ Swing Low ${swingLows} จุด`);
   if (fvgs > 0) reasons.push(`มีช่องว่างราคา Fair Value Gap (FVG)`);
   if (obs > 0) reasons.push(`มีบล็อกออเดอร์สำคัญ (Order Block)`);
+  if (buySideLiquidity > 0) reasons.push(`Buy-side liquidity: Equal High ที่ยังไม่ถูกกวาด`);
+  if (sellSideLiquidity > 0) reasons.push(`Sell-side liquidity: Equal Low ที่ยังไม่ถูกกวาด`);
   if (emas.length > 0) reasons.push(`แนว EMA Confluence: ${emas.join(", ")}`);
   if (vwapLevels.length > 0) reasons.push(`แนว VWAP Confluence: ${vwapLevels.join(", ")}`);
   if (pivots.length > 0) reasons.push(`ระดับ Pivot: ${pivots.join(", ")}`);
@@ -337,6 +366,13 @@ function calculateGroupScore(
     lastTouchAge,
     components,
     ageString,
+    liquidity: buySideLiquidity > 0 && sellSideLiquidity > 0
+      ? "mixed"
+      : buySideLiquidity > 0
+        ? "buy_side"
+        : sellSideLiquidity > 0
+          ? "sell_side"
+          : undefined,
     _mid: mid,
     _minVal: minVal,
     _maxVal: maxVal,
@@ -347,7 +383,8 @@ export function calculateSupportResistance(
   klines: KlineData[],
   indicators: IndicatorData,
   currentPrice: number,
-  timeframe = "1H"
+  timeframe = "1H",
+  assetClass: AssetClass = "equity"
 ): SupportResistanceData {
   if (!klines || klines.length < 20) {
     throw new Error("ข้อมูลแท่งเทียนไม่เพียงพอสำหรับการคำนวณแนวรับแนวต้าน (ต้องการอย่างน้อย 20 แท่ง)");
@@ -355,7 +392,7 @@ export function calculateSupportResistance(
 
   const len = klines.length;
   const candidates: CandidatePoint[] = [];
-  const profile = getTimeframeProfile(timeframe, len);
+  const profile = getTimeframeProfile(timeframe, len, assetClass);
 
   let minPrice = Infinity;
   let maxPrice = -Infinity;
@@ -411,20 +448,46 @@ export function calculateSupportResistance(
   }
 
   // 2. Smart Money Concepts (FVG & Order Blocks)
-  for (let i = Math.max(2, len - 300); i < len; i++) {
+  // FVGs are actionable only while price has never traded back into their gap.
+  // Keep one: the newest untouched bullish gap and the newest untouched bearish
+  // gap. This prevents old or already-mitigated imbalances from influencing S/R.
+  const fvgStart = Math.max(2, Math.max(historyLookback, len - 300));
+  const minimumFvgSize = Math.max(
+    indicators.atr14 * 0.12,
+    currentPrice * profile.minZoneHalfWidthPercent * 0.5
+  );
+  let latestBullishFvg: CandidatePoint | null = null;
+  let latestBearishFvg: CandidatePoint | null = null;
+
+  const isFvgMitigated = (gapLow: number, gapHigh: number, formedAt: number) => {
+    for (let barIndex = formedAt + 1; barIndex < len; barIndex++) {
+      const bar = klines[barIndex];
+      // Any subsequent candle that enters the imbalance marks it as mitigated.
+      if (bar.low <= gapHigh && bar.high >= gapLow) return true;
+    }
+    return false;
+  };
+
+  for (let i = fvgStart; i < len; i++) {
     const c1 = klines[i - 2];
     const c2 = klines[i - 1];
     const c3 = klines[i];
 
     if (c1.high < c3.low && c2.close > c2.open) {
-      const fvgMid = (c1.high + c3.low) / 2;
-      candidates.push({
-        price: fvgMid,
-        type: "fvg",
-        name: "Bullish FVG (Demand)",
-        index: i,
-        age: len - 1 - i,
-      });
+      const gapLow = c1.high;
+      const gapHigh = c3.low;
+      if (
+        gapHigh - gapLow >= minimumFvgSize &&
+        !isFvgMitigated(gapLow, gapHigh, i)
+      ) {
+        latestBullishFvg = {
+          price: (gapLow + gapHigh) / 2,
+          type: "fvg",
+          name: "Latest unmitigated Bullish FVG (Demand)",
+          index: i,
+          age: len - 1 - i,
+        };
+      }
       if (c1.close < c1.open) {
         candidates.push({
           price: (c1.open + c1.close) / 2,
@@ -437,14 +500,20 @@ export function calculateSupportResistance(
     }
 
     if (c1.low > c3.high && c2.close < c2.open) {
-      const fvgMid = (c1.low + c3.high) / 2;
-      candidates.push({
-        price: fvgMid,
-        type: "fvg",
-        name: "Bearish FVG (Supply)",
-        index: i,
-        age: len - 1 - i,
-      });
+      const gapLow = c3.high;
+      const gapHigh = c1.low;
+      if (
+        gapHigh - gapLow >= minimumFvgSize &&
+        !isFvgMitigated(gapLow, gapHigh, i)
+      ) {
+        latestBearishFvg = {
+          price: (gapLow + gapHigh) / 2,
+          type: "fvg",
+          name: "Latest unmitigated Bearish FVG (Supply)",
+          index: i,
+          age: len - 1 - i,
+        };
+      }
       if (c1.close > c1.open) {
         candidates.push({
           price: (c1.open + c1.close) / 2,
@@ -455,6 +524,75 @@ export function calculateSupportResistance(
         });
       }
     }
+  }
+
+  if (latestBullishFvg) candidates.push(latestBullishFvg);
+  if (latestBearishFvg) candidates.push(latestBearishFvg);
+
+  // Gold and silver frequently run resting stops around equal highs/lows before
+  // choosing direction. Surface only the newest unswept pool on each side.
+  if (assetClass === "precious_metal") {
+    const liquidityTolerance = Math.max(indicators.atr14 * 0.28, currentPrice * 0.0008);
+    const sweepBuffer = Math.max(indicators.atr14 * 0.12, currentPrice * 0.0003);
+
+    const findLatestLiquidityPool = (
+      swingType: "swing_high" | "swing_low",
+      liquidityType: "buy_side_liquidity" | "sell_side_liquidity",
+      name: string
+    ): CandidatePoint | null => {
+      const swings = candidates.filter(
+        (candidate) => candidate.type === swingType && candidate.index !== undefined
+      );
+      let latestPool: CandidatePoint | null = null;
+
+      for (let laterIndex = 1; laterIndex < swings.length; laterIndex++) {
+        const later = swings[laterIndex];
+        for (let earlierIndex = laterIndex - 1; earlierIndex >= 0; earlierIndex--) {
+          const earlier = swings[earlierIndex];
+          if ((later.index! - earlier.index!) < W * 2) continue;
+          if (Math.abs(later.price - earlier.price) > liquidityTolerance) continue;
+
+          const poolPrice = (later.price + earlier.price) / 2;
+          let swept = false;
+          for (let barIndex = later.index! + 1; barIndex < len; barIndex++) {
+            const bar = klines[barIndex];
+            if (
+              (liquidityType === "buy_side_liquidity" && bar.high >= poolPrice + sweepBuffer) ||
+              (liquidityType === "sell_side_liquidity" && bar.low <= poolPrice - sweepBuffer)
+            ) {
+              swept = true;
+              break;
+            }
+          }
+
+          if (!swept) {
+            latestPool = {
+              price: poolPrice,
+              type: liquidityType,
+              name,
+              index: later.index,
+              age: len - 1 - later.index!,
+            };
+          }
+          break;
+        }
+      }
+
+      return latestPool;
+    };
+
+    const buySideLiquidity = findLatestLiquidityPool(
+      "swing_high",
+      "buy_side_liquidity",
+      "Buy-side Liquidity (Equal High)"
+    );
+    const sellSideLiquidity = findLatestLiquidityPool(
+      "swing_low",
+      "sell_side_liquidity",
+      "Sell-side Liquidity (Equal Low)"
+    );
+    if (buySideLiquidity) candidates.push(buySideLiquidity);
+    if (sellSideLiquidity) candidates.push(sellSideLiquidity);
   }
 
   // 3. Add Psychological round numbers
@@ -521,6 +659,7 @@ export function calculateSupportResistance(
       lastTouchAge: groupRes.lastTouchAge,
       components: groupRes.components,
       ageString: groupRes.ageString,
+      liquidity: groupRes.liquidity,
       distancePercent: Number(distancePercent.toFixed(2)),
       timeframe,
       _mid: groupRes._mid,

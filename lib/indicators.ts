@@ -1,6 +1,11 @@
 import { EMA, RSI, MACD, ATR, BollingerBands, ADX, StochasticRSI } from "technicalindicators";
 import { KlineData, IndicatorData } from "../types/market";
 
+export interface IndicatorOptions {
+  sessionTimeZone?: string;
+  sessionStartHour?: number;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function safeDiv(num: number, den: number, fallback = 0): number {
@@ -14,9 +19,32 @@ function safeNum(val: any, fallback = 0): number {
   return Number(val);
 }
 
+function getTradingSessionKey(
+  openTime: number,
+  timeZone: string,
+  sessionStartHour: number
+): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(openTime));
+  const read = (type: string) => Number(parts.find((part) => part.type === type)?.value || 0);
+  const year = read("year");
+  const month = read("month");
+  const day = read("day");
+  const hour = read("hour");
+  const sessionDate = new Date(Date.UTC(year, month - 1, day));
+  if (hour < sessionStartHour) sessionDate.setUTCDate(sessionDate.getUTCDate() - 1);
+  return sessionDate.toISOString().slice(0, 10);
+}
+
 // ── Main Export ─────────────────────────────────────────────────────────────
 
-export function calculateIndicators(klines: KlineData[]): IndicatorData {
+export function calculateIndicators(klines: KlineData[], options: IndicatorOptions = {}): IndicatorData {
   const MIN_CANDLES = 50;
   if (klines.length < MIN_CANDLES) {
     throw new Error(
@@ -289,9 +317,11 @@ export function calculateIndicators(klines: KlineData[]): IndicatorData {
   // Session VWAP is meaningful on 5m/15m/1h execution charts. 4h and higher
   // use a rolling VWAP while Anchored VWAP carries the swing context.
   const isIntraday = intervalMs > 0 && intervalMs <= 60 * 60 * 1000;
-  const latestSessionKey = Math.floor(klines[len - 1].openTime / (24 * 60 * 60 * 1000));
+  const sessionTimeZone = options.sessionTimeZone || "UTC";
+  const sessionStartHour = options.sessionStartHour ?? 0;
+  const latestSessionKey = getTradingSessionKey(klines[len - 1].openTime, sessionTimeZone, sessionStartHour);
   const vwapSlice = isIntraday
-    ? klines.filter((k) => Math.floor(k.openTime / (24 * 60 * 60 * 1000)) === latestSessionKey)
+    ? klines.filter((k) => getTradingSessionKey(k.openTime, sessionTimeZone, sessionStartHour) === latestSessionKey)
     : klines.slice(Math.max(0, len - 50));
 
   const calculateVwap = (candles: KlineData[], fallback: number) => {

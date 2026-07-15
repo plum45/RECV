@@ -9,6 +9,7 @@ import { calculateAlertOutcome, isWithinQuietHours, resolveSymbolAlertConfig } f
 import { getMergedCalendarEvents } from "../../../../lib/liveCalendarService";
 import { normalizeSymbol, matchesAnySymbol } from "../../../../lib/symbolMapping";
 import type { EarningsEvent } from "../../../../types/calendar";
+import { getAssetProfile } from "../../../../lib/assetProfile";
 
 export const runtime = "nodejs";
 
@@ -108,6 +109,7 @@ async function triggerAlerts(request: Request) {
       try {
         const ticker = await getTicker(symbol);
         symbolPrices[symbol] = ticker.currentPrice;
+        const isCrypto = symbol.toUpperCase().endsWith("-USD");
         // The scanner itself runs every 15 minutes, so an execution timeframe
         // is required for RSI/MACD alerts to be timely. 4H/1D made a crossover
         // alert wait for a large candle to close and was the main reason alerts
@@ -115,8 +117,9 @@ async function triggerAlerts(request: Request) {
         const timeframe = process.env.ALERT_TIMEFRAME || "15m";
         const klines = await getKlines(symbol, timeframe, 450);
 
-        const indicators = calculateIndicators(klines);
-        const supportResistance = calculateSupportResistance(klines, indicators, ticker.currentPrice, timeframe);
+        const assetProfile = getAssetProfile(symbol);
+        const indicators = calculateIndicators(klines, assetProfile);
+        const supportResistance = calculateSupportResistance(klines, indicators, ticker.currentPrice, timeframe, assetProfile.assetClass);
         const price = ticker.currentPrice;
         const { rsi14, macd } = indicators;
 
@@ -150,8 +153,12 @@ async function triggerAlerts(request: Request) {
 
           if (supportMid > 0) {
             const distancePct = ((price - supportMid) / supportMid) * 100;
-            const threshold = isCrypto ? 2.0 : 2.5;
-            const brokenThreshold = isCrypto ? -0.75 : -1.0;
+            const threshold = assetProfile.isPreciousMetal
+              ? assetProfile.supportAlert.upperPercent
+              : isCrypto ? 2.0 : 2.5;
+            const brokenThreshold = assetProfile.isPreciousMetal
+              ? assetProfile.supportAlert.lowerPercent
+              : isCrypto ? -0.75 : -1.0;
             if (distancePct <= threshold && distancePct >= brokenThreshold) {
               touchedStrongSupport = `ราคาเข้าใกล้แนวรับสำคัญ S1 ที่ $${closestSupport.zone} (ห่างเพียง ${distancePct >= 0 ? "+" : ""}${distancePct.toFixed(2)}%) [ความน่าเชื่อถือ: ${closestSupport.score}/10] (${timeframe} Timeframe)`;
             }

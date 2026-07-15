@@ -5,6 +5,7 @@ import { calculateSupportResistance } from "../../../lib/supportResistance";
 import { generateAnalysisReport } from "../../../lib/openai";
 import { checkRateLimit, getAiCache, setAiCache } from "../../../lib/aiCache";
 import { verifyFirebaseIdTokenDetailed } from "../../../lib/firebaseAdmin";
+import { getAssetProfile } from "../../../lib/assetProfile";
 
 export const runtime = "nodejs";
 
@@ -44,12 +45,14 @@ export async function POST(request: Request) {
     // 3. Calculate indicators and scores for each timeframe
     const results = timeframes.map((tf, index) => {
       const klines = klinesList[index];
-      const indicators = calculateIndicators(klines);
+      const assetProfile = getAssetProfile(symbol);
+      const indicators = calculateIndicators(klines, assetProfile);
       const supportResistance = calculateSupportResistance(
         klines,
         indicators,
         ticker.currentPrice,
-        tf
+        tf,
+        assetProfile.assetClass
       );
 
       const price = ticker.currentPrice;

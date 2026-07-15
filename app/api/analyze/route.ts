@@ -11,6 +11,7 @@ import { checkRateLimit, getAiCache, setAiCache } from "../../../lib/aiCache";
 import { verifyFirebaseIdTokenDetailed } from "../../../lib/firebaseAdmin";
 import { calculatePriceProjection } from "../../../lib/priceProjection";
 import { getMergedCalendarEvents } from "../../../lib/liveCalendarService";
+import { getAssetProfile } from "../../../lib/assetProfile";
 
 import { z } from "zod";
 
@@ -83,6 +84,7 @@ export async function POST(request: Request) {
     // Validate with Zod schema
     const parsedInput = analyzeInputSchema.parse(body);
     const symbol = normalizeSymbol(parsedInput.symbol);
+    const assetProfile = getAssetProfile(symbol);
     const timeframe = parsedInput.timeframe;
     const tradingStyle = parsedInput.tradingStyle;
     const risk = parsedInput.risk;
@@ -94,14 +96,15 @@ export async function POST(request: Request) {
     const klines = await getKlines(symbol, timeframe, 450);
 
     // 3. Compute technical indicators
-    const indicators = calculateIndicators(klines);
+    const indicators = calculateIndicators(klines, assetProfile);
 
     // 4. Calculate support and resistance zones
     const supportResistance = calculateSupportResistance(
       klines,
       indicators,
       marketData.currentPrice,
-      timeframe
+      timeframe,
+      assetProfile.assetClass
     );
 
     // 5. Gather news

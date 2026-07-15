@@ -67,6 +67,9 @@ const BUILTIN_STOCKS: SearchResult[] = [
   { symbol: "ARKK", name: "ARK Innovation ETF", exchange: "NYSE", type: "etf" },
   { symbol: "SOXL", name: "Direxion Semiconductors 3x Bull", exchange: "NYSE", type: "etf" },
   { symbol: "TQQQ", name: "ProShares UltraPro QQQ 3x", exchange: "NASDAQ", type: "etf" },
+  // Precious metals
+  { symbol: "GC=F", name: "Gold Futures (ทองคำ)", exchange: "COMEX", type: "commodity" },
+  { symbol: "SI=F", name: "Silver Futures (เงิน)", exchange: "COMEX", type: "commodity" },
   // Crypto
   { symbol: "BTC-USD", name: "Bitcoin USD", exchange: "Crypto", type: "crypto" },
   { symbol: "ETH-USD", name: "Ethereum USD", exchange: "Crypto", type: "crypto" },
@@ -121,12 +124,18 @@ export async function GET(request: Request) {
 
       if (searchResult?.quotes && Array.isArray(searchResult.quotes)) {
         yahooResults = searchResult.quotes
-          .filter((q: any) => q.symbol && q.quoteType !== "OPTION" && q.quoteType !== "FUTURE")
+          .filter((q: any) => q.symbol && q.quoteType !== "OPTION")
           .map((q: any) => ({
             symbol: q.symbol,
             name: q.shortname || q.longname || q.symbol,
             exchange: q.exchange || q.exchDisp || "Unknown",
-            type: (q.quoteType === "ETF" ? "etf" : q.quoteType === "CRYPTOCURRENCY" ? "crypto" : "stock") as SearchResult["type"],
+            type: (q.quoteType === "ETF"
+              ? "etf"
+              : q.quoteType === "CRYPTOCURRENCY"
+                ? "crypto"
+                : q.quoteType === "FUTURE"
+                  ? "commodity"
+                  : "stock") as SearchResult["type"],
           }))
           .slice(0, limit);
       }

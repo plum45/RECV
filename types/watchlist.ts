@@ -2,7 +2,7 @@ export interface SearchResult {
   symbol: string;
   name: string;
   exchange: string;
-  type: "stock" | "etf" | "crypto" | "unknown";
+  type: "stock" | "etf" | "crypto" | "commodity" | "unknown";
 }
 
 import type { MarketState } from "./market";

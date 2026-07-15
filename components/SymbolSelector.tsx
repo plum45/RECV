@@ -117,6 +117,13 @@ const symbolGroups = [
       { value: "TQQQ", label: "ProShares UltraPro QQQ 3x (TQQQ)" },
     ],
   },
+  {
+    group: "Precious Metals (ทองและเงิน)",
+    stocks: [
+      { value: "GC=F", label: "Gold Futures / ทองคำ (GC=F)" },
+      { value: "SI=F", label: "Silver Futures / เงิน (SI=F)" },
+    ],
+  },
 ];
 
 export default function SymbolSelector({ value, onChange }: SymbolSelectorProps) {

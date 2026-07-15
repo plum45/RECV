@@ -4,6 +4,7 @@ import { calculateIndicators } from "../../../../lib/indicators";
 import { calculateSupportResistance } from "../../../../lib/supportResistance";
 import { checkRateLimit } from "../../../../lib/aiCache";
 import { verifyFirebaseIdTokenDetailed } from "../../../../lib/firebaseAdmin";
+import { getAssetProfile } from "../../../../lib/assetProfile";
 
 export const runtime = "nodejs";
 
@@ -29,14 +30,16 @@ async function scanSupport(symbols: string[]) {
       try {
         const ticker = await getTicker(symbol);
         const isCrypto = symbol.toUpperCase().endsWith("-USD");
-        const timeframe = isCrypto ? "4H" : "1D";
+        const assetProfile = getAssetProfile(symbol);
+        const timeframe = assetProfile.isPreciousMetal ? "4H" : isCrypto ? "4H" : "1D";
         const klines = await getKlines(symbol, timeframe, 450);
-        const indicators = calculateIndicators(klines);
+        const indicators = calculateIndicators(klines, assetProfile);
         const supportResistance = calculateSupportResistance(
           klines,
           indicators,
           ticker.currentPrice,
-          timeframe
+          timeframe,
+          assetProfile.assetClass
         );
 
         // Filter for high-impact support zones (score >= 3)
@@ -52,8 +55,12 @@ async function scanSupport(symbols: string[]) {
           }
         }
 
-        const threshold = isCrypto ? 2.5 : 3.0;
-        const brokenThreshold = isCrypto ? -0.75 : -1.0;
+        const threshold = assetProfile.isPreciousMetal
+          ? assetProfile.supportAlert.upperPercent
+          : isCrypto ? 2.5 : 3.0;
+        const brokenThreshold = assetProfile.isPreciousMetal
+          ? assetProfile.supportAlert.lowerPercent
+          : isCrypto ? -0.75 : -1.0;
 
         return {
           symbol,

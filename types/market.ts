@@ -169,6 +169,8 @@ export interface SupportResistanceZone {
   /** Nearest actionable level or broader market-structure level. */
   role?: "nearest" | "structural" | "secondary";
   timeframe?: string;
+  /** Untouched resting-stop pool found from equal highs/lows; used for metals. */
+  liquidity?: "buy_side" | "sell_side" | "mixed";
 }
 
 export interface SupportResistanceData {

@@ -7,6 +7,7 @@ import { fetchNews } from "../../../lib/news";
 import { fetchSentiment } from "../../../lib/sentiment";
 import { verifyFirebaseIdTokenDetailed } from "../../../lib/firebaseAdmin";
 import { generateAnalysisReport } from "../../../lib/openai";
+import { getAssetProfile } from "../../../lib/assetProfile";
 
 export const runtime = "nodejs";
 
@@ -58,6 +59,7 @@ export async function POST(request: Request) {
 
     const { symbol: rawSymbol, tradingStyle, timeframe, direction, capital, risk } = parsed.data;
     const symbol = normalizeSymbol(rawSymbol);
+    const assetProfile = getAssetProfile(symbol);
 
     // Fetch Live Market Data
     const marketData = await getTicker(symbol);
@@ -77,8 +79,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const indicators = calculateIndicators(klines);
-    const supportResistance = calculateSupportResistance(klines, indicators, marketData.currentPrice, timeframe);
+    const indicators = calculateIndicators(klines, assetProfile);
+    const supportResistance = calculateSupportResistance(klines, indicators, marketData.currentPrice, timeframe, assetProfile.assetClass);
     const news = await fetchNews(symbol);
     const sentiment = await fetchSentiment(symbol);
 
@@ -119,10 +121,21 @@ export async function POST(request: Request) {
     const structuralSupport = supportZones.find((zone) => zone.role === "structural") || supportZones[1];
     const nearestResistance = resistanceZones.find((zone) => zone.role === "nearest") || resistanceZones[0];
     const structuralResistance = resistanceZones.find((zone) => zone.role === "structural") || resistanceZones[1];
+    const buySideLiquidity = resistanceZones.find(
+      (zone) => zone.liquidity === "buy_side" || zone.liquidity === "mixed"
+    );
+    const sellSideLiquidity = supportZones.find(
+      (zone) => zone.liquidity === "sell_side" || zone.liquidity === "mixed"
+    );
     const supportEntryZone = parseSRRange(nearestSupport?.zone);
     const structuralSupportZone = parseSRRange(structuralSupport?.zone);
     const resistanceEntryZone = parseSRRange(nearestResistance?.zone);
     const structuralResistanceZone = parseSRRange(structuralResistance?.zone);
+    const buySideLiquidityZone = parseSRRange(buySideLiquidity?.zone);
+    const sellSideLiquidityZone = parseSRRange(sellSideLiquidity?.zone);
+    const liquidityContext = assetProfile.isPreciousMetal
+      ? `Liquidity: ${buySideLiquidity?.zone ? `buy-side pool ${buySideLiquidity.zone}` : "no unswept buy-side pool"}; ${sellSideLiquidity?.zone ? `sell-side pool ${sellSideLiquidity.zone}` : "no unswept sell-side pool"}.`
+      : "";
 
     let entryLow = 0;
     let entryHigh = 0;
@@ -137,7 +150,9 @@ export async function POST(request: Request) {
       atr * 0.35,
       price * (tradingStyle === "day" ? 0.0015 : tradingStyle === "position" ? 0.005 : 0.003)
     );
-    const technicalStopBuffer = Math.max(atr * 0.35, price * 0.0015);
+    const technicalStopBuffer = assetProfile.isPreciousMetal
+      ? Math.max(atr * 0.65, price * 0.0015)
+      : Math.max(atr * 0.35, price * 0.0015);
 
     if (direction === "long") {
       if (supportEntryZone) {
@@ -155,8 +170,14 @@ export async function POST(request: Request) {
       } else if (hasVwapConfluence) {
         entryApproach += `; ${vwapLabel} confluence at the entry zone`;
       }
+      if (assetProfile.isPreciousMetal) {
+        entryApproach += "; wait for a sell-side liquidity sweep and reclaim before opening Long";
+      }
       stopLoss = supportEntryZone ? supportEntryZone.low - technicalStopBuffer : entryMid - slBuffer;
       takeProfit1 = resistanceEntryZone && resistanceEntryZone.low > entryMid ? resistanceEntryZone.low : entryMid + Math.max(atr, slBuffer * 1.5);
+      if (buySideLiquidityZone && buySideLiquidityZone.low > entryMid) {
+        takeProfit1 = buySideLiquidityZone.low;
+      }
       takeProfit2 = structuralResistanceZone && structuralResistanceZone.low > takeProfit1 ? structuralResistanceZone.low : entryMid + Math.max(atr * 2, slBuffer * 2.5);
       takeProfit3 = fib.ext161 > takeProfit2 ? fib.ext161 : takeProfit2 + slBuffer * 1.5;
 
@@ -179,8 +200,14 @@ export async function POST(request: Request) {
       } else if (hasVwapConfluence) {
         entryApproach += `; ${vwapLabel} confluence at the entry zone`;
       }
+      if (assetProfile.isPreciousMetal) {
+        entryApproach += "; wait for a buy-side liquidity sweep and rejection before opening Short";
+      }
       stopLoss = resistanceEntryZone ? resistanceEntryZone.high + technicalStopBuffer : entryMid + slBuffer;
       takeProfit1 = supportEntryZone && supportEntryZone.high < entryMid ? supportEntryZone.high : entryMid - Math.max(atr, slBuffer * 1.5);
+      if (sellSideLiquidityZone && sellSideLiquidityZone.high < entryMid) {
+        takeProfit1 = sellSideLiquidityZone.high;
+      }
       takeProfit2 = structuralSupportZone && structuralSupportZone.high < takeProfit1 ? structuralSupportZone.high : entryMid - Math.max(atr * 2, slBuffer * 2.5);
       takeProfit3 = fib.r786 < takeProfit2 ? fib.r786 : takeProfit2 - slBuffer * 1.5;
 
@@ -193,7 +220,7 @@ export async function POST(request: Request) {
     let holdingPeriod = styleMeta[tradingStyle].holdingPeriod;
     let invalidation = direction === "long" ? `ราคาปิดต่ำกว่าแนวรับ Stop Loss ที่ $${stopLoss.toFixed(2)}` : direction === "short" ? `ราคาทะลุผ่านกรอบ Stop Loss ด้านบนที่ $${stopLoss.toFixed(2)}` : "สัญญาณไม่ชัดเจน ไม่ควรเปิดออเดอร์";
     let confidence = 50;
-    let reasoning = `${entryApproach}. ${vwapContext}. วิเคราะห์ตามเงื่อนไขเทคนิคัลเครื่องมือดัชนีชี้วัด EMA, RSI, MACD และวอลุ่มหนาแน่นสอดคล้องกัน`;
+    let reasoning = `${entryApproach}. ${vwapContext}. ${liquidityContext} วิเคราะห์ตามเงื่อนไขเทคนิคัลเครื่องมือดัชนีชี้วัด EMA, RSI, MACD และวอลุ่มหนาแน่นสอดคล้องกัน`;
 
     const hasApiKey = process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== "your_openai_api_key";
     if (hasApiKey && direction !== "wait") {
@@ -213,6 +240,7 @@ MACD: Histogram=${indicators.macd.histogram.toFixed(2)}, Crossover=${indicators.
 ${vwapLabel}: ${sessionVwap.toFixed(2)} (${sessionVwapBias})
 Anchored VWAP: ${anchoredVwap > 0 ? `${anchoredVwap.toFixed(2)} (${anchoredVwapBias})` : "unavailable"}
 Market Structure: ${indicators.marketStructure.type}
+${liquidityContext}
 
 Respond ONLY with a JSON object in this exact format:
 {
