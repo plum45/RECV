@@ -8,7 +8,7 @@ import type { TickerData } from "../../../types/market";
 import { getAssetProfile } from "../../../lib/assetProfile";
 
 const metals = [
-  { symbol: "GC=F", name: "Gold", thaiName: "ทองคำ", accent: "amber" },
+  { symbol: "XAUUSD=X", name: "XAUUSD", thaiName: "ทองคำ Spot", accent: "amber" },
   { symbol: "SI=F", name: "Silver", thaiName: "เงิน", accent: "slate" },
 ] as const;
 
@@ -44,7 +44,7 @@ export default function PreciousMetalsPage() {
     };
   }, [refresh]);
 
-  const profile = getAssetProfile("GC=F");
+  const profile = getAssetProfile("XAUUSD=X");
 
   return (
     <div className="min-h-full bg-[#090d16] p-4 pb-24 text-slate-100 sm:p-6 lg:p-8">

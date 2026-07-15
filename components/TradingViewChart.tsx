@@ -26,6 +26,17 @@ function mapIntervalToTv(interval: string): string {
 
 function resolveTvSymbol(symbol: string): string {
   const sym = symbol.toUpperCase().trim();
+
+  // Keep the visual chart on the same underlying instrument used by the
+  // analysis APIs. GC=F/SI=F are futures, so do not silently fall back to
+  // XAUUSD/XAGUSD spot quotes with a different price basis.
+  const metalsSymbols: Record<string, string> = {
+    "GC=F": "COMEX:GC1!",
+    "SI=F": "COMEX:SI1!",
+    "XAUUSD=X": "OANDA:XAUUSD",
+    "XAGUSD=X": "OANDA:XAGUSD",
+  };
+  if (metalsSymbols[sym]) return metalsSymbols[sym];
   
   // 1. Handle Crypto assets (e.g. BTC-USD -> COINBASE:BTCUSD)
   if (sym.endsWith("-USD")) {

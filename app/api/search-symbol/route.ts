@@ -68,7 +68,7 @@ const BUILTIN_STOCKS: SearchResult[] = [
   { symbol: "SOXL", name: "Direxion Semiconductors 3x Bull", exchange: "NYSE", type: "etf" },
   { symbol: "TQQQ", name: "ProShares UltraPro QQQ 3x", exchange: "NASDAQ", type: "etf" },
   // Precious metals
-  { symbol: "GC=F", name: "Gold Futures (ทองคำ)", exchange: "COMEX", type: "commodity" },
+  { symbol: "XAUUSD=X", name: "Gold Spot (XAUUSD / ทองคำ)", exchange: "Forex", type: "commodity" },
   { symbol: "SI=F", name: "Silver Futures (เงิน)", exchange: "COMEX", type: "commodity" },
   // Crypto
   { symbol: "BTC-USD", name: "Bitcoin USD", exchange: "Crypto", type: "crypto" },

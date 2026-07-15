@@ -227,12 +227,35 @@ export default function SummaryPanel({
   // Green: < 1 min, Yellow: 1-5 mins, Red: > 5 mins, Gray: Market Closed
   let freshnessBadgeColor = "bg-slate-800 text-slate-400 border-slate-700/50";
   let freshnessBadgeText = "กำลังตรวจสอบ...";
-  const now = new Date();
-  const isMarketClosed = typeof window !== "undefined" && (now.getDay() === 0 || now.getDay() === 6 || now.getHours() < 9 || now.getHours() >= 17);
+  const newYorkParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const readNewYorkPart = (type: string) => newYorkParts.find((part) => part.type === type)?.value || "";
+  const newYorkDay = readNewYorkPart("weekday");
+  const newYorkHour = Number(readNewYorkPart("hour"));
+  const newYorkMinute = Number(readNewYorkPart("minute"));
+  const newYorkTime = newYorkHour + newYorkMinute / 60;
+
+  // XAUUSD follows the global metals/FX session, not local browser time or the
+  // 09:30-16:00 US equity session. Metals pause each weekday 17:00-18:00 ET.
+  const isMarketClosed = assetProfile.assetClass === "crypto"
+    ? false
+    : assetProfile.isPreciousMetal
+      ? newYorkDay === "Sat" ||
+        (newYorkDay === "Sun" && newYorkTime < 18) ||
+        (newYorkDay === "Fri" && newYorkTime >= 17) ||
+        (["Mon", "Tue", "Wed", "Thu"].includes(newYorkDay) && newYorkTime >= 17 && newYorkTime < 18)
+      : ["Sat", "Sun"].includes(newYorkDay) || newYorkTime < 9.5 || newYorkTime >= 16;
 
   if (isMarketClosed) {
     freshnessBadgeColor = "bg-slate-800/80 text-slate-400 border-slate-700/40";
-    freshnessBadgeText = "ตลาดปิด (Market Closed) • Yahoo Finance";
+    freshnessBadgeText = assetProfile.isPreciousMetal
+      ? "CME Metals ปิด/พักการซื้อขาย • Yahoo Finance"
+      : "ตลาดปิด (Market Closed) • Yahoo Finance";
   } else if (isPriceStale || minutesElapsed > 5) {
     freshnessBadgeColor = "bg-rose-500/10 text-rose-455 border-rose-500/20";
     freshnessBadgeText = `เกิน 5 นาที (${minutesElapsed} นาทีที่แล้ว) • Yahoo Finance`;

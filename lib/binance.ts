@@ -191,9 +191,10 @@ export async function getKlines(
 ): Promise<KlineData[]> {
   const cleanSymbol = symbol.toUpperCase().trim();
   const finnhubKey = process.env.FINNHUB_API_KEY;
+  const yahooOnlySymbol = ["XAUUSD=X", "XAGUSD=X"].includes(cleanSymbol);
 
   // 1. Try Finnhub first if API key is configured
-  if (finnhubKey) {
+  if (finnhubKey && !yahooOnlySymbol) {
     try {
       const { symbol: fhSymbol, isCrypto } = getFinnhubSymbolInfo(cleanSymbol);
       const { res, daysBack } = mapTimeframeToFinnhub(interval);
@@ -281,9 +282,10 @@ export async function getKlines(
 export async function getTicker(symbol: string): Promise<TickerData> {
   const cleanSymbol = symbol.toUpperCase().trim();
   const finnhubKey = process.env.FINNHUB_API_KEY;
+  const yahooOnlySymbol = ["XAUUSD=X", "XAGUSD=X"].includes(cleanSymbol);
 
   // 1. Try Finnhub first if API key is configured
-  if (finnhubKey) {
+  if (finnhubKey && !yahooOnlySymbol) {
     try {
       const { symbol: fhSymbol } = getFinnhubSymbolInfo(cleanSymbol);
       const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(fhSymbol)}&token=${finnhubKey}`;
