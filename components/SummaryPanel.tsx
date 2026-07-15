@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { TickerData, SupportResistanceData, IndicatorData } from "../types/market";
 import { useRouter } from "next/navigation";
+import { getAssetProfile } from "../lib/assetProfile";
 
 interface SummaryPanelProps {
   symbol: string;
@@ -201,6 +202,26 @@ export default function SummaryPanel({
   const macdVal = indicators?.macd?.macdLine?.toFixed(2) || "—";
   const signalVal = indicators?.macd?.signalLine?.toFixed(2) || "—";
   const macdText = macdHist > 0 ? "Bullish Crossover" : macdHist < 0 ? "Bearish Crossover" : "Neutral";
+  const assetProfile = getAssetProfile(symbol);
+  const priceAction = indicators?.priceAction ?? {
+    bias: "neutral" as const,
+    confirmation: "none" as const,
+    patterns: [],
+    liquiditySweep: "none" as const,
+  };
+  const smartMoney = indicators?.smartMoney;
+  const allZones = [...supports, ...resistances];
+  const fvgZone = allZones.find((zone) => zone.reasons?.some((reason) => reason.includes("FVG")));
+  const liquidityZone = allZones.find((zone) => zone.liquidity && zone.liquidity !== "mixed");
+  const bullishConfirmed = priceAction.bias === "bullish" && priceAction.confirmation === "confirmed" &&
+    (smartMoney?.bos === "bullish" || smartMoney?.mss === "bullish");
+  const bearishConfirmed = priceAction.bias === "bearish" && priceAction.confirmation === "confirmed" &&
+    (smartMoney?.bos === "bearish" || smartMoney?.mss === "bearish");
+  const decision = bullishConfirmed
+    ? { label: "Long setup ยืนยันแล้ว", detail: "รอราคาย่อเข้า Demand/แนวรับ แล้วคุมความเสี่ยงใต้โซน", tone: "text-emerald-300 border-emerald-500/25 bg-emerald-500/10" }
+    : bearishConfirmed
+      ? { label: "Short setup ยืนยันแล้ว", detail: "รอราคาดีดเข้า Supply/แนวต้าน แล้วคุมความเสี่ยงเหนือโซน", tone: "text-rose-300 border-rose-500/25 bg-rose-500/10" }
+      : { label: "รอการยืนยัน", detail: assetProfile.isPreciousMetal ? "ต้องรอ Liquidity sweep + Price Action + BOS/MSS ให้ตรงฝั่งก่อนเข้า" : "รอให้ Price Action และโครงสร้างตลาดชัดเจนก่อนเข้า", tone: "text-amber-300 border-amber-500/25 bg-amber-500/10" };
 
   // Data Freshness Badge Logic (Requirement 6)
   // Green: < 1 min, Yellow: 1-5 mins, Red: > 5 mins, Gray: Market Closed
@@ -393,6 +414,45 @@ export default function SummaryPanel({
         </div>
 
       </div>
+
+      {indicators && (
+        <section className="relative mt-5 rounded-2xl border border-cyan-500/20 bg-slate-950/70 p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 text-sm font-black text-slate-100">
+              <Shield size={15} className="text-cyan-300" /> สรุปเงื่อนไขเข้าเทรด
+            </h2>
+            {assetProfile.isPreciousMetal && (
+              <span className="rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-1 text-[10px] font-bold text-amber-200">Gold / Silver model</span>
+            )}
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Market structure</p>
+              <p className="mt-1 text-xs font-bold text-slate-200">{indicators.marketStructure.type} · BOS {smartMoney?.bos || "none"}</p>
+              <p className="mt-1 text-[10px] text-slate-500">MSS {smartMoney?.mss || "none"}</p>
+            </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Price action</p>
+              <p className={`mt-1 text-xs font-bold ${priceAction.bias === "bullish" ? "text-emerald-300" : priceAction.bias === "bearish" ? "text-rose-300" : "text-slate-200"}`}>{priceAction.bias} · {priceAction.confirmation}</p>
+              <p className="mt-1 truncate text-[10px] text-slate-500" title={priceAction.patterns.join(", ")}>{priceAction.patterns.join(", ") || "No confirmed pattern"}</p>
+            </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Liquidity / zones</p>
+              <p className="mt-1 text-xs font-bold text-slate-200">{liquidityZone ? `${liquidityZone.liquidity} pool` : "No fresh pool"}</p>
+              <p className="mt-1 truncate text-[10px] text-slate-500">{smartMoney?.demandZone ? `Demand ${smartMoney.demandZone.low.toFixed(2)}-${smartMoney.demandZone.high.toFixed(2)}` : smartMoney?.supplyZone ? `Supply ${smartMoney.supplyZone.low.toFixed(2)}-${smartMoney.supplyZone.high.toFixed(2)}` : "No fresh demand/supply"}</p>
+            </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">FVG / VWAP</p>
+              <p className="mt-1 text-xs font-bold text-slate-200">{fvgZone ? `Active FVG ${fvgZone.zone}` : "No active FVG"}</p>
+              <p className="mt-1 text-[10px] text-slate-500">{indicators.vwapDetails.type === "session" ? "Session" : "Rolling"} VWAP {indicators.vwap.toFixed(2)}</p>
+            </div>
+          </div>
+          <div className={`mt-3 rounded-xl border px-3 py-2.5 ${decision.tone}`}>
+            <p className="text-xs font-black">{decision.label}</p>
+            <p className="mt-0.5 text-[11px] leading-relaxed opacity-90">{decision.detail}</p>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

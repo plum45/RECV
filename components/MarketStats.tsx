@@ -66,6 +66,19 @@ export default function MarketStats({
 
   const vwapLabel = indicators.vwapDetails.type === "session" ? "Session VWAP" : "Rolling VWAP";
   const vwapIsBullish = indicators.vwap > 0 && displayPrice.price >= indicators.vwap;
+  const priceAction = indicators.priceAction ?? {
+    bias: "neutral" as const,
+    confirmation: "none" as const,
+    patterns: [],
+    liquiditySweep: "none" as const,
+  };
+  const priceActionColor = priceAction.bias === "bullish"
+    ? "text-emerald-400"
+    : priceAction.bias === "bearish" ? "text-rose-400" : "text-slate-300";
+  const smartMoney = indicators.smartMoney;
+  const smartMoneyColor = smartMoney?.mss === "bullish" || smartMoney?.bos === "bullish"
+    ? "text-emerald-400"
+    : smartMoney?.mss === "bearish" || smartMoney?.bos === "bearish" ? "text-rose-400" : "text-slate-300";
 
   const compactNumber = new Intl.NumberFormat("en-US", {
     notation: "compact",
@@ -257,6 +270,31 @@ export default function MarketStats({
                     <span className="text-slate-400 text-xs sm:text-sm">Anchored VWAP</span>
                     <span className={`text-xs sm:text-sm font-semibold ${displayPrice.price >= indicators.anchoredVwap.value ? "text-cyan-300" : "text-amber-300"}`}>
                       ${indicators.anchoredVwap.value.toFixed(2)} · {indicators.anchoredVwap.anchorType.replace("_", " ")}
+                    </span>
+                  </div>
+                )}
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b border-slate-800 pb-2.5 gap-1 min-w-0">
+                  <span className="text-slate-400 text-xs sm:text-sm">Price Action</span>
+                  <span className={`text-xs sm:text-sm font-semibold ${priceActionColor}`} title={priceAction.patterns.join(", ")}>
+                    {priceAction.bias} · {priceAction.confirmation}
+                    {priceAction.liquiditySweep !== "none" ? ` · ${priceAction.liquiditySweep} sweep` : ""}
+                  </span>
+                </div>
+                {smartMoney && (
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b border-slate-800 pb-2.5 gap-1 min-w-0">
+                    <span className="text-slate-400 text-xs sm:text-sm">Smart Money</span>
+                    <span className={`text-xs sm:text-sm font-semibold ${smartMoneyColor}`}>
+                      BOS {smartMoney.bos} · MSS {smartMoney.mss}
+                    </span>
+                  </div>
+                )}
+                {smartMoney && (smartMoney.demandZone || smartMoney.supplyZone) && (
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b border-slate-800 pb-2.5 gap-1 min-w-0">
+                    <span className="text-slate-400 text-xs sm:text-sm">Demand / Supply</span>
+                    <span className="text-xs sm:text-sm font-semibold text-amber-300">
+                      {smartMoney.demandZone
+                        ? `Demand ${smartMoney.demandZone.low.toFixed(2)}-${smartMoney.demandZone.high.toFixed(2)}`
+                        : `Supply ${smartMoney.supplyZone!.low.toFixed(2)}-${smartMoney.supplyZone!.high.toFixed(2)}`}
                     </span>
                   </div>
                 )}

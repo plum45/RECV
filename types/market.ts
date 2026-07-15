@@ -125,6 +125,26 @@ export interface IndicatorData {
     anchorType: "swing_low" | "swing_high" | "rolling";
     length: number;
   };
+  priceAction?: {
+    bias: "bullish" | "bearish" | "neutral";
+    confirmation: "confirmed" | "watch" | "none";
+    patterns: string[];
+    liquiditySweep: "buy_side" | "sell_side" | "none";
+    lastCandle: {
+      bodyPercent: number;
+      upperWickPercent: number;
+      lowerWickPercent: number;
+      closeLocation: number;
+    };
+  };
+  /** Smart-money structure confirmation. Primarily used by the metals desk. */
+  smartMoney?: {
+    bos: "bullish" | "bearish" | "none";
+    mss: "bullish" | "bearish" | "none";
+    setup: "bullish_continuation" | "bearish_continuation" | "bullish_reversal" | "bearish_reversal" | "none";
+    demandZone?: { low: number; high: number; sourceIndex: number; status: "fresh" };
+    supplyZone?: { low: number; high: number; sourceIndex: number; status: "fresh" };
+  };
   marketStructure: {
     type: "uptrend" | "downtrend" | "sideways";
     higherHighs: boolean;

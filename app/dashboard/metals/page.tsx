@@ -119,6 +119,8 @@ export default function PreciousMetalsPage() {
               <li><b className="text-slate-200">Anchored VWAP:</b> ยึดจาก swing ล่าสุดเพื่อดูต้นทุนเฉลี่ยของรอบราคา</li>
               <li><b className="text-slate-200">S/R:</b> ขยายความกว้างโซนและระยะห่างด้วย ATR สำหรับการ sweep ของทองและเงิน</li>
               <li><b className="text-slate-200">Liquidity:</b> หา Equal High/Equal Low ที่ยังไม่ถูกกวาดเป็น Buy-side / Sell-side liquidity; รอ sweep และสัญญาณกลับตัวก่อนเข้า ไม่ไล่ราคา</li>
+              <li><b className="text-slate-200">Price Action:</b> ยืนยันการเข้าด้วย rejection wick, engulfing, inside bar และการปิดกลับเข้าโซนหลัง liquidity sweep</li>
+              <li><b className="text-slate-200">Smart Money:</b> BOS ใช้ยืนยันทิศทางต่อเนื่อง, MSS ใช้จับจุดเปลี่ยนโครงสร้าง และใช้ Demand/Supply zone สดเป็นพื้นที่รอเข้า</li>
               <li><b className="text-slate-200">Alert:</b> ใช้ 15m สำหรับ RSI/MACD; แจ้งใกล้แนวรับในกรอบ +{profile.supportAlert.upperPercent}% ถึง {profile.supportAlert.lowerPercent}%</li>
             </ul>
           </div>

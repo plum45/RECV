@@ -436,6 +436,152 @@ export function calculateIndicators(klines: KlineData[], options: IndicatorOptio
     length: anchoredSlice.length,
   };
 
+  // Price Action: use a closed candle only. This is intentionally a
+  // confirmation layer, especially for metals after a liquidity sweep, not a
+  // prediction based on the currently-forming candle.
+  const inferredBarMs = Math.max(1, klines[len - 1].openTime - klines[len - 2].openTime);
+  const lastBarIsStillOpen = Date.now() < klines[len - 1].openTime + inferredBarMs;
+  const priceActionIndex = lastBarIsStillOpen ? len - 2 : len - 1;
+  const last = klines[priceActionIndex];
+  const previous = klines[priceActionIndex - 1];
+  const candleRange = Math.max(last.high - last.low, Number.EPSILON);
+  const candleBody = Math.abs(last.close - last.open);
+  const upperWick = last.high - Math.max(last.open, last.close);
+  const lowerWick = Math.min(last.open, last.close) - last.low;
+  const bodyPercent = candleBody / candleRange;
+  const upperWickPercent = upperWick / candleRange;
+  const lowerWickPercent = lowerWick / candleRange;
+  const closeLocation = (last.close - last.low) / candleRange;
+  const patterns: string[] = [];
+  let bullishPriceAction = 0;
+  let bearishPriceAction = 0;
+
+  const bullishEngulfing = previous.close < previous.open &&
+    last.close > last.open && last.open <= previous.close && last.close >= previous.open;
+  const bearishEngulfing = previous.close > previous.open &&
+    last.close < last.open && last.open >= previous.close && last.close <= previous.open;
+  const bullishRejection = lowerWickPercent >= 0.45 && lowerWick >= candleBody * 1.5 && closeLocation >= 0.6;
+  const bearishRejection = upperWickPercent >= 0.45 && upperWick >= candleBody * 1.5 && closeLocation <= 0.4;
+  const insideBar = last.high <= previous.high && last.low >= previous.low;
+
+  if (bullishEngulfing) { patterns.push("Bullish engulfing"); bullishPriceAction += 2; }
+  if (bearishEngulfing) { patterns.push("Bearish engulfing"); bearishPriceAction += 2; }
+  if (bullishRejection) { patterns.push("Bullish rejection wick"); bullishPriceAction += 1; }
+  if (bearishRejection) { patterns.push("Bearish rejection wick"); bearishPriceAction += 1; }
+  if (insideBar) patterns.push("Inside bar / compression");
+
+  const sweepLookback = klines.slice(Math.max(0, priceActionIndex - 12), priceActionIndex);
+  const recentHigh = Math.max(...sweepLookback.map((bar) => bar.high));
+  const recentLow = Math.min(...sweepLookback.map((bar) => bar.low));
+  let liquiditySweep: "buy_side" | "sell_side" | "none" = "none";
+  if (last.low < recentLow && closeLocation >= 0.6) {
+    liquiditySweep = "sell_side";
+    patterns.push("Sell-side sweep reclaimed");
+    bullishPriceAction += 2;
+  } else if (last.high > recentHigh && closeLocation <= 0.4) {
+    liquiditySweep = "buy_side";
+    patterns.push("Buy-side sweep rejected");
+    bearishPriceAction += 2;
+  }
+
+  const priceActionBias = bullishPriceAction > bearishPriceAction
+    ? "bullish" as const
+    : bearishPriceAction > bullishPriceAction
+      ? "bearish" as const
+      : "neutral" as const;
+  const priceAction = {
+    bias: priceActionBias,
+    confirmation: Math.max(bullishPriceAction, bearishPriceAction) >= 2
+      ? "confirmed" as const
+      : patterns.length > 0 ? "watch" as const : "none" as const,
+    patterns,
+    liquiditySweep,
+    lastCandle: {
+      bodyPercent: Number(bodyPercent.toFixed(3)),
+      upperWickPercent: Number(upperWickPercent.toFixed(3)),
+      lowerWickPercent: Number(lowerWickPercent.toFixed(3)),
+      closeLocation: Number(closeLocation.toFixed(3)),
+    },
+  };
+
+  // Smart Money Concepts: a BOS requires a closed candle beyond a confirmed
+  // swing. MSS is an opposite-side BOS against the preceding structure. The
+  // origin candle of that impulse becomes the fresh Demand/Supply zone.
+  const structureWindow = 3;
+  const findLatestConfirmedSwing = (kind: "high" | "low") => {
+    for (let i = priceActionIndex - structureWindow; i >= structureWindow; i--) {
+      let isSwing = true;
+      for (let j = i - structureWindow; j <= i + structureWindow; j++) {
+        if (j === i || j > priceActionIndex) continue;
+        if (kind === "high" && klines[j].high >= klines[i].high) {
+          isSwing = false;
+          break;
+        }
+        if (kind === "low" && klines[j].low <= klines[i].low) {
+          isSwing = false;
+          break;
+        }
+      }
+      if (isSwing) return { price: kind === "high" ? klines[i].high : klines[i].low, index: i };
+    }
+    return null;
+  };
+
+  const lastConfirmedHigh = findLatestConfirmedSwing("high");
+  const lastConfirmedLow = findLatestConfirmedSwing("low");
+  const structureBreakBuffer = Math.max(atr14 * 0.08, last.close * 0.0002);
+  const smartBos = lastConfirmedHigh && last.close > lastConfirmedHigh.price + structureBreakBuffer
+    ? "bullish" as const
+    : lastConfirmedLow && last.close < lastConfirmedLow.price - structureBreakBuffer
+      ? "bearish" as const
+      : "none" as const;
+  const smartMss = smartBos === "bullish" && structType === "downtrend"
+    ? "bullish" as const
+    : smartBos === "bearish" && structType === "uptrend"
+      ? "bearish" as const
+      : "none" as const;
+
+  const findOriginZone = (direction: "bullish" | "bearish") => {
+    for (let i = priceActionIndex - 1; i >= Math.max(0, priceActionIndex - 14); i--) {
+      const candle = klines[i];
+      const isOpposingCandle = direction === "bullish"
+        ? candle.close < candle.open
+        : candle.close > candle.open;
+      if (isOpposingCandle) {
+        return direction === "bullish"
+          ? {
+              low: Number(candle.low.toFixed(4)),
+              high: Number(Math.max(candle.open, candle.close).toFixed(4)),
+              sourceIndex: i,
+              status: "fresh" as const,
+            }
+          : {
+              low: Number(Math.min(candle.open, candle.close).toFixed(4)),
+              high: Number(candle.high.toFixed(4)),
+              sourceIndex: i,
+              status: "fresh" as const,
+            };
+      }
+    }
+    return undefined;
+  };
+
+  const smartMoney = {
+    bos: smartBos,
+    mss: smartMss,
+    setup: smartMss === "bullish"
+      ? "bullish_reversal" as const
+      : smartMss === "bearish"
+        ? "bearish_reversal" as const
+        : smartBos === "bullish"
+          ? "bullish_continuation" as const
+          : smartBos === "bearish"
+            ? "bearish_continuation" as const
+            : "none" as const,
+    demandZone: smartBos === "bullish" ? findOriginZone("bullish") : undefined,
+    supplyZone: smartBos === "bearish" ? findOriginZone("bearish") : undefined,
+  };
+
   return {
     ema20, ema50, ema200,
     rsi14,
@@ -452,6 +598,8 @@ export function calculateIndicators(klines: KlineData[], options: IndicatorOptio
     vwap,
     vwapDetails,
     anchoredVwap,
+    priceAction,
+    smartMoney,
     marketStructure,
   };
 }

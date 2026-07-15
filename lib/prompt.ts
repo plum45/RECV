@@ -98,6 +98,8 @@ ${styleDescription}
 - Anchored VWAP: ${indicators.anchoredVwap ? `${indicators.anchoredVwap.value} (anchored at ${indicators.anchoredVwap.anchorType.replace("_", " ")})` : "N/A"}
 - Pivot Point: P=${indicators.pivot.p}, S1=${indicators.pivot.s1}, S2=${indicators.pivot.s2}, S3=${indicators.pivot.s3}, R1=${indicators.pivot.r1}, R2=${indicators.pivot.r2}, R3=${indicators.pivot.r3}
 - Volume Analysis: ปริมาณปัจจุบัน=${indicators.volumeAnalysis.currentVolume}, ค่าเฉลี่ย 20 แท่ง=${indicators.volumeAnalysis.avgVolume20}, อัตราส่วนปริมาณ=${indicators.volumeAnalysis.volumeRatio.toFixed(2)}x, สัญญาณ Volume Spike: ${indicators.volumeAnalysis.isVolumeSpike ? "ใช่" : "ไม่ใช่"}
+- Price Action: bias=${indicators.priceAction?.bias || "unavailable"}, confirmation=${indicators.priceAction?.confirmation || "unavailable"}, patterns=${indicators.priceAction?.patterns.join(", ") || "none"}, liquidity sweep=${indicators.priceAction?.liquiditySweep || "none"}
+- Smart Money: BOS=${indicators.smartMoney?.bos || "unavailable"}, MSS=${indicators.smartMoney?.mss || "unavailable"}, setup=${indicators.smartMoney?.setup || "none"}, demand=${indicators.smartMoney?.demandZone ? `${indicators.smartMoney.demandZone.low}-${indicators.smartMoney.demandZone.high}` : "none"}, supply=${indicators.smartMoney?.supplyZone ? `${indicators.smartMoney.supplyZone.low}-${indicators.smartMoney.supplyZone.high}` : "none"}
 
 [3. แนวรับ-แนวต้านหลักที่คำนวณแบบสถิติ (Clustered Zones)]
 แนวรับ (Support Zones):

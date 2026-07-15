@@ -136,6 +136,32 @@ export async function POST(request: Request) {
     const liquidityContext = assetProfile.isPreciousMetal
       ? `Liquidity: ${buySideLiquidity?.zone ? `buy-side pool ${buySideLiquidity.zone}` : "no unswept buy-side pool"}; ${sellSideLiquidity?.zone ? `sell-side pool ${sellSideLiquidity.zone}` : "no unswept sell-side pool"}.`
       : "";
+    const priceAction = indicators.priceAction ?? {
+      bias: "neutral" as const,
+      confirmation: "none" as const,
+      patterns: [],
+      liquiditySweep: "none" as const,
+      lastCandle: { bodyPercent: 0, upperWickPercent: 0, lowerWickPercent: 0, closeLocation: 0 },
+    };
+    const bullishPriceActionConfirmed = priceAction.bias === "bullish" && priceAction.confirmation === "confirmed";
+    const bearishPriceActionConfirmed = priceAction.bias === "bearish" && priceAction.confirmation === "confirmed";
+    const priceActionContext = assetProfile.isPreciousMetal
+      ? `Price action: ${priceAction.bias} / ${priceAction.confirmation}; ${priceAction.patterns.join(", ") || "no reversal pattern"}.`
+      : "";
+    const smartMoney = indicators.smartMoney ?? {
+      bos: "none" as const,
+      mss: "none" as const,
+      setup: "none" as const,
+    };
+    const bullishStructureConfirmed = smartMoney.bos === "bullish" || smartMoney.mss === "bullish";
+    const bearishStructureConfirmed = smartMoney.bos === "bearish" || smartMoney.mss === "bearish";
+    const demandZone = smartMoney.demandZone;
+    const supplyZone = smartMoney.supplyZone;
+    const demandZoneActionable = demandZone && price >= demandZone.high && (price - demandZone.high) / price <= 0.035;
+    const supplyZoneActionable = supplyZone && price <= supplyZone.low && (supplyZone.low - price) / price <= 0.035;
+    const smartMoneyContext = assetProfile.isPreciousMetal
+      ? `Smart money: BOS=${smartMoney.bos}; MSS=${smartMoney.mss}; setup=${smartMoney.setup}; ${demandZone ? `fresh demand ${demandZone.low.toFixed(2)}-${demandZone.high.toFixed(2)}` : "no fresh demand zone"}; ${supplyZone ? `fresh supply ${supplyZone.low.toFixed(2)}-${supplyZone.high.toFixed(2)}` : "no fresh supply zone"}.`
+      : "";
 
     let entryLow = 0;
     let entryHigh = 0;
@@ -155,7 +181,11 @@ export async function POST(request: Request) {
       : Math.max(atr * 0.35, price * 0.0015);
 
     if (direction === "long") {
-      if (supportEntryZone) {
+      if (assetProfile.isPreciousMetal && demandZoneActionable) {
+        entryLow = demandZone.low;
+        entryHigh = demandZone.high;
+        entryApproach = `Wait for fresh demand zone ${demandZone.low.toFixed(2)}-${demandZone.high.toFixed(2)}`;
+      } else if (supportEntryZone) {
         entryLow = supportEntryZone.low;
         entryHigh = supportEntryZone.high;
         entryApproach = `Wait for nearest support zone ${nearestSupport?.zone}${nearestSupport?.distancePercent !== undefined ? ` (${nearestSupport.distancePercent}% away)` : ""}`;
@@ -171,7 +201,9 @@ export async function POST(request: Request) {
         entryApproach += `; ${vwapLabel} confluence at the entry zone`;
       }
       if (assetProfile.isPreciousMetal) {
-        entryApproach += "; wait for a sell-side liquidity sweep and reclaim before opening Long";
+        entryApproach += bullishPriceActionConfirmed && bullishStructureConfirmed
+          ? "; bullish price action and BOS/MSS confirm the long setup after the sell-side sweep"
+          : "; wait for a sell-side liquidity sweep, bullish rejection or bullish engulfing, and bullish BOS/MSS before opening Long";
       }
       stopLoss = supportEntryZone ? supportEntryZone.low - technicalStopBuffer : entryMid - slBuffer;
       takeProfit1 = resistanceEntryZone && resistanceEntryZone.low > entryMid ? resistanceEntryZone.low : entryMid + Math.max(atr, slBuffer * 1.5);
@@ -185,7 +217,11 @@ export async function POST(request: Request) {
       riskReward = riskPerUnit > 0 ? (takeProfit2 - entryMid) / riskPerUnit : 0;
       positionSize = riskPerUnit > 0 ? (capital * (risk / 100)) / riskPerUnit : 0;
     } else if (direction === "short") {
-      if (resistanceEntryZone) {
+      if (assetProfile.isPreciousMetal && supplyZoneActionable) {
+        entryLow = supplyZone.low;
+        entryHigh = supplyZone.high;
+        entryApproach = `Wait for fresh supply zone ${supplyZone.low.toFixed(2)}-${supplyZone.high.toFixed(2)}`;
+      } else if (resistanceEntryZone) {
         entryLow = resistanceEntryZone.low;
         entryHigh = resistanceEntryZone.high;
         entryApproach = `Wait for nearest resistance zone ${nearestResistance?.zone}${nearestResistance?.distancePercent !== undefined ? ` (${nearestResistance.distancePercent}% away)` : ""}`;
@@ -201,7 +237,9 @@ export async function POST(request: Request) {
         entryApproach += `; ${vwapLabel} confluence at the entry zone`;
       }
       if (assetProfile.isPreciousMetal) {
-        entryApproach += "; wait for a buy-side liquidity sweep and rejection before opening Short";
+        entryApproach += bearishPriceActionConfirmed && bearishStructureConfirmed
+          ? "; bearish price action and BOS/MSS confirm the short setup after the buy-side sweep"
+          : "; wait for a buy-side liquidity sweep, bearish rejection or bearish engulfing, and bearish BOS/MSS before opening Short";
       }
       stopLoss = resistanceEntryZone ? resistanceEntryZone.high + technicalStopBuffer : entryMid + slBuffer;
       takeProfit1 = supportEntryZone && supportEntryZone.high < entryMid ? supportEntryZone.high : entryMid - Math.max(atr, slBuffer * 1.5);
@@ -220,7 +258,9 @@ export async function POST(request: Request) {
     let holdingPeriod = styleMeta[tradingStyle].holdingPeriod;
     let invalidation = direction === "long" ? `ราคาปิดต่ำกว่าแนวรับ Stop Loss ที่ $${stopLoss.toFixed(2)}` : direction === "short" ? `ราคาทะลุผ่านกรอบ Stop Loss ด้านบนที่ $${stopLoss.toFixed(2)}` : "สัญญาณไม่ชัดเจน ไม่ควรเปิดออเดอร์";
     let confidence = 50;
-    let reasoning = `${entryApproach}. ${vwapContext}. ${liquidityContext} วิเคราะห์ตามเงื่อนไขเทคนิคัลเครื่องมือดัชนีชี้วัด EMA, RSI, MACD และวอลุ่มหนาแน่นสอดคล้องกัน`;
+    if (assetProfile.isPreciousMetal && direction === "long") confidence += bullishPriceActionConfirmed && bullishStructureConfirmed ? 12 : -15;
+    if (assetProfile.isPreciousMetal && direction === "short") confidence += bearishPriceActionConfirmed && bearishStructureConfirmed ? 12 : -15;
+    let reasoning = `${entryApproach}. ${vwapContext}. ${liquidityContext} ${priceActionContext} ${smartMoneyContext} วิเคราะห์ตามเงื่อนไขเทคนิคัลเครื่องมือดัชนีชี้วัด EMA, RSI, MACD และวอลุ่มหนาแน่นสอดคล้องกัน`;
 
     const hasApiKey = process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== "your_openai_api_key";
     if (hasApiKey && direction !== "wait") {
@@ -241,6 +281,8 @@ ${vwapLabel}: ${sessionVwap.toFixed(2)} (${sessionVwapBias})
 Anchored VWAP: ${anchoredVwap > 0 ? `${anchoredVwap.toFixed(2)} (${anchoredVwapBias})` : "unavailable"}
 Market Structure: ${indicators.marketStructure.type}
 ${liquidityContext}
+${priceActionContext}
+${smartMoneyContext}
 
 Respond ONLY with a JSON object in this exact format:
 {
