@@ -49,6 +49,7 @@ export default function LandingPage() {
 
         {/* Center: Desktop Nav */}
         <div className="hidden md:flex gap-8">
+          <Link href="/public" className="text-sm font-medium text-white/90 hover:opacity-70 transition-opacity">Public Market</Link>
           {["Features", "Pro Plans", "News", "Help"].map((item) => (
             <a key={item} href="#" className="text-sm font-medium text-white/90 hover:opacity-70 transition-opacity">
               {item}
