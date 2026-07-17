@@ -253,13 +253,6 @@ function AnalyzePageContent() {
     setTimeframe(getRecommendedTimeframe(style));
   };
 
-  // Auth Protection
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push("/auth/login");
-    }
-  }, [user, authLoading, router]);
-
   // AI analysis state
   const [analysisReport, setAnalysisReport] = useState<string | null>(null);
 
