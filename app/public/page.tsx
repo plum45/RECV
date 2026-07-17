@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
-import { Activity, BarChart3, Clock3, Gem, LockKeyhole, RefreshCw, ShieldCheck, Sparkles, TrendingDown, TrendingUp } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Activity, BarChart3, Clock3, Gem, LockKeyhole, RefreshCw, Search, ShieldCheck, Sparkles, TrendingDown, TrendingUp } from "lucide-react";
 
 type PublicQuote = {
   symbol: string;
@@ -17,9 +18,11 @@ type PublicQuote = {
 const symbols = ["XAUUSD", "NVDA", "AAPL", "TSLA", "BTC-USD"];
 
 export default function PublicMarketPage() {
+  const router = useRouter();
   const [quotes, setQuotes] = useState<PublicQuote[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [symbolQuery, setSymbolQuery] = useState("");
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -45,6 +48,13 @@ export default function PublicMarketPage() {
 
   const gold = quotes.find((quote) => quote.symbol === "XAUUSD");
 
+  const openSymbol = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const symbol = symbolQuery.toUpperCase().trim();
+    if (!/^[A-Z0-9.^=_-]{1,20}$/.test(symbol)) return;
+    router.push(`/public/analyze?symbol=${encodeURIComponent(symbol)}`);
+  };
+
   return (
     <main className="min-h-screen bg-[#070b13] text-slate-100">
       <header className="sticky top-0 z-20 border-b border-slate-800/80 bg-[#070b13]/90 backdrop-blur-xl">
@@ -64,6 +74,11 @@ export default function PublicMarketPage() {
             <p className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-cyan-300"><Sparkles size={14} /> Public market view</p>
             <h1 className="text-3xl font-black tracking-tight text-white sm:text-5xl">ติดตามตลาดได้ทันที<br /><span className="text-slate-400">โดยไม่ต้องเข้าสู่ระบบ</span></h1>
             <p className="mt-5 max-w-2xl text-sm leading-7 text-slate-400 sm:text-base">ดูราคาตลาดและภาพรวมเบื้องต้นแบบอ่านอย่างเดียว ส่วนวิเคราะห์ AI, แผนเทรด, Watchlist ส่วนตัว และการแจ้งเตือน จะเปิดให้ใช้หลังเข้าสู่ระบบ</p>
+            <form onSubmit={openSymbol} className="relative mt-7 max-w-md">
+              <Search size={17} className="pointer-events-none absolute left-4 top-3.5 text-slate-500" />
+              <input value={symbolQuery} onChange={(event) => setSymbolQuery(event.target.value)} placeholder="Enter a ticker, e.g. ASML or QQQ" className="w-full rounded-xl border border-slate-700 bg-slate-950/90 py-3 pl-11 pr-28 text-sm font-semibold text-white outline-none placeholder:text-slate-500 focus:border-cyan-300" aria-label="Open a symbol chart" />
+              <button type="submit" className="absolute right-1.5 top-1.5 rounded-lg bg-cyan-300 px-3.5 py-2 text-xs font-black text-slate-950 hover:bg-cyan-200">View chart</button>
+            </form>
           </div>
         </div>
       </section>
@@ -75,7 +90,7 @@ export default function PublicMarketPage() {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {symbols.map((symbol) => <QuoteCard key={symbol} symbol={symbol} quote={quotes.find((item) => item.symbol === symbol)} loading={loading} />)}
+          {symbols.map((symbol) => <PublicQuoteLink key={symbol} symbol={symbol} quote={quotes.find((item) => item.symbol === symbol)} loading={loading} />)}
         </div>
 
         <div className="mt-8 grid gap-5 lg:grid-cols-[1.15fr_.85fr]">
@@ -90,6 +105,10 @@ export default function PublicMarketPage() {
       <footer className="border-t border-slate-800 px-5 py-6 text-center text-xs text-slate-600">ข้อมูลราคาใช้เพื่อการศึกษา ไม่ใช่คำแนะนำการลงทุน</footer>
     </main>
   );
+}
+
+function PublicQuoteLink({ symbol, quote, loading }: { symbol: string; quote?: PublicQuote; loading: boolean }) {
+  return <Link href={`/public/analyze?symbol=${encodeURIComponent(symbol)}`} className="group block rounded-2xl transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-cyan-950/30" aria-label={`View ${symbol} chart`}><QuoteCard symbol={symbol} quote={quote} loading={loading} /><span className="-mt-8 mb-3 block px-4 text-[10px] font-bold uppercase tracking-wider text-cyan-300 opacity-0 transition group-hover:opacity-100">View chart →</span></Link>;
 }
 
 function QuoteCard({ symbol, quote, loading }: { symbol: string; quote?: PublicQuote; loading: boolean }) {
