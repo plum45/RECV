@@ -19,9 +19,14 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!authLoading && !user) {
-      router.replace("/auth/login");
+      if (pathname === "/dashboard/analyze") {
+        const query = searchParams.toString();
+        router.replace(`/public/analyze${query ? `?${query}` : ""}`);
+      } else {
+        router.replace("/auth/login");
+      }
     }
-  }, [authLoading, user, router]);
+  }, [authLoading, user, router, pathname, searchParams]);
 
   const toggleTheme = () => {
     const nextTheme = theme === "dark" ? "light" : "dark";
